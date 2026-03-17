@@ -88,7 +88,7 @@ export function AppSidebar() {
         </SidebarGroup>
 
         {/* CLI Commands */}
-        <SidebarGroup defaultOpen={isCliActive}>
+        <SidebarGroup>
           <SidebarGroupLabel>CLI Commands</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>

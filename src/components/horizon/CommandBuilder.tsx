@@ -1,12 +1,6 @@
-import type { HorizonCommand } from "@/pages/Index";
+import type { HorizonCommand } from "@/types/horizon";
 import { FlagToggle } from "./FlagToggle";
 import { FlagInput } from "./FlagInput";
-
-interface CommandBuilderProps {
-  command: HorizonCommand;
-  flags: Record<string, string | boolean>;
-  onFlagChange: (key: string, value: string | boolean) => void;
-}
 
 interface FlagDef {
   key: string;
@@ -49,7 +43,7 @@ const serveFlags: FlagGroup[] = [
       { key: "bind", label: "--bind", description: "Host to listen on for incoming requests", type: "text", default: "localhost", placeholder: "0.0.0.0" },
       { key: "port", label: "--port", description: "Port for the Horizon server", type: "text", default: "8181", placeholder: "8181" },
       { key: "connect", label: "--connect", description: "RethinkDB host:port or URI", type: "text", default: "localhost:28015", placeholder: "localhost:28015" },
-      { key: "access-control-allow-origin", label: "--access-control-allow-origin", description: "Set CORS origin header", type: "text", placeholder: '"*"' },
+      { key: "access-control-allow-origin", label: "--access-control-allow-origin", description: "Set CORS origin header", type: "text", placeholder: '"*"'},
     ],
   },
   {
@@ -117,34 +111,39 @@ const commandData: Record<HorizonCommand, { title: string; description: string; 
   },
 };
 
+interface CommandBuilderProps {
+  command: HorizonCommand;
+  flags: Record<string, string | boolean>;
+  onFlagChange: (key: string, value: string | boolean) => void;
+}
+
 export function CommandBuilder({ command, flags, onFlagChange }: CommandBuilderProps) {
   const data = commandData[command];
 
   return (
-    <div className="max-w-2xl">
+    <div>
       {/* Command Header */}
       <div className="mb-6">
-        <h1 className="font-mono text-lg font-semibold text-foreground">{data.title}</h1>
+        <h2 className="font-mono text-lg font-semibold text-foreground">{data.title}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{data.description}</p>
       </div>
 
       {data.groups.length === 0 && (
-        <div className="rounded-md border bg-card p-6">
+        <div className="rounded-xl border bg-card p-6">
           <p className="font-mono text-sm text-muted-foreground">
-            This command has no configurable options. Click <strong className="text-foreground">Execute</strong> to run.
+            No configurable options. Click <strong className="text-foreground">Execute</strong> to run.
           </p>
         </div>
       )}
 
-      {/* Flag Groups */}
       {data.groups.map((group) => (
-        <div key={group.title} className="mb-5 rounded-md border bg-card">
-          <div className="border-b px-4 py-2.5">
-            <h2 className="font-mono text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        <div key={group.title} className="mb-4 rounded-xl border bg-card">
+          <div className="border-b px-5 py-3">
+            <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
               {group.title}
-            </h2>
+            </h3>
           </div>
-          <div className="divide-y">
+          <div className="divide-y divide-border">
             {group.flags.map((flag) =>
               flag.type === "toggle" ? (
                 <FlagToggle

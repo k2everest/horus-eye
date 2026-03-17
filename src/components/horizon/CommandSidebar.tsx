@@ -5,7 +5,9 @@ import {
   Info,
   Database,
   Terminal,
+  Activity,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import type { HorizonCommand } from "@/pages/Index";
 
 const commands: {
@@ -78,9 +80,16 @@ export function CommandSidebar({ activeCommand, onSelectCommand }: CommandSideba
         ))}
       </nav>
 
-      {/* Footer */}
+      {/* Monitor Link */}
       <div className="border-t p-3">
-        <p className="font-mono text-[10px] text-muted-foreground">
+        <Link
+          to="/monitor"
+          className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+        >
+          <Activity className="h-4 w-4" />
+          <span className="font-mono text-xs">Monitor</span>
+        </Link>
+        <p className="mt-2 font-mono text-[10px] text-muted-foreground">
           hz v2.0.0 • RethinkDB
         </p>
       </div>

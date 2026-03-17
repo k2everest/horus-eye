@@ -8,7 +8,7 @@ import {
   Activity,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import type { HorizonCommand } from "@/pages/Index";
+import type { HorizonCommand } from "@/types/horizon";
 
 const commands: {
   category: string;

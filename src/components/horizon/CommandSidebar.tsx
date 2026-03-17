@@ -5,7 +5,9 @@ import {
   Info,
   Database,
   Terminal,
+  Activity,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import type { HorizonCommand } from "@/pages/Index";
 
 const commands: {

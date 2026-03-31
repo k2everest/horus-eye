@@ -32,6 +32,7 @@ const mainNav = [
   { title: "Overview", url: "/", icon: LayoutDashboard },
   { title: "Monitor", url: "/monitor", icon: Activity },
   { title: "Terminal", url: "/terminal", icon: Terminal },
+  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 const cliCommands = [

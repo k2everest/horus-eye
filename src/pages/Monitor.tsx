@@ -49,10 +49,20 @@ const Monitor = () => {
         <MetricsChart data={metricsHistory} />
       </div>
 
-      {/* Tables */}
+      {/* Tables & Alerts */}
       <div className="grid gap-6 lg:grid-cols-5">
         <div className="lg:col-span-3">
-          <ProcessTable processes={processes} />
+          <div className="space-y-6">
+            <ProcessTable processes={processes} />
+            <AlertPanel
+              alerts={alerts}
+              activeCount={activeAlerts.length}
+              soundEnabled={soundEnabled}
+              onToggleSound={() => setSoundEnabled((s) => !s)}
+              onDismiss={dismissAlert}
+              onDismissAll={dismissAll}
+            />
+          </div>
         </div>
         <div className="lg:col-span-2">
           <TransactionFeed transactions={transactions} />

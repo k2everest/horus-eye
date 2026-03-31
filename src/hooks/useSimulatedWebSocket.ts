@@ -93,6 +93,7 @@ export function useSimulatedWebSocket() {
     latency: 12,
     uptime: 0,
   });
+  const [metricsHistory, setMetricsHistory] = useState<{ time: string; cpu: number; throughput: number }[]>([]);
   const intervalRef = useRef<number>();
 
   const connect = useCallback(() => {

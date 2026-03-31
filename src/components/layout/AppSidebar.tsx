@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   Info,
   Eye,
+  Settings,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -31,6 +32,7 @@ const mainNav = [
   { title: "Overview", url: "/", icon: LayoutDashboard },
   { title: "Monitor", url: "/monitor", icon: Activity },
   { title: "Terminal", url: "/terminal", icon: Terminal },
+  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 const cliCommands = [

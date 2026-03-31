@@ -11,6 +11,7 @@ import CommandPage from "@/pages/CommandPage";
 import Monitor from "@/pages/Monitor";
 import TerminalPage from "@/pages/TerminalPage";
 import NotFound from "@/pages/NotFound";
+import SettingsPage from "@/pages/SettingsPage";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +29,7 @@ const App = () => (
               <Route path="/cli/:command" element={<CommandPage />} />
               <Route path="/monitor" element={<Monitor />} />
               <Route path="/terminal" element={<TerminalPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

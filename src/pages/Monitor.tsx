@@ -1,12 +1,17 @@
+import { useState } from "react";
 import { useSimulatedWebSocket } from "@/hooks/useSimulatedWebSocket";
+import { useRiskAlerts } from "@/hooks/useRiskAlerts";
 import { MetricCard } from "@/components/monitor/MetricCard";
 import { MetricsChart } from "@/components/monitor/MetricsChart";
 import { ProcessTable } from "@/components/monitor/ProcessTable";
 import { TransactionFeed } from "@/components/monitor/TransactionFeed";
+import { AlertPanel } from "@/components/monitor/AlertPanel";
 import { Wifi, WifiOff } from "lucide-react";
 
 const Monitor = () => {
   const { connected, processes, transactions, metrics, metricsHistory } = useSimulatedWebSocket();
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const { alerts, activeAlerts, dismissAlert, dismissAll } = useRiskAlerts(transactions, soundEnabled);
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -44,10 +49,20 @@ const Monitor = () => {
         <MetricsChart data={metricsHistory} />
       </div>
 
-      {/* Tables */}
+      {/* Tables & Alerts */}
       <div className="grid gap-6 lg:grid-cols-5">
         <div className="lg:col-span-3">
-          <ProcessTable processes={processes} />
+          <div className="space-y-6">
+            <ProcessTable processes={processes} />
+            <AlertPanel
+              alerts={alerts}
+              activeCount={activeAlerts.length}
+              soundEnabled={soundEnabled}
+              onToggleSound={() => setSoundEnabled((s) => !s)}
+              onDismiss={dismissAlert}
+              onDismissAll={dismissAll}
+            />
+          </div>
         </div>
         <div className="lg:col-span-2">
           <TransactionFeed transactions={transactions} />

@@ -156,5 +156,5 @@ export function useSimulatedWebSocket() {
     return () => clearInterval(intervalRef.current);
   }, [connected]);
 
-  return { connected, processes, transactions, metrics, connect, disconnect };
+  return { connected, processes, transactions, metrics, metricsHistory, connect, disconnect };
 }

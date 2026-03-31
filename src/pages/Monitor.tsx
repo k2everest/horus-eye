@@ -39,6 +39,11 @@ const Monitor = () => {
         <MetricCard label="Latency" value={metrics.latency.toFixed(1)} unit="ms" />
       </div>
 
+      {/* Charts */}
+      <div className="mb-6">
+        <MetricsChart data={metricsHistory} />
+      </div>
+
       {/* Tables */}
       <div className="grid gap-6 lg:grid-cols-5">
         <div className="lg:col-span-3">

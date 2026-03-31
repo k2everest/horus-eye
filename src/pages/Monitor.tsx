@@ -1,11 +1,12 @@
 import { useSimulatedWebSocket } from "@/hooks/useSimulatedWebSocket";
 import { MetricCard } from "@/components/monitor/MetricCard";
+import { MetricsChart } from "@/components/monitor/MetricsChart";
 import { ProcessTable } from "@/components/monitor/ProcessTable";
 import { TransactionFeed } from "@/components/monitor/TransactionFeed";
 import { Wifi, WifiOff } from "lucide-react";
 
 const Monitor = () => {
-  const { connected, processes, transactions, metrics } = useSimulatedWebSocket();
+  const { connected, processes, transactions, metrics, metricsHistory } = useSimulatedWebSocket();
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -36,6 +37,11 @@ const Monitor = () => {
         <MetricCard label="Conns" value={metrics.activeConnections} />
         <MetricCard label="Throughput" value={Math.round(metrics.throughput)} unit="tx/s" accent />
         <MetricCard label="Latency" value={metrics.latency.toFixed(1)} unit="ms" />
+      </div>
+
+      {/* Charts */}
+      <div className="mb-6">
+        <MetricsChart data={metricsHistory} />
       </div>
 
       {/* Tables */}

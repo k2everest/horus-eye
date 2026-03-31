@@ -93,6 +93,7 @@ export function useSimulatedWebSocket() {
     latency: 12,
     uptime: 0,
   });
+  const [metricsHistory, setMetricsHistory] = useState<{ time: string; cpu: number; throughput: number }[]>([]);
   const intervalRef = useRef<number>();
 
   const connect = useCallback(() => {
@@ -116,16 +117,23 @@ export function useSimulatedWebSocket() {
     if (!connected) return;
     intervalRef.current = window.setInterval(() => {
       // Update metrics with slight variations
-      setMetrics((prev) => ({
-        cpuUsage: Math.max(5, Math.min(95, prev.cpuUsage + (Math.random() - 0.5) * 8)),
-        memoryUsage: Math.max(20, Math.min(90, prev.memoryUsage + (Math.random() - 0.5) * 4)),
-        networkIn: Math.max(200, prev.networkIn + (Math.random() - 0.5) * 300),
-        networkOut: Math.max(100, prev.networkOut + (Math.random() - 0.5) * 200),
-        activeConnections: Math.max(10, Math.round(prev.activeConnections + (Math.random() - 0.5) * 6)),
-        throughput: Math.max(500, prev.throughput + (Math.random() - 0.5) * 200),
-        latency: Math.max(1, prev.latency + (Math.random() - 0.5) * 4),
-        uptime: prev.uptime + 2,
-      }));
+      setMetrics((prev) => {
+        const next = {
+          cpuUsage: Math.max(5, Math.min(95, prev.cpuUsage + (Math.random() - 0.5) * 8)),
+          memoryUsage: Math.max(20, Math.min(90, prev.memoryUsage + (Math.random() - 0.5) * 4)),
+          networkIn: Math.max(200, prev.networkIn + (Math.random() - 0.5) * 300),
+          networkOut: Math.max(100, prev.networkOut + (Math.random() - 0.5) * 200),
+          activeConnections: Math.max(10, Math.round(prev.activeConnections + (Math.random() - 0.5) * 6)),
+          throughput: Math.max(500, prev.throughput + (Math.random() - 0.5) * 200),
+          latency: Math.max(1, prev.latency + (Math.random() - 0.5) * 4),
+          uptime: prev.uptime + 2,
+        };
+        setMetricsHistory((h) => [
+          ...h.slice(-29),
+          { time: new Date().toLocaleTimeString([], { minute: "2-digit", second: "2-digit" }), cpu: Math.round(next.cpuUsage), throughput: Math.round(next.throughput) },
+        ]);
+        return next;
+      });
 
       // Occasionally add/update processes
       if (Math.random() > 0.6) {
@@ -148,5 +156,5 @@ export function useSimulatedWebSocket() {
     return () => clearInterval(intervalRef.current);
   }, [connected]);
 
-  return { connected, processes, transactions, metrics, connect, disconnect };
+  return { connected, processes, transactions, metrics, metricsHistory, connect, disconnect };
 }

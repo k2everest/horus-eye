@@ -6,6 +6,8 @@ import {
   Database,
   Terminal,
   Activity,
+  RefreshCw,
+  Key,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { HorizonCommand } from "@/types/horizon";
@@ -25,12 +27,14 @@ const commands: {
     items: [
       { id: "init", label: "init", icon: FolderPlus },
       { id: "schema", label: "schema", icon: Database },
+      { id: "migrate", label: "migrate", icon: RefreshCw },
     ],
   },
   {
     category: "Utilities",
     items: [
-      { id: "make-cert", label: "make-cert", icon: ShieldCheck },
+      { id: "create-cert", label: "create-cert", icon: ShieldCheck },
+      { id: "make-token", label: "make-token", icon: Key },
       { id: "version", label: "version", icon: Info },
     ],
   },
@@ -44,7 +48,6 @@ interface CommandSidebarProps {
 export function CommandSidebar({ activeCommand, onSelectCommand }: CommandSidebarProps) {
   return (
     <aside className="flex w-56 flex-col border-r bg-card">
-      {/* Logo */}
       <div className="flex h-12 items-center gap-2 border-b px-4">
         <Terminal className="h-5 w-5 text-primary" />
         <span className="text-sm font-semibold tracking-tight">
@@ -52,7 +55,6 @@ export function CommandSidebar({ activeCommand, onSelectCommand }: CommandSideba
         </span>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-3">
         {commands.map((group) => (
           <div key={group.category} className="mb-4">
@@ -80,7 +82,6 @@ export function CommandSidebar({ activeCommand, onSelectCommand }: CommandSideba
         ))}
       </nav>
 
-      {/* Monitor Link */}
       <div className="border-t p-3">
         <Link
           to="/monitor"

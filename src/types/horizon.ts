@@ -1,4 +1,4 @@
-export type HorizonCommand = "serve" | "init" | "make-cert" | "version" | "schema";
+export type HorizonCommand = "serve" | "init" | "create-cert" | "version" | "schema" | "migrate" | "make-token";
 
 export interface CommandConfig {
   command: HorizonCommand;

@@ -9,6 +9,8 @@ import {
   Info,
   Eye,
   Settings,
+  RefreshCw,
+  Key,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -39,16 +41,15 @@ const cliCommands = [
   { title: "serve", url: "/cli/serve", icon: Server },
   { title: "init", url: "/cli/init", icon: FolderPlus },
   { title: "schema", url: "/cli/schema", icon: Database },
-  { title: "make-cert", url: "/cli/make-cert", icon: ShieldCheck },
+  { title: "migrate", url: "/cli/migrate", icon: RefreshCw },
+  { title: "create-cert", url: "/cli/create-cert", icon: ShieldCheck },
+  { title: "make-token", url: "/cli/make-token", icon: Key },
   { title: "version", url: "/cli/version", icon: Info },
 ];
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
-  const location = useLocation();
-
-  const isCliActive = location.pathname.startsWith("/cli");
 
   return (
     <Sidebar collapsible="icon">
@@ -65,7 +66,6 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        {/* Main Navigation */}
         <SidebarGroup>
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -89,7 +89,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* CLI Commands */}
         <SidebarGroup>
           <SidebarGroupLabel>CLI Commands</SidebarGroupLabel>
           <SidebarGroupContent>

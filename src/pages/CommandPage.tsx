@@ -5,7 +5,7 @@ import type { HorizonCommand } from "@/types/horizon";
 import { ArrowLeft, Copy, Play } from "lucide-react";
 import { toast } from "sonner";
 
-const validCommands = ["serve", "init", "make-cert", "version", "schema"];
+const validCommands = ["serve", "init", "create-cert", "version", "schema", "migrate", "make-token"];
 
 const CommandPage = () => {
   const { command } = useParams<{ command: string }>();
@@ -36,8 +36,7 @@ const CommandPage = () => {
   };
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
-      {/* Breadcrumb */}
+    <div className="p-6 md:p-8 max-w-3xl mx-auto">
       <div className="mb-6 flex items-center gap-2 text-sm">
         <Link to="/cli" className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5">
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -47,7 +46,6 @@ const CommandPage = () => {
         <span className="font-mono text-foreground">{activeCommand}</span>
       </div>
 
-      {/* Live command preview */}
       <div className="mb-6 flex items-center justify-between rounded-xl border bg-card px-5 py-3">
         <code className="font-mono text-sm text-foreground truncate flex-1 mr-4">
           {buildCommandString()}
@@ -69,7 +67,6 @@ const CommandPage = () => {
         </div>
       </div>
 
-      {/* Command Builder */}
       <CommandBuilder
         command={activeCommand}
         flags={flags}

@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useSimulatedWebSocket } from "@/hooks/useSimulatedWebSocket";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,11 +11,42 @@ import { cn } from "@/lib/utils";
 import { Server, Wifi, WifiOff, ArrowUpRight, ArrowDownLeft, CheckCircle2, AlertTriangle, XCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
 
+interface NodeInfo {
+  version?: string;
+  height?: number;
+  target_height?: number;
+  status?: string;
+  synchronized?: boolean;
+  nettype?: string;
+  outgoing_connections_count?: number;
+  incoming_connections_count?: number;
+}
+
+async function callMoneroRpc(config: NodeConfig, method: string, params: Record<string, unknown> = {}) {
+  const { data, error } = await supabase.functions.invoke("monero-rpc", {
+    body: {
+      host: config.host,
+      port: config.port,
+      username: config.username || undefined,
+      password: config.password || undefined,
+      https: config.https,
+      method,
+      params,
+    },
+  });
+  if (error) throw new Error(error.message);
+  if (data?.status && data.status >= 400) {
+    throw new Error(data?.data?.error?.message || `RPC error ${data.status}`);
+  }
+  return data?.data?.result ?? data?.data;
+}
+
 interface NodeConfig {
   host: string;
   port: string;
   username: string;
   password: string;
+  https: boolean;
 }
 
 const defaultConfig: NodeConfig = {
@@ -22,6 +54,7 @@ const defaultConfig: NodeConfig = {
   port: "18081",
   username: "",
   password: "",
+  https: false,
 };
 
 function loadConfig(): NodeConfig {
@@ -47,6 +80,7 @@ function formatCurrency(amount: number, currency: string) {
 const SettingsPage = () => {
   const [config, setConfig] = useState<NodeConfig>(loadConfig);
   const [nodeStatus, setNodeStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
+  const [nodeInfo, setNodeInfo] = useState<NodeInfo | null>(null);
   const { transactions, metrics } = useSimulatedWebSocket();
 
   const handleSave = () => {
@@ -54,20 +88,29 @@ const SettingsPage = () => {
     toast.success("Node configuration saved.");
   };
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
     if (!config.host || !config.port) {
       toast.error("Host and port are required.");
       return;
     }
     setNodeStatus("connecting");
-    setTimeout(() => {
+    try {
+      const info = await callMoneroRpc(config, "get_info");
+      if (!info || typeof info !== "object") throw new Error("Empty response from daemon");
+      setNodeInfo(info as NodeInfo);
       setNodeStatus("connected");
       toast.success(`Connected to ${config.host}:${config.port}`);
-    }, 1500);
+    } catch (err) {
+      setNodeStatus("disconnected");
+      setNodeInfo(null);
+      const msg = err instanceof Error ? err.message : "Connection failed";
+      toast.error(`Connection failed: ${msg}`);
+    }
   };
 
   const handleDisconnect = () => {
     setNodeStatus("disconnected");
+    setNodeInfo(null);
     toast("Disconnected from node.");
   };
 
@@ -253,6 +296,16 @@ const SettingsPage = () => {
                 </div>
               </div>
 
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={config.https}
+                  onChange={(e) => setConfig((c) => ({ ...c, https: e.target.checked }))}
+                  className="h-3.5 w-3.5 rounded border-border accent-primary"
+                />
+                Use HTTPS (for remote nodes with TLS)
+              </label>
+
               <div className="flex items-center gap-2 pt-2">
                 <Button size="sm" variant="outline" onClick={handleSave}>
                   Save
@@ -268,25 +321,49 @@ const SettingsPage = () => {
                 )}
               </div>
 
-              {nodeStatus === "connected" && (
-                <div className="mt-4 rounded-lg border bg-secondary/30 p-4 space-y-2">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Node Info</p>
+              {nodeStatus === "connected" && nodeInfo && (
+                <div className="mt-4 rounded-lg border bg-secondary/30 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Daemon Info</p>
+                    {nodeInfo.synchronized ? (
+                      <Badge variant="outline" className="h-5 text-[10px] border-accent/40 text-accent">
+                        Synchronized
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="h-5 text-[10px] border-[hsl(var(--warning))]/40 text-[hsl(var(--warning))]">
+                        Syncing
+                      </Badge>
+                    )}
+                  </div>
                   <div className="grid grid-cols-2 gap-3 text-xs">
                     <div>
                       <span className="text-muted-foreground">Endpoint</span>
                       <p className="font-mono text-foreground">{config.host}:{config.port}</p>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Throughput</span>
-                      <p className="font-mono text-foreground">{Math.round(metrics.throughput)} tx/s</p>
+                      <span className="text-muted-foreground">Network</span>
+                      <p className="font-mono text-foreground">{nodeInfo.nettype ?? "—"}</p>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Latency</span>
-                      <p className="font-mono text-foreground">{metrics.latency.toFixed(1)} ms</p>
+                      <span className="text-muted-foreground">Block height</span>
+                      <p className="font-mono text-foreground tabular-nums">
+                        {nodeInfo.height?.toLocaleString() ?? "—"}
+                        {nodeInfo.target_height && nodeInfo.target_height > (nodeInfo.height ?? 0) && (
+                          <span className="text-muted-foreground"> / {nodeInfo.target_height.toLocaleString()}</span>
+                        )}
+                      </p>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Connections</span>
-                      <p className="font-mono text-foreground">{metrics.activeConnections}</p>
+                      <span className="text-muted-foreground">Version</span>
+                      <p className="font-mono text-foreground">{nodeInfo.version ?? "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Out connections</span>
+                      <p className="font-mono text-foreground tabular-nums">{nodeInfo.outgoing_connections_count ?? 0}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">In connections</span>
+                      <p className="font-mono text-foreground tabular-nums">{nodeInfo.incoming_connections_count ?? 0}</p>
                     </div>
                   </div>
                 </div>

@@ -46,6 +46,7 @@ interface NodeConfig {
   port: string;
   username: string;
   password: string;
+  https: boolean;
 }
 
 const defaultConfig: NodeConfig = {
@@ -53,7 +54,17 @@ const defaultConfig: NodeConfig = {
   port: "18081",
   username: "",
   password: "",
+  https: false,
 };
+
+function loadConfig(): NodeConfig {
+  try {
+    const saved = localStorage.getItem("monero-node-config");
+    return saved ? { ...defaultConfig, ...JSON.parse(saved) } : defaultConfig;
+  } catch {
+    return defaultConfig;
+  }
+}
 
 function loadConfig(): NodeConfig {
   try {

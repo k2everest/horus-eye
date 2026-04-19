@@ -66,15 +66,6 @@ function loadConfig(): NodeConfig {
   }
 }
 
-function loadConfig(): NodeConfig {
-  try {
-    const saved = localStorage.getItem("monero-node-config");
-    return saved ? { ...defaultConfig, ...JSON.parse(saved) } : defaultConfig;
-  } catch {
-    return defaultConfig;
-  }
-}
-
 const statusIcon: Record<string, React.ReactNode> = {
   verified: <CheckCircle2 className="h-3.5 w-3.5 text-accent" />,
   pending: <Clock className="h-3.5 w-3.5 text-[hsl(var(--warning))]" />,

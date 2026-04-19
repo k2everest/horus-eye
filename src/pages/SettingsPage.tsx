@@ -80,6 +80,7 @@ function formatCurrency(amount: number, currency: string) {
 const SettingsPage = () => {
   const [config, setConfig] = useState<NodeConfig>(loadConfig);
   const [nodeStatus, setNodeStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
+  const [nodeInfo, setNodeInfo] = useState<NodeInfo | null>(null);
   const { transactions, metrics } = useSimulatedWebSocket();
 
   const handleSave = () => {
@@ -87,20 +88,29 @@ const SettingsPage = () => {
     toast.success("Node configuration saved.");
   };
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
     if (!config.host || !config.port) {
       toast.error("Host and port are required.");
       return;
     }
     setNodeStatus("connecting");
-    setTimeout(() => {
+    try {
+      const info = await callMoneroRpc(config, "get_info");
+      if (!info || typeof info !== "object") throw new Error("Empty response from daemon");
+      setNodeInfo(info as NodeInfo);
       setNodeStatus("connected");
       toast.success(`Connected to ${config.host}:${config.port}`);
-    }, 1500);
+    } catch (err) {
+      setNodeStatus("disconnected");
+      setNodeInfo(null);
+      const msg = err instanceof Error ? err.message : "Connection failed";
+      toast.error(`Connection failed: ${msg}`);
+    }
   };
 
   const handleDisconnect = () => {
     setNodeStatus("disconnected");
+    setNodeInfo(null);
     toast("Disconnected from node.");
   };
 

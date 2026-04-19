@@ -296,6 +296,16 @@ const SettingsPage = () => {
                 </div>
               </div>
 
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={config.https}
+                  onChange={(e) => setConfig((c) => ({ ...c, https: e.target.checked }))}
+                  className="h-3.5 w-3.5 rounded border-border accent-primary"
+                />
+                Use HTTPS (for remote nodes with TLS)
+              </label>
+
               <div className="flex items-center gap-2 pt-2">
                 <Button size="sm" variant="outline" onClick={handleSave}>
                   Save
@@ -311,25 +321,49 @@ const SettingsPage = () => {
                 )}
               </div>
 
-              {nodeStatus === "connected" && (
-                <div className="mt-4 rounded-lg border bg-secondary/30 p-4 space-y-2">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Node Info</p>
+              {nodeStatus === "connected" && nodeInfo && (
+                <div className="mt-4 rounded-lg border bg-secondary/30 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Daemon Info</p>
+                    {nodeInfo.synchronized ? (
+                      <Badge variant="outline" className="h-5 text-[10px] border-accent/40 text-accent">
+                        Synchronized
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="h-5 text-[10px] border-[hsl(var(--warning))]/40 text-[hsl(var(--warning))]">
+                        Syncing
+                      </Badge>
+                    )}
+                  </div>
                   <div className="grid grid-cols-2 gap-3 text-xs">
                     <div>
                       <span className="text-muted-foreground">Endpoint</span>
                       <p className="font-mono text-foreground">{config.host}:{config.port}</p>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Throughput</span>
-                      <p className="font-mono text-foreground">{Math.round(metrics.throughput)} tx/s</p>
+                      <span className="text-muted-foreground">Network</span>
+                      <p className="font-mono text-foreground">{nodeInfo.nettype ?? "—"}</p>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Latency</span>
-                      <p className="font-mono text-foreground">{metrics.latency.toFixed(1)} ms</p>
+                      <span className="text-muted-foreground">Block height</span>
+                      <p className="font-mono text-foreground tabular-nums">
+                        {nodeInfo.height?.toLocaleString() ?? "—"}
+                        {nodeInfo.target_height && nodeInfo.target_height > (nodeInfo.height ?? 0) && (
+                          <span className="text-muted-foreground"> / {nodeInfo.target_height.toLocaleString()}</span>
+                        )}
+                      </p>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Connections</span>
-                      <p className="font-mono text-foreground">{metrics.activeConnections}</p>
+                      <span className="text-muted-foreground">Version</span>
+                      <p className="font-mono text-foreground">{nodeInfo.version ?? "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Out connections</span>
+                      <p className="font-mono text-foreground tabular-nums">{nodeInfo.outgoing_connections_count ?? 0}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">In connections</span>
+                      <p className="font-mono text-foreground tabular-nums">{nodeInfo.incoming_connections_count ?? 0}</p>
                     </div>
                   </div>
                 </div>

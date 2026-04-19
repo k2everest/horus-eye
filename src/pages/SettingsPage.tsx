@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useSimulatedWebSocket } from "@/hooks/useSimulatedWebSocket";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +10,36 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { Server, Wifi, WifiOff, ArrowUpRight, ArrowDownLeft, CheckCircle2, AlertTriangle, XCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
+
+interface NodeInfo {
+  version?: string;
+  height?: number;
+  target_height?: number;
+  status?: string;
+  synchronized?: boolean;
+  nettype?: string;
+  outgoing_connections_count?: number;
+  incoming_connections_count?: number;
+}
+
+async function callMoneroRpc(config: NodeConfig, method: string, params: Record<string, unknown> = {}) {
+  const { data, error } = await supabase.functions.invoke("monero-rpc", {
+    body: {
+      host: config.host,
+      port: config.port,
+      username: config.username || undefined,
+      password: config.password || undefined,
+      https: config.https,
+      method,
+      params,
+    },
+  });
+  if (error) throw new Error(error.message);
+  if (data?.status && data.status >= 400) {
+    throw new Error(data?.data?.error?.message || `RPC error ${data.status}`);
+  }
+  return data?.data?.result ?? data?.data;
+}
 
 interface NodeConfig {
   host: string;

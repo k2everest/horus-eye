@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSimulatedWebSocket } from "@/hooks/useSimulatedWebSocket";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -120,6 +120,22 @@ const SettingsPage = () => {
     setNodeInfo(null);
     toast("Disconnected from node.");
   };
+
+  // Auto-refresh daemon info every 10s while connected
+  const configRef = useRef(config);
+  configRef.current = config;
+  useEffect(() => {
+    if (nodeStatus !== "connected") return;
+    const id = setInterval(async () => {
+      try {
+        const info = await callMoneroRpc(configRef.current, "get_info");
+        if (info && typeof info === "object") setNodeInfo(info as NodeInfo);
+      } catch {
+        // silent — keep last known info
+      }
+    }, 10000);
+    return () => clearInterval(id);
+  }, [nodeStatus]);
 
   // Derived stats
   const totalVolume = transactions.reduce((s, t) => s + t.amount, 0);

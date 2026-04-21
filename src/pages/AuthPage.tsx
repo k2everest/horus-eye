@@ -3,13 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Eye } from "lucide-react";
+import { Eye, Hexagon } from "lucide-react";
 
 const schema = z.object({
   email: z.string().trim().email("Email inválido").max(255),
@@ -57,40 +56,76 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center space-y-2">
-          <div className="flex items-center justify-center gap-2">
-            <Eye className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">Horus Eye</CardTitle>
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Animated gradient orbs */}
+      <div className="absolute top-1/4 -left-20 w-96 h-96 rounded-full bg-primary/20 blur-[120px] animate-pulse" />
+      <div className="absolute bottom-1/4 -right-20 w-96 h-96 rounded-full bg-accent/20 blur-[120px] animate-pulse" style={{ animationDelay: "1s" }} />
+
+      <div className="relative w-full max-w-md animate-fade-in">
+        {/* Logo / brand */}
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center h-14 w-14 rounded-lg border border-primary/40 bg-primary/5 mb-3 animate-neon-pulse">
+            <Hexagon className="h-7 w-7 text-primary" />
           </div>
-          <CardDescription className="text-xs">Acesso seguro à plataforma de monitoramento</CardDescription>
-        </CardHeader>
-        <CardContent>
+          <h1 className="font-display text-3xl tracking-wider text-gradient-neon">HORUS.EYE</h1>
+          <p className="font-mono text-[10px] text-muted-foreground tracking-[0.3em] uppercase mt-2">
+            Secure // Access // Terminal
+          </p>
+        </div>
+
+        <div className="neon-card rounded-lg p-6 corner-brackets">
           <Tabs defaultValue="signin">
-            <TabsList className="grid grid-cols-2 w-full">
-              <TabsTrigger value="signin">Entrar</TabsTrigger>
-              <TabsTrigger value="signup">Cadastrar</TabsTrigger>
+            <TabsList className="grid grid-cols-2 w-full bg-secondary/40 border border-primary/20">
+              <TabsTrigger value="signin" className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary font-mono text-xs">
+                &gt; signin
+              </TabsTrigger>
+              <TabsTrigger value="signup" className="data-[state=active]:bg-accent/10 data-[state=active]:text-accent font-mono text-xs">
+                &gt; signup
+              </TabsTrigger>
             </TabsList>
 
             {(["signin", "signup"] as const).map((mode) => (
-              <TabsContent key={mode} value={mode} className="space-y-3 pt-4">
+              <TabsContent key={mode} value={mode} className="space-y-4 pt-5">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Email</Label>
-                  <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@exemplo.com" />
+                  <Label className="font-mono text-[10px] text-primary/80 tracking-widest uppercase">
+                    [ Email ]
+                  </Label>
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="user@horus.net"
+                    className="font-mono text-xs bg-background/60 border-primary/30 focus-visible:ring-primary"
+                  />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Senha</Label>
-                  <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+                  <Label className="font-mono text-[10px] text-primary/80 tracking-widest uppercase">
+                    [ Passphrase ]
+                  </Label>
+                  <Input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="font-mono text-xs bg-background/60 border-primary/30 focus-visible:ring-primary"
+                  />
                 </div>
-                <Button className="w-full" disabled={busy} onClick={() => handle(mode)}>
-                  {busy ? "Aguarde…" : mode === "signin" ? "Entrar" : "Criar conta"}
+                <Button
+                  className="w-full font-display tracking-widest uppercase border border-primary/40 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground hover:shadow-[0_0_24px_hsl(var(--primary)/0.6)] transition-all"
+                  disabled={busy}
+                  onClick={() => handle(mode)}
+                >
+                  {busy ? ">>> processing..." : mode === "signin" ? ">>> authenticate" : ">>> create_account"}
                 </Button>
               </TabsContent>
             ))}
           </Tabs>
-        </CardContent>
-      </Card>
+        </div>
+
+        <p className="text-center mt-4 font-mono text-[10px] text-muted-foreground/60 tracking-wider">
+          v2.0.0 · encrypted_session · 256bit
+        </p>
+      </div>
     </div>
   );
 };

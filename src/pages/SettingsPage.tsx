@@ -57,6 +57,13 @@ const defaultConfig: NodeConfig = {
   https: false,
 };
 
+const NODE_PRESETS: { label: string; host: string; port: string; https: boolean }[] = [
+  { label: "Cake Wallet", host: "xmr-node.cakewallet.com", port: "18081", https: false },
+  { label: "Seth For Privacy", host: "node.sethforprivacy.com", port: "18089", https: false },
+  { label: "Monero World", host: "node.moneroworld.com", port: "18089", https: false },
+  { label: "Localhost", host: "127.0.0.1", port: "18081", https: false },
+];
+
 function loadConfig(): NodeConfig {
   try {
     const saved = localStorage.getItem("monero-node-config");

@@ -11,10 +11,13 @@ import {
   Settings,
   RefreshCw,
   Key,
+  LogOut,
+  Users,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
 import horusIcon from "@/assets/horus-icon.jpg";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
 
 import {
   Sidebar,
@@ -50,6 +53,7 @@ const cliCommands = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
+  const { isAdmin, user, signOut } = useAuth();
 
   return (
     <Sidebar collapsible="icon">
@@ -85,6 +89,20 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/admin"
+                      className="flex items-center gap-2 text-muted-foreground hover:bg-muted/50 transition-colors"
+                      activeClassName="bg-primary/10 text-primary font-medium"
+                    >
+                      <Users className="h-4 w-4 shrink-0" />
+                      {!collapsed && <span>Admin</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -113,10 +131,26 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t">
-        {!collapsed && (
-          <p className="px-3 py-2 font-mono text-[10px] text-muted-foreground">
-            hz v2.0.0 • Horus Eye
-          </p>
+        {!collapsed && user && (
+          <div className="px-3 py-2 space-y-2">
+            <p className="font-mono text-[10px] text-muted-foreground truncate" title={user.email ?? ""}>
+              {user.email}
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={signOut}
+              className="w-full justify-start h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <LogOut className="h-3.5 w-3.5 mr-1.5" /> Sair
+            </Button>
+            <p className="font-mono text-[10px] text-muted-foreground">hz v2.0.0 • Horus Eye</p>
+          </div>
+        )}
+        {collapsed && user && (
+          <Button variant="ghost" size="icon" onClick={signOut} className="mx-auto h-8 w-8">
+            <LogOut className="h-4 w-4" />
+          </Button>
         )}
       </SidebarFooter>
     </Sidebar>

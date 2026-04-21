@@ -9,7 +9,13 @@ import {
   Key,
   ShieldCheck,
   Zap,
+  Boxes,
+  RefreshCw,
+  AlertCircle,
 } from "lucide-react";
+import { useMoneroBlocks } from "@/hooks/useMoneroBlocks";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const quickLinks = [
   {
@@ -40,7 +46,27 @@ const recentActions = [
   { label: "hz make-token admin", time: "3h ago", icon: Key },
 ];
 
+function shortHash(hash: string, len = 8) {
+  if (!hash) return "—";
+  return `${hash.slice(0, len)}…${hash.slice(-4)}`;
+}
+
+function formatAge(ts: number) {
+  if (!ts) return "—";
+  const diff = Math.max(0, Math.floor(Date.now() / 1000 - ts));
+  if (diff < 60) return `${diff}s`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return `${Math.floor(diff / 86400)}d`;
+}
+
+function formatXmr(atomic: number) {
+  return (atomic / 1e12).toFixed(4);
+}
+
 const Dashboard = () => {
+  const { blocks, height, loading, error, refresh } = useMoneroBlocks(8, 15000);
+
   return (
     <div className="p-6 md:p-8 max-w-4xl mx-auto">
       {/* Header */}
@@ -69,6 +95,88 @@ const Dashboard = () => {
             <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">{link.description}</p>
           </Link>
         ))}
+      </div>
+
+      {/* Monero Blocks (real data) */}
+      <div className="rounded-xl border bg-card p-5 mb-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Boxes className="h-4 w-4 text-accent" />
+            <h2 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+              Latest Monero Blocks
+            </h2>
+            {height !== null && (
+              <span className="font-mono text-[10px] text-muted-foreground">
+                tip #{height.toLocaleString()}
+              </span>
+            )}
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={refresh}
+            disabled={loading}
+            className="h-7 text-[10px] gap-1.5"
+          >
+            <RefreshCw className={cn("h-3 w-3", loading && "animate-spin")} />
+            Refresh
+          </Button>
+        </div>
+
+        {error && (
+          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 mb-3">
+            <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-xs text-destructive">{error}</p>
+              <Link to="/settings" className="text-[10px] text-muted-foreground hover:text-primary">
+                Configurar nó →
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {!error && blocks.length === 0 && loading && (
+          <p className="text-xs text-muted-foreground py-4 text-center">Carregando blocos…</p>
+        )}
+
+        {blocks.length > 0 && (
+          <div className="space-y-1">
+            {blocks.map((b) => (
+              <div
+                key={b.hash || b.height}
+                className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-secondary/50 transition-colors"
+              >
+                <div className="flex h-7 w-7 items-center justify-center rounded-md bg-secondary shrink-0">
+                  <Boxes className="h-3.5 w-3.5 text-accent" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-medium text-foreground tabular-nums">
+                      #{b.height.toLocaleString()}
+                    </span>
+                    <span className="font-mono text-[10px] text-muted-foreground truncate">
+                      {shortHash(b.hash)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 mt-0.5">
+                    <span className="text-[10px] text-muted-foreground">
+                      {b.txCount} tx{b.txCount !== 1 ? "s" : ""}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {(b.size / 1024).toFixed(1)} KB
+                    </span>
+                    <span className="text-[10px] text-accent font-mono">
+                      {formatXmr(b.reward)} XMR
+                    </span>
+                  </div>
+                </div>
+                <span className="font-mono text-[10px] text-muted-foreground shrink-0">
+                  {formatAge(b.timestamp)} ago
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">

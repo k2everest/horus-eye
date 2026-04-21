@@ -263,6 +263,32 @@ const SettingsPage = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Presets de nós públicos</Label>
+                <div className="flex flex-wrap gap-2">
+                  {NODE_PRESETS.map((preset) => {
+                    const active = config.host === preset.host && config.port === preset.port;
+                    return (
+                      <Button
+                        key={preset.label}
+                        size="sm"
+                        variant={active ? "default" : "outline"}
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          setConfig((c) => ({ ...c, host: preset.host, port: preset.port, https: preset.https }));
+                          toast.success(`Preset aplicado: ${preset.label}`);
+                        }}
+                      >
+                        {preset.label}
+                        <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">
+                          {preset.host}:{preset.port}
+                        </span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">Host / IP</Label>

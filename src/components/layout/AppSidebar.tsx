@@ -56,14 +56,17 @@ export function AppSidebar() {
   const { isAdmin, user, signOut } = useAuth();
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b">
+    <Sidebar collapsible="icon" className="border-r border-primary/20">
+      <SidebarHeader className="border-b border-primary/20">
         <div className="flex items-center gap-2.5 px-2 py-1">
-          <img src={horusIcon} alt="Horus" className="h-7 w-7 rounded-lg object-cover shrink-0" />
+          <div className="relative h-7 w-7 shrink-0 rounded-md border border-primary/40 bg-primary/10 flex items-center justify-center overflow-hidden">
+            <img src={horusIcon} alt="Horus" className="h-7 w-7 rounded object-cover" />
+            <div className="absolute inset-0 bg-primary/10 mix-blend-overlay" />
+          </div>
           {!collapsed && (
             <div className="flex items-center gap-1.5">
-              <Eye className="h-3.5 w-3.5 text-primary" />
-              <span className="text-sm font-semibold tracking-tight">Horus</span>
+              <Eye className="h-3.5 w-3.5 text-primary text-glow" />
+              <span className="font-display text-sm tracking-[0.2em] uppercase text-gradient-neon">Horus</span>
             </div>
           )}
         </div>
@@ -130,25 +133,28 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t">
+      <SidebarFooter className="border-t border-primary/20">
         {!collapsed && user && (
           <div className="px-3 py-2 space-y-2">
-            <p className="font-mono text-[10px] text-muted-foreground truncate" title={user.email ?? ""}>
-              {user.email}
-            </p>
+            <div className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
+              <p className="font-mono text-[10px] text-muted-foreground truncate" title={user.email ?? ""}>
+                {user.email}
+              </p>
+            </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={signOut}
-              className="w-full justify-start h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+              className="w-full justify-start h-7 px-2 font-mono text-[10px] text-muted-foreground hover:text-destructive hover:bg-destructive/10"
             >
-              <LogOut className="h-3.5 w-3.5 mr-1.5" /> Sair
+              <LogOut className="h-3 w-3 mr-1.5" /> &gt; logout
             </Button>
-            <p className="font-mono text-[10px] text-muted-foreground">hz v2.0.0 • Horus Eye</p>
+            <p className="font-mono text-[9px] text-muted-foreground/60 tracking-wider">hz.v2.0.0 · horus.eye</p>
           </div>
         )}
         {collapsed && user && (
-          <Button variant="ghost" size="icon" onClick={signOut} className="mx-auto h-8 w-8">
+          <Button variant="ghost" size="icon" onClick={signOut} className="mx-auto h-8 w-8 hover:text-destructive">
             <LogOut className="h-4 w-4" />
           </Button>
         )}

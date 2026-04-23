@@ -13,6 +13,8 @@ import {
   RefreshCw,
   AlertCircle,
   Cpu,
+  Radar,
+  ShieldAlert,
 } from "lucide-react";
 import { useMoneroBlocks } from "@/hooks/useMoneroBlocks";
 import { Button } from "@/components/ui/button";
@@ -102,7 +104,25 @@ const SectionHeader = ({
 );
 
 const Dashboard = () => {
-  const { blocks, height, loading, error, refresh } = useMoneroBlocks(8, 15000);
+  const { blocks, height, nodeInfo, loading, error, refresh, healingState, healingReason } = useMoneroBlocks(8, 15000);
+
+  const healingTone =
+    healingState === "recovering"
+      ? "text-destructive"
+      : healingState === "armed"
+      ? "text-[hsl(var(--warning))]"
+      : healingState === "watching"
+      ? "text-primary"
+      : "text-success";
+
+  const healingLabel =
+    healingState === "recovering"
+      ? "auto-healing"
+      : healingState === "armed"
+      ? "armed"
+      : healingState === "watching"
+      ? "watching"
+      : "stable";
 
   return (
     <div className="px-6 md:px-10 py-10 mx-auto w-full max-w-5xl space-y-10">
@@ -181,6 +201,46 @@ const Dashboard = () => {
               <p className={cn("font-display text-3xl tabular-nums", stat.color)}>{stat.value}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="neon-card rounded-lg p-6 relative overflow-hidden">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
+        <SectionHeader
+          icon={Radar}
+          title="Node // Auto-Healing"
+          right={
+            <span className={cn("font-mono text-[10px] uppercase tracking-[0.25em]", healingTone)}>
+              {healingLabel}
+            </span>
+          }
+        />
+        <div className="grid gap-4 md:grid-cols-[1.4fr_0.8fr_0.8fr]">
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md border border-primary/30 bg-primary/10">
+                <ShieldAlert className={cn("h-4 w-4", healingTone)} />
+              </div>
+              <div className="space-y-1">
+                <p className="font-display text-sm uppercase tracking-wider text-foreground">Watcher autonomy loop</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {healingReason ?? "Monitorando avanço do daemon, sincronização final e sinais de rejeição."}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-lg border border-border bg-card/40 p-4">
+            <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground">Sync status</p>
+            <p className="mt-2 font-display text-2xl text-foreground">
+              {nodeInfo?.synchronized ? "synced" : nodeInfo ? "syncing" : "offline"}
+            </p>
+          </div>
+          <div className="rounded-lg border border-border bg-card/40 p-4">
+            <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground">Current height</p>
+            <p className="mt-2 font-display text-2xl text-foreground tabular-nums">
+              {nodeInfo?.height?.toLocaleString() ?? height?.toLocaleString() ?? "—"}
+            </p>
+          </div>
         </div>
       </section>
 

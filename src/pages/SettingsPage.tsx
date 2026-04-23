@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { useSimulatedWebSocket } from "@/hooks/useSimulatedWebSocket";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,52 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { Server, Wifi, WifiOff, ArrowUpRight, ArrowDownLeft, CheckCircle2, AlertTriangle, XCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
-
-interface NodeInfo {
-  version?: string;
-  height?: number;
-  target_height?: number;
-  status?: string;
-  synchronized?: boolean;
-  nettype?: string;
-  outgoing_connections_count?: number;
-  incoming_connections_count?: number;
-}
-
-async function callMoneroRpc(config: NodeConfig, method: string, params: Record<string, unknown> = {}) {
-  const { data, error } = await supabase.functions.invoke("monero-rpc", {
-    body: {
-      host: config.host,
-      port: config.port,
-      username: config.username || undefined,
-      password: config.password || undefined,
-      https: config.https,
-      method,
-      params,
-    },
-  });
-  if (error) throw new Error(error.message);
-  if (data?.status && data.status >= 400) {
-    throw new Error(data?.data?.error?.message || `RPC error ${data.status}`);
-  }
-  return data?.data?.result ?? data?.data;
-}
-
-interface NodeConfig {
-  host: string;
-  port: string;
-  username: string;
-  password: string;
-  https: boolean;
-}
-
-const defaultConfig: NodeConfig = {
-  host: "127.0.0.1",
-  port: "18081",
-  username: "",
-  password: "",
-  https: false,
-};
+import { callMoneroRpc, defaultConfig, type NodeConfig, type NodeInfo } from "@/lib/monero-rpc";
 
 const NODE_PRESETS: { label: string; host: string; port: string; https: boolean }[] = [
   { label: "Cake Wallet", host: "xmr-node.cakewallet.com", port: "18081", https: false },
@@ -88,7 +42,11 @@ const SettingsPage = () => {
   const [config, setConfig] = useState<NodeConfig>(loadConfig);
   const [nodeStatus, setNodeStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
   const [nodeInfo, setNodeInfo] = useState<NodeInfo | null>(null);
+  const [healingState, setHealingState] = useState<"idle" | "watching" | "armed" | "recovering">("idle");
+  const [healingReason, setHealingReason] = useState<string | null>(null);
   const { transactions, metrics } = useSimulatedWebSocket();
+  const stagnantSinceRef = useRef<number | null>(null);
+  const lastHeightRef = useRef<number | null>(null);
 
   const handleSave = () => {
     localStorage.setItem("monero-node-config", JSON.stringify(config));
@@ -106,6 +64,8 @@ const SettingsPage = () => {
       if (!info || typeof info !== "object") throw new Error("Empty response from daemon");
       setNodeInfo(info as NodeInfo);
       setNodeStatus("connected");
+      setHealingState((info as NodeInfo).synchronized ? "idle" : "watching");
+      setHealingReason(null);
       toast.success(`Connected to ${config.host}:${config.port}`);
     } catch (err) {
       setNodeStatus("disconnected");
@@ -129,7 +89,33 @@ const SettingsPage = () => {
     const id = setInterval(async () => {
       try {
         const info = await callMoneroRpc(configRef.current, "get_info");
-        if (info && typeof info === "object") setNodeInfo(info as NodeInfo);
+        if (info && typeof info === "object") {
+          const nextInfo = info as NodeInfo;
+          const currentHeight = nextInfo.height ?? 0;
+          const targetHeight = nextInfo.target_height ?? currentHeight;
+          const isNearTail = targetHeight > 0 && currentHeight / targetHeight >= 0.976;
+          const isAdvancing = lastHeightRef.current === null || currentHeight > lastHeightRef.current;
+          const isRejected = typeof nextInfo.status === "string" && nextInfo.status.toUpperCase().includes("BLOCK_REJECTED");
+
+          if (isAdvancing) {
+            stagnantSinceRef.current = null;
+            setHealingState(nextInfo.synchronized ? "idle" : "watching");
+            setHealingReason(null);
+          } else if (!nextInfo.synchronized && isNearTail) {
+            stagnantSinceRef.current ??= Date.now();
+            const stalledForMs = Date.now() - stagnantSinceRef.current;
+            const shouldRecover = stalledForMs >= 300000 || isRejected;
+            setHealingState(shouldRecover ? "recovering" : "armed");
+            setHealingReason(isRejected ? "BLOCK_REJECTED detectado" : shouldRecover ? "estagnação acima de 300s em 97.6%+" : "watcher ativo para estagnação final");
+          } else if (!nextInfo.synchronized) {
+            stagnantSinceRef.current = null;
+            setHealingState("watching");
+            setHealingReason(null);
+          }
+
+          lastHeightRef.current = currentHeight;
+          setNodeInfo(nextInfo);
+        }
       } catch {
         // silent — keep last known info
       }
@@ -374,7 +360,11 @@ const SettingsPage = () => {
                 <div className="mt-4 rounded-lg border bg-secondary/30 p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Daemon Info</p>
-                    {nodeInfo.synchronized ? (
+                    {healingState === "recovering" ? (
+                      <Badge variant="outline" className="h-5 text-[10px] border-destructive/40 text-destructive animate-pulse">
+                        Auto-Healing
+                      </Badge>
+                    ) : nodeInfo.synchronized ? (
                       <Badge variant="outline" className="h-5 text-[10px] border-accent/40 text-accent">
                         Synchronized
                       </Badge>
@@ -383,6 +373,28 @@ const SettingsPage = () => {
                         Syncing
                       </Badge>
                     )}
+                  </div>
+                  <div className="rounded-md border border-primary/20 bg-primary/5 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground">Watcher</p>
+                        <p className="mt-1 text-xs text-foreground">
+                          {healingReason ?? "Monitorando avanço do bloco e status do daemon em tempo real."}
+                        </p>
+                      </div>
+                      <span className={cn(
+                        "font-mono text-[10px] uppercase tracking-[0.25em]",
+                        healingState === "recovering"
+                          ? "text-destructive"
+                          : healingState === "armed"
+                          ? "text-[hsl(var(--warning))]"
+                          : healingState === "watching"
+                          ? "text-primary"
+                          : "text-accent"
+                      )}>
+                        {healingState}
+                      </span>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3 text-xs">
                     <div>

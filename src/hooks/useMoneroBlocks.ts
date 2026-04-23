@@ -1,13 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
-
-export interface NodeConfig {
-  host: string;
-  port: string;
-  username: string;
-  password: string;
-  https: boolean;
-}
+import { useEffect, useState, useCallback, useRef } from "react";
+import { callMoneroRpc, loadNodeConfig, type NodeInfo } from "@/lib/monero-rpc";
 
 export interface MoneroBlock {
   height: number;
@@ -20,47 +12,17 @@ export interface MoneroBlock {
   miner_tx_hash: string;
 }
 
-const defaultConfig: NodeConfig = {
-  host: "127.0.0.1",
-  port: "18081",
-  username: "",
-  password: "",
-  https: false,
-};
-
-export function loadNodeConfig(): NodeConfig {
-  try {
-    const saved = localStorage.getItem("monero-node-config");
-    return saved ? { ...defaultConfig, ...JSON.parse(saved) } : defaultConfig;
-  } catch {
-    return defaultConfig;
-  }
-}
-
-async function callRpc(config: NodeConfig, method: string, params: Record<string, unknown> = {}) {
-  const { data, error } = await supabase.functions.invoke("monero-rpc", {
-    body: {
-      host: config.host,
-      port: config.port,
-      username: config.username || undefined,
-      password: config.password || undefined,
-      https: config.https,
-      method,
-      params,
-    },
-  });
-  if (error) throw new Error(error.message);
-  if (data?.status && data.status >= 400) {
-    throw new Error(data?.data?.error?.message || `RPC error ${data.status}`);
-  }
-  return data?.data?.result ?? data?.data;
-}
-
 export function useMoneroBlocks(count = 8, pollMs = 15000) {
   const [blocks, setBlocks] = useState<MoneroBlock[]>([]);
   const [height, setHeight] = useState<number | null>(null);
+  const [nodeInfo, setNodeInfo] = useState<NodeInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [healingState, setHealingState] = useState<"idle" | "watching" | "armed" | "recovering">("idle");
+  const [healingReason, setHealingReason] = useState<string | null>(null);
+  const stagnantSinceRef = useRef<number | null>(null);
+  const lastHeightRef = useRef<number | null>(null);
+  const lastRecoverAtRef = useRef<number>(0);
 
   const fetchBlocks = useCallback(async () => {
     const config = loadNodeConfig();
@@ -71,15 +33,49 @@ export function useMoneroBlocks(count = 8, pollMs = 15000) {
     setLoading(true);
     setError(null);
     try {
-      const countRes = await callRpc(config, "get_block_count");
+      const info = (await callMoneroRpc(config, "get_info")) as NodeInfo;
+      setNodeInfo(info);
+
+      const countRes = await callMoneroRpc(config, "get_block_count");
       const tipHeight: number = countRes.count - 1;
       setHeight(tipHeight);
+
+      const currentNodeHeight = info.height ?? tipHeight;
+      const targetHeight = info.target_height ?? currentNodeHeight;
+      const isNearTail = targetHeight > 0 && currentNodeHeight / targetHeight >= 0.976;
+      const isAdvancing = lastHeightRef.current === null || currentNodeHeight > lastHeightRef.current;
+      const isRejected = typeof info.status === "string" && info.status.toUpperCase().includes("BLOCK_REJECTED");
+
+      if (isAdvancing) {
+        stagnantSinceRef.current = null;
+        setHealingState(info.synchronized ? "idle" : "watching");
+        setHealingReason(null);
+      } else if (!info.synchronized && isNearTail) {
+        stagnantSinceRef.current ??= Date.now();
+        const stalledForMs = Date.now() - stagnantSinceRef.current;
+        const shouldRecover = stalledForMs >= 300000 || isRejected;
+
+        if (shouldRecover && Date.now() - lastRecoverAtRef.current > 60000) {
+          setHealingState("recovering");
+          setHealingReason(isRejected ? "BLOCK_REJECTED detectado" : "estagnação acima de 300s em 97.6%+");
+          lastRecoverAtRef.current = Date.now();
+        } else {
+          setHealingState(shouldRecover ? "recovering" : "armed");
+          setHealingReason(isRejected ? "BLOCK_REJECTED detectado" : "watcher ativo para estagnação final");
+        }
+      } else if (!info.synchronized) {
+        stagnantSinceRef.current = null;
+        setHealingState("watching");
+        setHealingReason(null);
+      }
+
+      lastHeightRef.current = currentNodeHeight;
 
       const heights = Array.from({ length: count }, (_, i) => tipHeight - i);
       const results = await Promise.all(
         heights.map(async (h) => {
           try {
-            const b = await callRpc(config, "get_block", { height: h });
+            const b = await callMoneroRpc(config, "get_block", { height: h });
             const header = b.block_header ?? {};
             return {
               height: header.height ?? h,
@@ -98,6 +94,8 @@ export function useMoneroBlocks(count = 8, pollMs = 15000) {
       );
       setBlocks(results.filter((b): b is MoneroBlock => b !== null));
     } catch (err) {
+      setHealingState("idle");
+      setHealingReason(null);
       setError(err instanceof Error ? err.message : "Falha ao buscar blocos");
     } finally {
       setLoading(false);
@@ -112,5 +110,5 @@ export function useMoneroBlocks(count = 8, pollMs = 15000) {
     }
   }, [fetchBlocks, pollMs]);
 
-  return { blocks, height, loading, error, refresh: fetchBlocks };
+  return { blocks, height, nodeInfo, loading, error, refresh: fetchBlocks, healingState, healingReason };
 }

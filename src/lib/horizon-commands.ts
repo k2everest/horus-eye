@@ -1,3 +1,4 @@
+import type { ElementType } from "react";
 import {
   Activity,
   BadgeDollarSign,
@@ -14,7 +15,7 @@ export interface HorizonCommandDefinition {
   action: string;
   label: string;
   description: string;
-  icon: React.ElementType;
+  icon: ElementType;
   category: string;
 }
 

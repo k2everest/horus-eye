@@ -1,35 +1,30 @@
 import { useState, useRef, useEffect } from "react";
-import { TerminalOutput } from "@/components/horizon/TerminalOutput";
-import { toast } from "sonner";
 
 const welcomeLines = [
-  "Horus Eye — Horizon CLI Interface",
-  "Type a command or use the CLI Builder for visual configuration.",
+  "Horus Eye — Unified Horizon CLI",
+  "Type a command from the unified spec or use the visual builder.",
   "",
-  "$ hz --version",
-  "hz v2.0.0",
+  "$ hz data health --source terranode",
+  "[OK] source terranode healthy | 2026-04-23T00:00:00Z",
   "",
 ];
 
 const fakeResponses: Record<string, string[]> = {
-  "hz version": ["hz v2.0.0"],
-  "hz --version": ["hz v2.0.0"],
-  "hz init": ["✓ Created .hz directory", "✓ Generated .hz/config.toml", "✓ Project initialized in current directory."],
-  "hz create-cert": ["✓ Created horizon-cert.pem", "✓ Created horizon-key.pem", "Self-signed certificate generated for development."],
-  "hz migrate": ["Checking database format...", "✓ Database already in 2.x format. No migration needed."],
-  "hz schema save": ["✓ Schema saved to .hz/schema.toml"],
-  "hz schema apply": ["Applying schema from .hz/schema.toml...", "✓ Schema applied successfully."],
+  'hz auth rebind --id "HORUS" --email "coebsm@gmail.com"': ["[OK] identity HORUS rebound to coebsm@gmail.com | 2026-04-23T00:00:00Z"],
+  "hz auth session-kill --all": ["[OK] all active sessions terminated | 2026-04-23T00:00:00Z"],
+  "hz data health --source terranode": ["[OK] source terranode healthy | 2026-04-23T00:00:00Z"],
+  "hz node sync --priority": ["[OK] priority sync queued | 2026-04-23T00:00:00Z"],
+  "hz node sync --rehash": ["[OK] node rehash started for last blocks | 2026-04-23T00:00:00Z"],
+  'hz finance audit --user Horus --deep-scan': ["[OK] audit complete | user Horus | r$ 100 | 2026-04-23T00:00:00Z"],
   help: [
     "Available commands:",
-    "  hz serve       Start a Horizon server",
-    "  hz init        Initialize a new project",
-    "  hz create-cert Create a TLS certificate pair",
-    "  hz schema      Save or apply database schema",
-    "  hz migrate     Migrate database from 1.x to 2.x",
-    "  hz make-token  Create a JWT for user bootstrapping",
-    "  hz version     Display CLI version",
+    "  hz auth rebind --id HORUS --email ops@horizon.local",
+    "  hz auth session-kill --all",
+    "  hz node sync --priority --rehash",
+    "  hz data health --source terranode",
+    "  hz finance audit --user Horus --deep-scan",
     "",
-    "Use the CLI Builder (sidebar) for visual flag configuration.",
+    "Output pattern: [OK] message | timestamp  /  [ERR] code: description",
   ],
   clear: [],
 };
@@ -60,27 +55,8 @@ const TerminalPage = () => {
     const response = fakeResponses[cmd];
     if (response) {
       setHistory((prev) => [...prev, `$ ${cmd}`, ...response, ""]);
-    } else if (cmd.startsWith("hz serve")) {
-      setHistory((prev) => [
-        ...prev,
-        `$ ${cmd}`,
-        "Starting Horizon server...",
-        "App available at http://localhost:8181",
-        "RethinkDB connection: localhost:28015",
-        "⚡ Ready.",
-        "",
-      ]);
-    } else if (cmd.startsWith("hz make-token")) {
-      const userId = cmd.split(" ").slice(2).join(" ") || "anonymous";
-      setHistory((prev) => [
-        ...prev,
-        `$ ${cmd}`,
-        `Generating JWT for user: ${userId}`,
-        `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.${btoa(userId).slice(0, 20)}...`,
-        "",
-      ]);
     } else {
-      setHistory((prev) => [...prev, `$ ${cmd}`, `hz: unknown command '${cmd}'. Run 'help' for usage.`, ""]);
+      setHistory((prev) => [...prev, `$ ${cmd}`, `[ERR] CMD404: unknown command. Run 'help' for usage.`, ""]);
     }
 
     setInput("");

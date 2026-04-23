@@ -2,15 +2,8 @@ import {
   LayoutDashboard,
   Terminal,
   Activity,
-  Server,
-  FolderPlus,
-  Database,
-  ShieldCheck,
-  Info,
   Eye,
   Settings,
-  RefreshCw,
-  Key,
   LogOut,
   Users,
 } from "lucide-react";
@@ -18,6 +11,7 @@ import { NavLink } from "@/components/NavLink";
 import horusIcon from "@/assets/horus-icon.jpg";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { horizonCommands } from "@/lib/horizon-commands";
 
 import {
   Sidebar,
@@ -40,15 +34,11 @@ const mainNav = [
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
-const cliCommands = [
-  { title: "serve", url: "/cli/serve", icon: Server },
-  { title: "init", url: "/cli/init", icon: FolderPlus },
-  { title: "schema", url: "/cli/schema", icon: Database },
-  { title: "migrate", url: "/cli/migrate", icon: RefreshCw },
-  { title: "create-cert", url: "/cli/create-cert", icon: ShieldCheck },
-  { title: "make-token", url: "/cli/make-token", icon: Key },
-  { title: "version", url: "/cli/version", icon: Info },
-];
+const cliCommands = horizonCommands.map((command) => ({
+  title: `${command.domain}.${command.action}`,
+  url: `/cli/${command.id}`,
+  icon: command.icon,
+}));
 
 export function AppSidebar() {
   const { state } = useSidebar();

@@ -1,44 +1,19 @@
-import {
-  Server,
-  FolderPlus,
-  ShieldCheck,
-  Info,
-  Database,
-  Terminal,
-  Activity,
-  RefreshCw,
-  Key,
-} from "lucide-react";
+import { Terminal, Activity } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { HorizonCommand } from "@/types/horizon";
+import { horizonCommandGroups } from "@/lib/horizon-commands";
 
 const commands: {
   category: string;
   items: { id: HorizonCommand; label: string; icon: React.ElementType }[];
-}[] = [
-  {
-    category: "Server",
-    items: [
-      { id: "serve", label: "serve", icon: Server },
-    ],
-  },
-  {
-    category: "Project",
-    items: [
-      { id: "init", label: "init", icon: FolderPlus },
-      { id: "schema", label: "schema", icon: Database },
-      { id: "migrate", label: "migrate", icon: RefreshCw },
-    ],
-  },
-  {
-    category: "Utilities",
-    items: [
-      { id: "create-cert", label: "create-cert", icon: ShieldCheck },
-      { id: "make-token", label: "make-token", icon: Key },
-      { id: "version", label: "version", icon: Info },
-    ],
-  },
-];
+}[] = horizonCommandGroups.map((group) => ({
+  category: group.category,
+  items: group.commands.map((command) => ({
+    id: command.id,
+    label: `${command.domain} ${command.action}`,
+    icon: command.icon,
+  })),
+}));
 
 interface CommandSidebarProps {
   activeCommand: HorizonCommand;
@@ -91,7 +66,7 @@ export function CommandSidebar({ activeCommand, onSelectCommand }: CommandSideba
           <span className="font-mono text-xs">Monitor</span>
         </Link>
         <p className="mt-2 font-mono text-[10px] text-muted-foreground">
-          hz v2.0.0 • RethinkDB
+          hz v3.0.0 • unified spec
         </p>
       </div>
     </aside>

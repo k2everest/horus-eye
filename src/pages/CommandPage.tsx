@@ -4,27 +4,19 @@ import { CommandBuilder } from "@/components/horizon/CommandBuilder";
 import type { HorizonCommand } from "@/types/horizon";
 import { ArrowLeft, Copy, Play } from "lucide-react";
 import { toast } from "sonner";
-
-const validCommands = ["serve", "init", "create-cert", "version", "schema", "migrate", "make-token"];
+import { buildHzCommand, isHorizonCommand } from "@/lib/horizon-commands";
 
 const CommandPage = () => {
   const { command } = useParams<{ command: string }>();
   const [flags, setFlags] = useState<Record<string, string | boolean>>({});
 
-  if (!command || !validCommands.includes(command)) {
+  if (!command || !isHorizonCommand(command)) {
     return <Navigate to="/cli" replace />;
   }
 
-  const activeCommand = command as HorizonCommand;
+  const activeCommand: HorizonCommand = command;
 
-  const buildCommandString = () => {
-    const parts = [`hz ${activeCommand}`];
-    Object.entries(flags).forEach(([key, value]) => {
-      if (value === true) parts.push(`--${key}`);
-      else if (value !== false && value !== "") parts.push(`--${key} ${value}`);
-    });
-    return parts.join(" ");
-  };
+  const buildCommandString = () => buildHzCommand(activeCommand, flags);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(buildCommandString());

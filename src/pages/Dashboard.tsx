@@ -20,10 +20,10 @@ import { cn } from "@/lib/utils";
 
 const quickLinks = [
   {
-    title: "Start Server",
-    description: "Configure & launch hz serve",
-    icon: Server,
-    href: "/cli/serve",
+    title: "Auth Rebind",
+    description: "Vincule identidades HORUS ao core autenticado",
+    icon: Key,
+    href: "/cli/auth-rebind",
     glow: "primary",
   },
   {
@@ -34,19 +34,19 @@ const quickLinks = [
     glow: "accent",
   },
   {
-    title: "Terminal",
-    description: "Command history & output logs",
-    icon: Terminal,
-    href: "/terminal",
+    title: "Data Health",
+    description: "Cheque o TerraNode e a integridade do fluxo em segundos",
+    icon: Database,
+    href: "/cli/data-health",
     glow: "primary",
   },
 ];
 
 const recentActions = [
-  { label: "hz serve --dev", time: "2m ago", icon: Server },
-  { label: "hz schema save", time: "15m ago", icon: Database },
-  { label: "hz create-cert", time: "1h ago", icon: ShieldCheck },
-  { label: "hz make-token admin", time: "3h ago", icon: Key },
+  { label: 'hz auth rebind --id "HORUS" --email "coebsm@gmail.com"', time: "2m ago", icon: Key },
+  { label: "hz auth session-kill --all", time: "15m ago", icon: Shield },
+  { label: "hz data health --source terranode", time: "1h ago", icon: Database },
+  { label: "hz finance audit --user Horus --deep-scan", time: "3h ago", icon: ShieldCheck },
 ];
 
 const systemStats = [

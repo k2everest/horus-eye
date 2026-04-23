@@ -1,4 +1,9 @@
-export type HorizonCommand = "serve" | "init" | "create-cert" | "version" | "schema" | "migrate" | "make-token";
+export type HorizonCommand =
+  | "auth-rebind"
+  | "auth-session-kill"
+  | "node-sync"
+  | "data-health"
+  | "finance-audit";
 
 export interface CommandConfig {
   command: HorizonCommand;

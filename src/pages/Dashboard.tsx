@@ -104,7 +104,7 @@ const SectionHeader = ({
 );
 
 const Dashboard = () => {
-  const { blocks, height, nodeInfo, loading, error, refresh, healingState, healingReason } = useMoneroBlocks(8, 15000);
+  const { blocks, height, nodeInfo, loading, error, refresh, healingState, healingReason, healingLog, runAutoHeal } = useMoneroBlocks(8, 15000);
 
   const healingTone =
     healingState === "recovering"
@@ -210,9 +210,21 @@ const Dashboard = () => {
           icon={Radar}
           title="Node // Auto-Healing"
           right={
-            <span className={cn("font-mono text-[10px] uppercase tracking-[0.25em]", healingTone)}>
-              {healingLabel}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className={cn("font-mono text-[10px] uppercase tracking-[0.25em]", healingTone)}>
+                {healingLabel}
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => runAutoHeal("disparo manual")}
+                disabled={healingState === "recovering"}
+                className="h-7 text-[10px] gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                <ShieldAlert className="h-3 w-3" />
+                Force heal
+              </Button>
+            </div>
           }
         />
         <div className="grid gap-4 md:grid-cols-[1.4fr_0.8fr_0.8fr]">
@@ -242,6 +254,29 @@ const Dashboard = () => {
             </p>
           </div>
         </div>
+        {healingLog.length > 0 && (
+          <div className="mt-4 rounded-md border border-border/60 bg-background/40 p-3">
+            <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">
+              // healing.trace
+            </p>
+            <div className="space-y-1 max-h-40 overflow-y-auto">
+              {healingLog.map((entry, i) => (
+                <div key={`${entry.ts}-${i}`} className="flex items-center gap-2 font-mono text-[10px]">
+                  <span className="text-muted-foreground tabular-nums">
+                    {new Date(entry.ts).toLocaleTimeString()}
+                  </span>
+                  <span className={entry.ok ? "text-success" : "text-destructive"}>
+                    {entry.ok ? "✓" : "✗"}
+                  </span>
+                  <span className="text-foreground/90">{entry.step}</span>
+                  {entry.detail && (
+                    <span className="text-muted-foreground truncate">— {entry.detail}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Monero Blocks */}

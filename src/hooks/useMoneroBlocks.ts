@@ -20,9 +20,41 @@ export function useMoneroBlocks(count = 8, pollMs = 15000) {
   const [error, setError] = useState<string | null>(null);
   const [healingState, setHealingState] = useState<"idle" | "watching" | "armed" | "recovering">("idle");
   const [healingReason, setHealingReason] = useState<string | null>(null);
+  const [healingLog, setHealingLog] = useState<Array<{ ts: number; step: string; ok: boolean; detail?: string }>>([]);
   const stagnantSinceRef = useRef<number | null>(null);
   const lastHeightRef = useRef<number | null>(null);
   const lastRecoverAtRef = useRef<number>(0);
+  const recoveringRef = useRef<boolean>(false);
+
+  const pushLog = useCallback((step: string, ok: boolean, detail?: string) => {
+    setHealingLog((prev) => [{ ts: Date.now(), step, ok, detail }, ...prev].slice(0, 12));
+  }, []);
+
+  const runAutoHeal = useCallback(async (reason: string) => {
+    if (recoveringRef.current) return;
+    recoveringRef.current = true;
+    const config = loadNodeConfig();
+    pushLog("auto-heal triggered", true, reason);
+    // 1) clear-peers: reset peer pools (equivalente a hz node --clear-peers)
+    try {
+      await callMoneroRpc(config, "out_peers", { out_peers: 0 });
+      await callMoneroRpc(config, "in_peers", { in_peers: 0 });
+      await new Promise((r) => setTimeout(r, 1500));
+      await callMoneroRpc(config, "out_peers", { out_peers: 12 });
+      await callMoneroRpc(config, "in_peers", { in_peers: 48 });
+      pushLog("clear-peers", true, "peer pool resetado");
+    } catch (e) {
+      pushLog("clear-peers", false, e instanceof Error ? e.message : "falhou");
+    }
+    // 2) rehash-last-blocks: pop os últimos 3 blocos para reavaliar a tail (~2.4%)
+    try {
+      await callMoneroRpc(config, "pop_blocks", { nblocks: 3 });
+      pushLog("rehash-last-blocks", true, "pop_blocks=3");
+    } catch (e) {
+      pushLog("rehash-last-blocks", false, e instanceof Error ? e.message : "falhou");
+    }
+    recoveringRef.current = false;
+  }, [pushLog]);
 
   const fetchBlocks = useCallback(async () => {
     const config = loadNodeConfig();
@@ -57,8 +89,10 @@ export function useMoneroBlocks(count = 8, pollMs = 15000) {
 
         if (shouldRecover && Date.now() - lastRecoverAtRef.current > 60000) {
           setHealingState("recovering");
-          setHealingReason(isRejected ? "BLOCK_REJECTED detectado" : "estagnação acima de 300s em 97.6%+");
+          const reasonText = isRejected ? "BLOCK_REJECTED detectado" : "estagnação acima de 300s em 97.6%+";
+          setHealingReason(reasonText);
           lastRecoverAtRef.current = Date.now();
+          runAutoHeal(reasonText);
         } else {
           setHealingState(shouldRecover ? "recovering" : "armed");
           setHealingReason(isRejected ? "BLOCK_REJECTED detectado" : "watcher ativo para estagnação final");
@@ -100,7 +134,7 @@ export function useMoneroBlocks(count = 8, pollMs = 15000) {
     } finally {
       setLoading(false);
     }
-  }, [count]);
+  }, [count, runAutoHeal]);
 
   useEffect(() => {
     fetchBlocks();
@@ -110,5 +144,5 @@ export function useMoneroBlocks(count = 8, pollMs = 15000) {
     }
   }, [fetchBlocks, pollMs]);
 
-  return { blocks, height, nodeInfo, loading, error, refresh: fetchBlocks, healingState, healingReason };
+  return { blocks, height, nodeInfo, loading, error, refresh: fetchBlocks, healingState, healingReason, healingLog, runAutoHeal };
 }

@@ -89,8 +89,10 @@ export function useMoneroBlocks(count = 8, pollMs = 15000) {
 
         if (shouldRecover && Date.now() - lastRecoverAtRef.current > 60000) {
           setHealingState("recovering");
-          setHealingReason(isRejected ? "BLOCK_REJECTED detectado" : "estagnação acima de 300s em 97.6%+");
+          const reasonText = isRejected ? "BLOCK_REJECTED detectado" : "estagnação acima de 300s em 97.6%+";
+          setHealingReason(reasonText);
           lastRecoverAtRef.current = Date.now();
+          runAutoHeal(reasonText);
         } else {
           setHealingState(shouldRecover ? "recovering" : "armed");
           setHealingReason(isRejected ? "BLOCK_REJECTED detectado" : "watcher ativo para estagnação final");
@@ -132,7 +134,7 @@ export function useMoneroBlocks(count = 8, pollMs = 15000) {
     } finally {
       setLoading(false);
     }
-  }, [count]);
+  }, [count, runAutoHeal]);
 
   useEffect(() => {
     fetchBlocks();
@@ -142,5 +144,5 @@ export function useMoneroBlocks(count = 8, pollMs = 15000) {
     }
   }, [fetchBlocks, pollMs]);
 
-  return { blocks, height, nodeInfo, loading, error, refresh: fetchBlocks, healingState, healingReason };
+  return { blocks, height, nodeInfo, loading, error, refresh: fetchBlocks, healingState, healingReason, healingLog, runAutoHeal };
 }

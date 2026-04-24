@@ -104,7 +104,7 @@ const SectionHeader = ({
 );
 
 const Dashboard = () => {
-  const { blocks, height, nodeInfo, loading, error, refresh, healingState, healingReason } = useMoneroBlocks(8, 15000);
+  const { blocks, height, nodeInfo, loading, error, refresh, healingState, healingReason, healingLog, runAutoHeal } = useMoneroBlocks(8, 15000);
 
   const healingTone =
     healingState === "recovering"

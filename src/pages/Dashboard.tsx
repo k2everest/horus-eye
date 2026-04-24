@@ -254,6 +254,29 @@ const Dashboard = () => {
             </p>
           </div>
         </div>
+        {healingLog.length > 0 && (
+          <div className="mt-4 rounded-md border border-border/60 bg-background/40 p-3">
+            <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">
+              // healing.trace
+            </p>
+            <div className="space-y-1 max-h-40 overflow-y-auto">
+              {healingLog.map((entry, i) => (
+                <div key={`${entry.ts}-${i}`} className="flex items-center gap-2 font-mono text-[10px]">
+                  <span className="text-muted-foreground tabular-nums">
+                    {new Date(entry.ts).toLocaleTimeString()}
+                  </span>
+                  <span className={entry.ok ? "text-success" : "text-destructive"}>
+                    {entry.ok ? "✓" : "✗"}
+                  </span>
+                  <span className="text-foreground/90">{entry.step}</span>
+                  {entry.detail && (
+                    <span className="text-muted-foreground truncate">— {entry.detail}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Monero Blocks */}

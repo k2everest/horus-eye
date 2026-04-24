@@ -210,9 +210,21 @@ const Dashboard = () => {
           icon={Radar}
           title="Node // Auto-Healing"
           right={
-            <span className={cn("font-mono text-[10px] uppercase tracking-[0.25em]", healingTone)}>
-              {healingLabel}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className={cn("font-mono text-[10px] uppercase tracking-[0.25em]", healingTone)}>
+                {healingLabel}
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => runAutoHeal("disparo manual")}
+                disabled={healingState === "recovering"}
+                className="h-7 text-[10px] gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                <ShieldAlert className="h-3 w-3" />
+                Force heal
+              </Button>
+            </div>
           }
         />
         <div className="grid gap-4 md:grid-cols-[1.4fr_0.8fr_0.8fr]">

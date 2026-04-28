@@ -1,0 +1,27 @@
+name: Aegis Proto CI
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  proto:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Buf
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          version: latest
+
+      - name: Show versions
+        run: |
+          buf --version
+          git --version
+
+      - name: Run Aegis proto pipeline
+        run: bash aegis-flow/scripts/gen-proto.sh

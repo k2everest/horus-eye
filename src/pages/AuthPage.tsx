@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -120,6 +120,15 @@ const AuthPage = () => {
               </TabsContent>
             ))}
           </Tabs>
+
+          <div className="pt-4 mt-4 border-t border-primary/10 text-center">
+            <Link
+              to="/register"
+              className="font-mono text-[10px] text-muted-foreground hover:text-accent tracking-wider transition-colors"
+            >
+              &gt; novo operador? provisionar_conta
+            </Link>
+          </div>
         </div>
 
         <p className="text-center mt-4 font-mono text-[10px] text-muted-foreground/60 tracking-wider">

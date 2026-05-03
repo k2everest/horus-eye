@@ -15,6 +15,7 @@ import TerminalPage from "@/pages/TerminalPage";
 import NotFound from "@/pages/NotFound";
 import SettingsPage from "@/pages/SettingsPage";
 import AuthPage from "@/pages/AuthPage";
+import RegisterPage from "@/pages/RegisterPage";
 import AdminPage from "@/pages/AdminPage";
 
 const queryClient = new QueryClient();
@@ -29,6 +30,7 @@ const App = () => (
           <SidebarProvider>
             <Routes>
               <Route path="/auth" element={<AuthPage />} />
+              <Route path="/register" element={<RegisterPage />} />
               <Route
                 element={
                   <ProtectedRoute>

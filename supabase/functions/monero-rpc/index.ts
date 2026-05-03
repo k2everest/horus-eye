@@ -192,9 +192,15 @@ Deno.serve(async (req) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("monero-rpc error:", message);
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // Return 200 with structured error so supabase.functions.invoke()
+    // doesn't throw a generic FunctionsHttpError that hides the real cause.
+    const isConnRefused = /Connection refused|ConnectionRefused|tcp connect error/i.test(message);
+    return new Response(
+      JSON.stringify({
+        status: isConnRefused ? 503 : 502,
+        data: { error: { message, code: isConnRefused ? "NODE_UNREACHABLE" : "RPC_PROXY_ERROR" } },
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   }
 });

@@ -52,7 +52,15 @@ export async function callMoneroRpc(config: NodeConfig, method: string, params: 
 
   if (error) throw new Error(error.message);
   if (data?.status && data.status >= 400) {
-    throw new Error(data?.data?.error?.message || `RPC error ${data.status}`);
+    const code = data?.data?.error?.code;
+    const msg = data?.data?.error?.message || `RPC error ${data.status}`;
+    if (code === "NODE_UNREACHABLE") {
+      throw new Error(
+        `Nó Monero inacessível em ${config.host}:${config.port}. ` +
+        `Edge Functions não conseguem acessar 127.0.0.1 da sua máquina — exponha o daemon publicamente (ngrok/Cloudflare Tunnel/IP público) e atualize Settings.`,
+      );
+    }
+    throw new Error(msg);
   }
 
   return data?.data?.result ?? data?.data;

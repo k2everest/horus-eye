@@ -1,0 +1,10 @@
+{
+  "name": "validation-gateway",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "start:cli": "node index.mjs",
+    "test": "node --test validation-gateway.test.mjs"
+  }
+}

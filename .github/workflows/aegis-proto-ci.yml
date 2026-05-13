@@ -1,0 +1,38 @@
+name: Aegis Proto CI
+
+on:
+  pull_request:
+    paths:
+      - 'aegis-flow/**'
+      - '.github/workflows/aegis-proto-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'aegis-flow/**'
+      - '.github/workflows/aegis-proto-ci.yml'
+
+jobs:
+  proto:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: aegis-flow
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Buf
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          version: latest
+
+      - name: Show tool versions
+        run: |
+          buf --version
+          git --version
+
+      - name: Run proto pipeline
+        run: bash scripts/gen-proto.sh
+      - name: Run validation-gateway log tests
+        run: node --test services/validation-gateway/validation-gateway.test.mjs
+

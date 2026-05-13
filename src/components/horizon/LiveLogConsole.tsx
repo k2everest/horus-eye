@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Activity, Trash2 } from "lucide-react";
 
 export interface LogEntry {
@@ -16,6 +16,16 @@ const levelStyles: Record<LogEntry["level"], string> = {
   debug: "text-muted-foreground",
 };
 
+const levelBgStyles: Record<LogEntry["level"], string> = {
+  info: "bg-primary/20 border-primary/40 text-primary",
+  success: "bg-success/20 border-success/40 text-success",
+  warn: "bg-warning/20 border-warning/40 text-warning",
+  error: "bg-destructive/20 border-destructive/40 text-destructive",
+  debug: "bg-muted border-muted-foreground/30 text-muted-foreground",
+};
+
+const allLevels: LogEntry["level"][] = ["info", "success", "warn", "error", "debug"];
+
 interface Props {
   entries: LogEntry[];
   streaming?: boolean;
@@ -24,12 +34,29 @@ interface Props {
 
 export function LiveLogConsole({ entries, streaming, onClear }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [activeFilters, setActiveFilters] = useState<Set<LogEntry["level"]>>(
+    () => new Set(allLevels),
+  );
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [entries]);
+  }, [entries, activeFilters]);
+
+  const toggleFilter = (level: LogEntry["level"]) => {
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(level)) {
+        next.delete(level);
+      } else {
+        next.add(level);
+      }
+      return next;
+    });
+  };
+
+  const filteredEntries = entries.filter((e) => activeFilters.has(e.level));
 
   return (
     <div className="rounded-xl border bg-card overflow-hidden">
@@ -49,14 +76,41 @@ export function LiveLogConsole({ entries, streaming, onClear }: Props) {
           </button>
         )}
       </div>
+
+      <div className="flex items-center gap-1.5 border-b bg-background/50 px-3 py-1.5">
+        <span className="font-mono text-[10px] text-muted-foreground/60 uppercase mr-1">filter</span>
+        {allLevels.map((level) => {
+          const active = activeFilters.has(level);
+          return (
+            <button
+              key={level}
+              onClick={() => toggleFilter(level)}
+              className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase border transition-all ${
+                active
+                  ? levelBgStyles[level]
+                  : "bg-transparent border-transparent text-muted-foreground/40 hover:text-muted-foreground"
+              }`}
+              title={active ? `Hide ${level}` : `Show ${level}`}
+            >
+              {level}
+            </button>
+          );
+        })}
+        <span className="ml-auto font-mono text-[10px] text-muted-foreground/60">
+          {filteredEntries.length}/{entries.length}
+        </span>
+      </div>
+
       <div
         ref={scrollRef}
         className="h-64 overflow-y-auto bg-background/50 p-3 font-mono text-[11px] leading-relaxed"
       >
         {entries.length === 0 ? (
           <p className="text-muted-foreground/60">{"// awaiting execution…"}</p>
+        ) : filteredEntries.length === 0 ? (
+          <p className="text-muted-foreground/60">{"// no logs match current filters…"}</p>
         ) : (
-          entries.map((e) => (
+          filteredEntries.map((e) => (
             <div key={e.id} className="flex gap-2">
               <span className="text-muted-foreground/50 shrink-0">
                 {new Date(e.timestamp).toISOString().split("T")[1].replace("Z", "")}

@@ -2,16 +2,33 @@ import type { ElementType } from "react";
 import {
   Activity,
   BadgeDollarSign,
+  Ban,
   Database,
+  Eye,
+  FileSearch,
   Fingerprint,
+  GitBranch,
+  Hammer,
+  KeyRound,
+  LogIn,
+  Play,
+  RefreshCw,
+  Rocket,
+  Route,
+  ScrollText,
+  Search,
+  ShieldAlert,
   ShieldX,
+  Sprout,
+  Trash2,
   Workflow,
+  Wrench,
 } from "lucide-react";
 import type { HorizonCommand } from "@/types/horizon";
 
 export interface HorizonCommandDefinition {
   id: HorizonCommand;
-  domain: "auth" | "node" | "data" | "finance";
+  domain: string;
   action: string;
   label: string;
   description: string;
@@ -20,6 +37,79 @@ export interface HorizonCommandDefinition {
 }
 
 export const horizonCommandGroups: { category: string; commands: HorizonCommandDefinition[] }[] = [
+  {
+    category: "Lifecycle & Monitor",
+    commands: [
+      {
+        id: "start",
+        domain: "",
+        action: "start",
+        label: "hz start",
+        description: "Inicia todos os serviços e o núcleo do sistema.",
+        icon: Play,
+        category: "Lifecycle & Monitor",
+      },
+      {
+        id: "status",
+        domain: "",
+        action: "status",
+        label: "hz status",
+        description: "Painel de monitoramento em tempo real (dashboard live).",
+        icon: Activity,
+        category: "Lifecycle & Monitor",
+      },
+      {
+        id: "logs",
+        domain: "",
+        action: "logs",
+        label: "hz logs",
+        description: "Exibe os logs contínuos de um módulo específico.",
+        icon: ScrollText,
+        category: "Lifecycle & Monitor",
+      },
+      {
+        id: "check-health",
+        domain: "",
+        action: "check",
+        label: "hz check",
+        description: "Diagnóstico de conectividade, permissões e estado geral.",
+        icon: Wrench,
+        category: "Lifecycle & Monitor",
+      },
+    ],
+  },
+  {
+    category: "Maintenance & Deploy",
+    commands: [
+      {
+        id: "build",
+        domain: "",
+        action: "build",
+        label: "hz build",
+        description: "Compila a versão mais recente do sistema.",
+        icon: Hammer,
+        category: "Maintenance & Deploy",
+      },
+      {
+        id: "deploy",
+        domain: "",
+        action: "deploy",
+        label: "hz deploy",
+        description: "Envia a build atual para o ambiente de homologação.",
+        icon: Rocket,
+        category: "Maintenance & Deploy",
+      },
+      {
+        id: "db-reset",
+        domain: "db",
+        action: "reset",
+        label: "hz db reset",
+        description: "Limpa a base local e reaplica migrações. Operação destrutiva.",
+        icon: Trash2,
+        category: "Maintenance & Deploy",
+      },
+    ],
+  },
   {
     category: "Auth",
     commands: [
@@ -41,19 +131,87 @@ export const horizonCommandGroups: { category: string; commands: HorizonCommandD
         icon: ShieldX,
         category: "Auth",
       },
+      {
+        id: "auth-login",
+        domain: "auth",
+        action: "login",
+        label: "hz auth login",
+        description: "Revalida credenciais de superusuário (admin).",
+        icon: LogIn,
+        category: "Auth",
+      },
     ],
   },
   {
-    category: "Node",
+    category: "Security",
     commands: [
       {
-        id: "node-sync",
-        domain: "node",
-        action: "sync",
-        label: "hz node sync",
-        description: "Executa sincronização prioritária e rehash de blocos quando necessário.",
-        icon: Workflow,
-        category: "Node",
+        id: "keys-rotate",
+        domain: "keys",
+        action: "rotate",
+        label: "hz keys rotate",
+        description: "Gera novos tokens de acesso para APIs.",
+        icon: KeyRound,
+        category: "Security",
+      },
+      {
+        id: "security-last-ban",
+        domain: "security",
+        action: "",
+        label: "hz security --last-ban",
+        description: "Mostra detalhes do último IP bloqueado pelo firewall.",
+        icon: ShieldAlert,
+        category: "Security",
+      },
+      {
+        id: "logs-grep",
+        domain: "",
+        action: "logs",
+        label: "hz logs --grep",
+        description: "Filtra eventos de log por padrão (ex: AUTH_FAILURE).",
+        icon: Search,
+        category: "Security",
+      },
+    ],
+  },
+  {
+    category: "Finance",
+    commands: [
+      {
+        id: "finance-logs",
+        domain: "finance",
+        action: "logs",
+        label: "hz finance logs",
+        description: "Histórico financeiro por usuário e período.",
+        icon: ScrollText,
+        category: "Finance",
+      },
+      {
+        id: "finance-audit",
+        domain: "finance",
+        action: "audit",
+        label: "hz finance audit",
+        description: "Auditoria forense profunda de um usuário.",
+        icon: BadgeDollarSign,
+        category: "Finance",
+      },
+      {
+        id: "finance-inspect",
+        domain: "finance",
+        action: "inspect",
+        label: "hz finance inspect",
+        description: "Extrai metadados detalhados de uma transação.",
+        icon: FileSearch,
+        category: "Finance",
+      },
+      {
+        id: "finance-trace",
+        domain: "finance",
+        action: "trace",
+        label: "hz finance trace",
+        description: "Rastreia o destino de uma transferência por hash ou valor.",
+        icon: Route,
+        category: "Finance",
       },
     ],
   },
@@ -69,19 +227,46 @@ export const horizonCommandGroups: { category: string; commands: HorizonCommandD
         icon: Database,
         category: "Data",
       },
+      {
+        id: "data-fetch",
+        domain: "data",
+        action: "fetch",
+        label: "hz data fetch",
+        description: "Busca métricas externas (ex: solo, NPK, pH no TerraNode).",
+        icon: Sprout,
+        category: "Data",
+      },
     ],
   },
   {
-    category: "Finance",
+    category: "Node",
     commands: [
       {
-        id: "finance-audit",
-        domain: "finance",
-        action: "audit",
-        label: "hz finance audit",
-        description: "Executa auditoria rastreável com modo deep scan para análise crítica.",
-        icon: BadgeDollarSign,
-        category: "Finance",
+        id: "node-sync",
+        domain: "node",
+        action: "sync",
+        label: "hz node sync",
+        description: "Sincronização prioritária e rehash de blocos quando necessário.",
+        icon: Workflow,
+        category: "Node",
+      },
+      {
+        id: "node-clear-peers",
+        domain: "node",
+        action: "",
+        label: "hz node --clear-peers",
+        description: "Remove peers travados que impedem a sincronização.",
+        icon: Ban,
+        category: "Node",
+      },
+      {
+        id: "node-rehash",
+        domain: "node",
+        action: "",
+        label: "hz node --rehash-last-blocks",
+        description: "Reavalia ~2.4% dos últimos blocos para corrigir corrupção.",
+        icon: RefreshCw,
+        category: "Node",
       },
     ],
   },
@@ -102,7 +287,9 @@ export function buildHzCommand(
   flags: Record<string, string | boolean>
 ) {
   const definition = horizonCommandMap[command];
-  const parts = ["hz", definition.domain, definition.action];
+  const parts = ["hz"];
+  if (definition.domain) parts.push(definition.domain);
+  if (definition.action) parts.push(definition.action);
 
   Object.entries(flags).forEach(([key, value]) => {
     if (value === true) parts.push(`--${key}`);
@@ -129,4 +316,55 @@ export const spotlightActions = [
     group: "Node",
     href: "/cli/node-sync",
   },
+  {
+    id: "system-status",
+    label: "System Status (live)",
+    description: "Painel de monitoramento em tempo real",
+    icon: Eye,
+    group: "Lifecycle",
+    href: "/cli/status",
+  },
+  {
+    id: "system-health",
+    label: "Health Check",
+    description: "Diagnóstico de conectividade e permissões",
+    icon: Wrench,
+    group: "Lifecycle",
+    href: "/cli/check-health",
+  },
+  {
+    id: "deploy",
+    label: "Deploy",
+    description: "Envia a build atual para homologação",
+    icon: Rocket,
+    group: "Deploy",
+    href: "/cli/deploy",
+  },
+  {
+    id: "keys-rotate",
+    label: "Rotate API Keys",
+    description: "Gera novos tokens de acesso",
+    icon: KeyRound,
+    group: "Security",
+    href: "/cli/keys-rotate",
+  },
+  {
+    id: "finance-trace",
+    label: "Finance Trace",
+    description: "Rastreia destino de uma transferência",
+    icon: Route,
+    group: "Finance",
+    href: "/cli/finance-trace",
+  },
+  {
+    id: "data-fetch-soil",
+    label: "Fetch TerraNode Soil",
+    description: "Puxa NPK, pH e umidade do TerraNode",
+    icon: Sprout,
+    group: "Data",
+    href: "/cli/data-fetch",
+  },
 ];
+
+// Re-export icon for backwards compat (GitBranch was used elsewhere)
+export { GitBranch };

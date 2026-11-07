@@ -22,3 +22,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Aegis Flow local environment
+aegis-flow/deployments/docker/.env

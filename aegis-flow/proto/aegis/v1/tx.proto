@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package aegis.v1;
+
+option go_package = "github.com/horus-eye/aegis-flow/gen/go/aegis/v1;aegisv1";
+
+service TxService {
+  rpc ValidateShieldedTx(ValidateShieldedTxRequest) returns (ValidateShieldedTxResponse);
+}
+
+message ValidateShieldedTxRequest {
+  bytes tx_blob = 1;
+  string request_id = 2;
+
+  // Envelope fields required for anti-quantum validation path.
+  bytes pq_signature = 3;
+  bytes pq_public_key = 4;
+  bytes kem_ciphertext = 5;
+  string signature_algorithm = 6; // expected: ML-DSA-* family
+  string kem_algorithm = 7; // expected: ML-KEM-* family
+}
+
+message ValidateShieldedTxResponse {
+  bool valid = 1;
+  repeated string failed_checks = 2;
+  string request_id = 3;
+  string status_code = 4;
+}

@@ -91,6 +91,7 @@ case "${command}" in
   test)
     node --test "${ROOT_DIR}"/libs/crypto-core/*.test.mjs
     npm test --prefix "${ROOT_DIR}/services/validation-gateway"
+    node --test "${ROOT_DIR}"/services/relay-mix/*.test.mjs
     ;;
   smoke)
     smoke

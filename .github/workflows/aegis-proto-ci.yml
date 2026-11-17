@@ -26,6 +26,11 @@ jobs:
         with:
           version: latest
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Show tool versions
         run: |
           buf --version
@@ -33,6 +38,6 @@ jobs:
 
       - name: Run proto pipeline
         run: bash scripts/gen-proto.sh
-      - name: Run validation-gateway log tests
-        run: npm test --prefix services/validation-gateway
+      - name: Run Aegis tests (crypto, gateway and relay)
+        run: bash scripts/dev-env.sh test
 

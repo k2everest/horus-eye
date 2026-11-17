@@ -5,6 +5,6 @@
   "scripts": {
     "start": "node server.mjs",
     "start:cli": "node index.mjs",
-    "test": "node --test validation-gateway.test.mjs && node --test load-chaos.test.mjs"
+    "test": "node --test *.test.mjs"
   }
 }

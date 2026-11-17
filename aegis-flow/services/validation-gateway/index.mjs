@@ -1,26 +1,28 @@
 import crypto from 'node:crypto';
 import { buildLogEntry, writeLog } from './logger.mjs';
+import { assertDemoRuntime } from './runtime-policy.mjs';
 
 const METHOD = 'ValidateShieldedTx';
-const ALLOWED_SIG = /^ML-DSA-/;
-const ALLOWED_KEM = /^ML-KEM-/;
+const ALLOWED_SIG = new Set(['ML-DSA-44', 'ML-DSA-65', 'ML-DSA-87']);
+const ALLOWED_KEM = new Set(['ML-KEM-512', 'ML-KEM-768', 'ML-KEM-1024']);
+const isText = (value) => typeof value === 'string' && value.trim().length > 0;
 
 function validateAntiQuantumEnvelope(request) {
   const failed = [];
 
-  if (!request?.pq_signature) {
+  if (!isText(request?.pq_signature)) {
     failed.push('FAILED_PRECONDITION: pq_signature ausente');
   }
-  if (!request?.pq_public_key) {
+  if (!isText(request?.pq_public_key)) {
     failed.push('FAILED_PRECONDITION: pq_public_key ausente');
   }
-  if (!request?.kem_ciphertext) {
+  if (!isText(request?.kem_ciphertext)) {
     failed.push('FAILED_PRECONDITION: kem_ciphertext ausente');
   }
-  if (!request?.signature_algorithm || !ALLOWED_SIG.test(request.signature_algorithm)) {
+  if (!ALLOWED_SIG.has(request?.signature_algorithm)) {
     failed.push('FAILED_PRECONDITION: signature_algorithm deve ser ML-DSA-*');
   }
-  if (!request?.kem_algorithm || !ALLOWED_KEM.test(request.kem_algorithm)) {
+  if (!ALLOWED_KEM.has(request?.kem_algorithm)) {
     failed.push('FAILED_PRECONDITION: kem_algorithm deve ser ML-KEM-*');
   }
 
@@ -28,9 +30,13 @@ function validateAntiQuantumEnvelope(request) {
 }
 
 export function validateShieldedTx(request, sink = console.log) {
+  assertDemoRuntime();
+  if (!request || typeof request !== 'object' || Array.isArray(request)) {
+    return { valid: false, status_code: 'INVALID_ARGUMENT', failed_checks: ['INVALID_ARGUMENT: objeto JSON obrigatório'] };
+  }
   const start = Date.now();
-  const requestId = request?.request_id || crypto.randomUUID();
-  const txBlob = request?.tx_blob ?? '';
+  const requestId = isText(request.request_id) && request.request_id.length <= 128 ? request.request_id : crypto.randomUUID();
+  const txBlob = typeof request.tx_blob === 'string' ? request.tx_blob : '';
 
   writeLog(
     buildLogEntry({
@@ -54,6 +60,8 @@ export function validateShieldedTx(request, sink = console.log) {
 
   const valid = failedChecks.length === 0;
   const response = {
+    validation_scope: 'demo-envelope-only',
+    production_ready: false,
     valid,
     failed_checks: failedChecks,
     request_id: requestId,

@@ -1,5 +1,10 @@
 # Manual de execução no GCP (Cloud Run) — Aegis Flow Validation Gateway MVP
 
+Este guia serve apenas para demonstração sem valor monetário. A imagem usa
+`NODE_ENV=development` e `AEGIS_MODE=demo`; o gateway recusa execução em
+produção enquanto usar verificação simulada. Nenhum deploy real foi realizado
+na etapa de preparação. Consulte `../planning/production-readiness.md`.
+
 Este guia coloca o `validation-gateway` no ar no Google Cloud usando **Cloud Run** com logs estruturados no **Cloud Logging**.
 
 ## 1) Pré-requisitos

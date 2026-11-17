@@ -1,5 +1,9 @@
 # Aegis Flow
 
+Esta base é demonstrativa. O gateway bloqueia `NODE_ENV=production` e modos
+diferentes de `demo`; `valid: true` não comprova assinatura ou prova real.
+Plano de preparação: `docs/planning/production-readiness.md`.
+
 ## QUEER
 
 QUEER é a identidade pública experimental do protocolo. A interface de

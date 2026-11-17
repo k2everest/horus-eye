@@ -2,6 +2,20 @@
 
 Este diretório contém um MVP funcional de validação com geração de logs estruturados.
 
+## Limites e execução
+
+Este handler verifica apenas estrutura de envelopes de demonstração, sem
+verificação criptográfica real. `valid: true` acompanha
+`validation_scope: demo-envelope-only` e `production_ready: false`.
+`NODE_ENV=production` ou `AEGIS_MODE` diferente de `demo` bloqueiam a criação
+do servidor e a chamada direta do handler. A imagem Docker usa modo demo.
+
+HTTP exige `application/json` (415 caso contrário), corpo de no máximo 64 KiB
+(413 ao exceder) e objeto JSON no topo. Timeouts: headers 10 s, requisição e
+inatividade 15 s. Algoritmos aceitos têm allowlist exata, mas o nome do
+algoritmo não comprova sua execução. Esse hardening não substitui autenticação,
+rate limiting, provas ou persistência. Plano: `../../docs/planning/production-readiness.md`.
+
 ## Arquivos
 
 - `index.mjs`: handler `validateShieldedTx` com logging de entrada/saída.

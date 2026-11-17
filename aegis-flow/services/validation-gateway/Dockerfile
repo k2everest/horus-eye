@@ -3,7 +3,9 @@ WORKDIR /app
 
 COPY . .
 
-ENV NODE_ENV=production
+# Demo verifier: production startup is intentionally blocked by runtime-policy.
+ENV NODE_ENV=development
+ENV AEGIS_MODE=demo
 ENV PORT=8080
 
 USER node

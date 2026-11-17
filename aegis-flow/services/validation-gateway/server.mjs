@@ -2,6 +2,7 @@ import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 
 import { validateShieldedTx } from './index.mjs';
+import { assertDemoRuntime } from './runtime-policy.mjs';
 
 function sendJson(res, statusCode, payload) {
   res.writeHead(statusCode, {
@@ -13,24 +14,47 @@ function sendJson(res, statusCode, payload) {
   res.end(JSON.stringify(payload));
 }
 
-export function createValidationServer({ sink = console.log, faultInjector = () => false } = {}) {
-  return http.createServer((req, res) => {
+export function createValidationServer({ sink = console.log, faultInjector = () => false, maxBodyBytes = 65536 } = {}) {
+  assertDemoRuntime();
+  if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes < 1 || maxBodyBytes > 1048576) {
+    throw new RangeError('maxBodyBytes must be between 1 and 1048576');
+  }
+  const server = http.createServer((req, res) => {
     if (req.method === 'OPTIONS') {
       sendJson(res, 204, {});
       return;
     }
     if (req.method === 'GET' && req.url === '/healthz') {
-      sendJson(res, 200, { status: 'ok', service: 'validation-gateway' });
+      sendJson(res, 200, { status: 'ok', service: 'validation-gateway', mode: 'demo', production_ready: false });
       return;
     }
 
     if (req.method === 'POST' && req.url === '/validate') {
+      if (req.headers['content-type']?.split(';')[0].trim().toLowerCase() !== 'application/json') {
+        req.resume();
+        sendJson(res, 415, { valid: false, status_code: 'UNSUPPORTED_MEDIA_TYPE' });
+        return;
+      }
       let body = '';
+      let bytes = 0;
+      let oversized = false;
+      const chunks = [];
       req.on('data', (chunk) => {
-        body += chunk;
+        if (oversized) return;
+        bytes += chunk.length;
+        if (bytes > maxBodyBytes) {
+          oversized = true;
+          chunks.length = 0;
+          sendJson(res, 413, { valid: false, status_code: 'PAYLOAD_TOO_LARGE' });
+          return;
+        }
+        chunks.push(chunk);
       });
+      req.on('error', () => { if (!res.writableEnded) res.destroy(); });
 
       req.on('end', () => {
+        if (oversized) return;
+        body = Buffer.concat(chunks).toString('utf8');
         if (faultInjector({ method: req.method, url: req.url })) {
           sendJson(res, 503, { status_code: 'UNAVAILABLE', retryable: true });
           return;
@@ -38,6 +62,7 @@ export function createValidationServer({ sink = console.log, faultInjector = () 
 
         try {
           const parsed = body ? JSON.parse(body) : {};
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid object');
           const response = validateShieldedTx(
             {
               tx_blob: parsed.tx_blob,
@@ -66,6 +91,10 @@ export function createValidationServer({ sink = console.log, faultInjector = () 
 
     sendJson(res, 404, { error: 'not_found' });
   });
+  server.requestTimeout = 15_000;
+  server.headersTimeout = 10_000;
+  server.timeout = 15_000;
+  return server;
 }
 
 export function startValidationServer({ port = Number(process.env.PORT || 8080), sink = console.log, ...options } = {}) {

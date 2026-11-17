@@ -55,6 +55,8 @@ defina `AEGIS_GITHUB_REPOSITORY` e `AEGIS_BASE_BRANCH` antes de executá-lo.
 
 ## Planejamento
 
+- Relay com padding e batching (MVP local): `services/relay-mix/README.md`.
+
 - Backlog Jira importável: `docs/planning/jira-import-aegis-flow.csv`.
 - Threat model MVP: `docs/architecture/02-threat-model.md`.
 - Status de execução: `docs/planning/status-tarefas-aegis-flow.md`.

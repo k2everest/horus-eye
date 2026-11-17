@@ -57,7 +57,9 @@ Arquivo analisado: `docs/planning/jira-import-aegis-flow.csv`.
   - Nota de rastreabilidade: no CSV histórico, “Testes de carga e caos” consta como US-021; esta execução segue a numeração US-014 informada na solicitação atual.
 
 ## EPIC-05 Rede privada anti-correlação
-- ⬜ **US-015 Relay com padding e batching**
+- 🟡 **US-015 Relay com padding e batching**
+  - MVP local em `services/relay-mix/index.mjs`: padding binário fixo, fila limitada e lotes completos embaralhados com RNG criptográfico, com testes no runner e CI.
+  - Pendente: integração ao transporte cifrado e ao gateway, entrega/retries e persistência. Limites em `services/relay-mix/README.md`.
 - ⬜ **US-016 Delays e cover traffic**
 - ⬜ **US-017 Métricas de linkabilidade de tráfego**
 
@@ -72,8 +74,8 @@ Arquivo analisado: `docs/planning/jira-import-aegis-flow.csv`.
 ## Resumo executivo
 
 - **Concluídas:** 16 (`US-001`, `US-002`, `US-003`, `US-004`, `US-005`, `US-006`, `US-007`, `US-008`, `US-009`, `US-010`, `US-011`, `US-012`, `US-013`, `US-014`, `US-018`, `US-020`)
-- **Parciais:** 0
-- **Não iniciadas:** 5
+- **Parciais:** 1 (`US-015`)
+- **Não iniciadas:** 4
 
 ## Evidências usadas nesta classificação
 

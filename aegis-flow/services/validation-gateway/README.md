@@ -1,85 +1,49 @@
-# Validation Gateway MVP (Log-first)
+# Validation Gateway — verificação PQC
 
-Este diretório contém um MVP funcional de validação com geração de logs estruturados.
+Node.js >=24.8, sem dependências externas. `POST /validate` recebe a transação
+pública retornada por `buildShieldedTx` e verifica schema, transcript, vínculo
+da chave ao remetente e assinatura ML-DSA real. Envelopes legados com `sig`,
+`pk`, `ct` e `tx_blob` não são aceitos.
 
-## Limites e execução
+`valid: true` significa **assinatura e estrutura válidas**, não gasto aceito ou
+saldo verificado. A resposta declara `validation_scope: signature-and-structure-only`
+e `production_ready: false`. Provas ZK, roots, unicidade persistente de
+nullifiers e settlement ainda não são verificados. Repetir uma transação no
+HTTP verifica novamente a assinatura; não há liquidação nem deduplicação
+persistente. O core aceita cache explícito para replay em um processo.
 
-Este handler verifica apenas estrutura de envelopes de demonstração, sem
-verificação criptográfica real. `valid: true` acompanha
-`validation_scope: demo-envelope-only` e `production_ready: false`.
-`NODE_ENV=production` ou `AEGIS_MODE` diferente de `demo` bloqueiam a criação
-do servidor e a chamada direta do handler. A imagem Docker usa modo demo.
+`NODE_ENV=production` ou `AEGIS_MODE` diferente de `demo` bloqueiam startup e
+chamada direta. O nome demo preserva a restrição de laboratório, apesar de a
+assinatura já ser real. Os stubs de provas e commitments continuam fora do
+caminho de assinatura, mas impedem liberação financeira.
 
-HTTP exige `application/json` (415 caso contrário), corpo de no máximo 64 KiB
-(413 ao exceder) e objeto JSON no topo. Timeouts: headers 10 s, requisição e
-inatividade 15 s. Algoritmos aceitos têm allowlist exata, mas o nome do
-algoritmo não comprova sua execução. Esse hardening não substitui autenticação,
-rate limiting, provas ou persistência. Plano: `../../docs/planning/production-readiness.md`.
-
-## Arquivos
-
-- `index.mjs`: handler `validateShieldedTx` com logging de entrada/saída.
-- `logger.mjs`: utilitários de log, incluindo hash (`sha256`) do payload.
-- `server.mjs`: servidor HTTP mínimo (`/healthz` e `/validate`) para execução local/GCP Cloud Run.
-- `validation-gateway.test.mjs`: teste para garantir que o `tx_blob` não é vazado em logs.
-- `Dockerfile`: imagem mínima para deploy no Cloud Run.
-- `package.json`: scripts locais para executar e testar.
-
-## Como rodar local
+## Executar e testar
 
 ```bash
-cd aegis-flow/services/validation-gateway
-npm run start
+node aegis-flow/services/validation-gateway/server.mjs
+npm test --prefix aegis-flow/services/validation-gateway
+bash aegis-flow/scripts/dev-env.sh test
 ```
 
-### Teste rápido local
+Exemplo completo de chaves, assinatura e decriptação em
+`../../libs/crypto-core/README.md`. Envie apenas a transação pública como JSON
+para `/validate`. O gateway nunca precisa da chave privada do cliente.
+
+HTTP exige `application/json`, máximo 64 KiB por corpo por padrão; timeouts de
+headers 10 s, requisição/inatividade 15 s. JSON inválido recebe 400, excesso de
+tamanho 413 e tipo de mídia incorreto 415. Logs contêm request_id, status,
+latência e hash do input, sem envelope bruto. Rate limiting, autenticação e
+política completa de metadados continuam pendentes.
+
+## Docker
+
+O contexto agora é `aegis-flow/`, pois o serviço importa o crypto-core:
 
 ```bash
-curl -s http://localhost:8080/healthz
-curl -s -X POST http://localhost:8080/validate \
-  -H 'content-type: application/json' \
-  -d '{"tx_blob":"0123456789abcdef0123456789abcdef","request_id":"req-local-1","pq_signature":"sig","pq_public_key":"pk","kem_ciphertext":"ct","signature_algorithm":"ML-DSA-65","kem_algorithm":"ML-KEM-768"}'
+docker build -f aegis-flow/services/validation-gateway/Dockerfile \
+  -t aegis-flow/validation-gateway:local aegis-flow
 ```
 
-## Como testar
-
-```bash
-cd aegis-flow/services/validation-gateway
-npm run test
-```
-
-## Manual GCP
-
-- Guia completo: `aegis-flow/docs/deployment/01-gcp-cloud-run.md`
-
-## Campos obrigatórios de log
-
-- `timestamp`
-- `level`
-- `service` (`validation-gateway`)
-- `request_id`
-- `method` (`ValidateShieldedTx`)
-- `status_code`
-- `latency_ms`
-- `tx_id_hash` (hash da transação, nunca payload bruto)
-- `error_code` (quando houver)
-
-## Regras de segurança
-
-- Nunca registrar chaves privadas, witness, memos em claro ou payload binário completo.
-- Sempre propagar `request_id` no request e response.
-- Usar códigos gRPC consistentes para erro:
-  - `INVALID_ARGUMENT`
-  - `FAILED_PRECONDITION`
-  - `PERMISSION_DENIED`
-
-
-## Requisitos anti-quânticos do MVP
-
-Para validar com status `OK`, a requisição precisa conter envelope PQC mínimo:
-
-- `pq_signature`
-- `pq_public_key`
-- `kem_ciphertext`
-- `signature_algorithm` no padrão `ML-DSA-*`
-- `kem_algorithm` no padrão `ML-KEM-*`
+Compose já usa esse contexto e Node 24. Guia GCP atualizado em
+`../../docs/deployment/01-gcp-cloud-run.md`; build e execução locais não
+publicam imagens nem realizam deploy.

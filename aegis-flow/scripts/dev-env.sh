@@ -44,6 +44,7 @@ smoke() {
       [[ ${status} -eq 22 ]] || return "${status}"
     }
   echo "Smoke test concluído: serviço saudável e rejeição inválida confirmada."
+  node "${ROOT_DIR}/scripts/smoke-crypto.mjs" "${base_url}"
 }
 
 usage() {

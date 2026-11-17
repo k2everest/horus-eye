@@ -5,11 +5,9 @@ import { spawnSync } from 'node:child_process';
 import { createValidationServer } from './server.mjs';
 import { validateShieldedTx } from './index.mjs';
 import { assertDemoRuntime } from './runtime-policy.mjs';
+import { signedRequest } from './test-fixtures.mjs';
 
-const envelope = {
-  tx_blob: '0123456789abcdef', pq_signature: 'sig', pq_public_key: 'pk',
-  kem_ciphertext: 'ct', signature_algorithm: 'ML-DSA-65', kem_algorithm: 'ML-KEM-768',
-};
+const envelope = signedRequest('hardening-test');
 
 test('demo runtime fails closed for production and unknown modes', () => {
   assert.doesNotThrow(() => assertDemoRuntime({ NODE_ENV: 'test' }));
@@ -32,7 +30,7 @@ test('actual startup and direct validation are blocked in production', () => {
   }
 });
 
-test('demo validation rejects non-string crypto fields and invented algorithm names', () => {
+test('validation rejects non-string crypto fields and invented algorithm names', () => {
   const logs = [];
   for (const field of ['pq_signature', 'pq_public_key', 'kem_ciphertext', 'tx_blob']) {
     for (const value of [true, 123, {}, [], ' ']) {
@@ -47,13 +45,13 @@ test('demo validation rejects non-string crypto fields and invented algorithm na
   const response = validateShieldedTx(envelope, () => {});
   assert.equal(response.valid, true);
   assert.equal(response.production_ready, false);
-  assert.equal(response.validation_scope, 'demo-envelope-only');
+  assert.equal(response.validation_scope, 'signature-and-structure-only');
   assert.ok(logs.every(line => !line.includes('pq_signature')));
 });
 
 test('HTTP rejects oversized, malformed and non-JSON requests; remains usable', async t => {
   const logs = [];
-  const server = createValidationServer({ sink: line => logs.push(line), maxBodyBytes: 512 });
+  const server = createValidationServer({ sink: line => logs.push(line), maxBodyBytes: 32768 });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   t.after(() => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }));
@@ -69,14 +67,14 @@ test('HTTP rejects oversized, malformed and non-JSON requests; remains usable', 
   const unsupported = await post('secret', 'text/plain');
   assert.equal(unsupported.status, 415);
   await unsupported.arrayBuffer();
-  const tooLarge = await post(JSON.stringify({ tx_blob: 'sensitive'.repeat(100) }));
+  const tooLarge = await post(JSON.stringify({ tx_blob: 'sensitive'.repeat(5000) }));
   assert.equal(tooLarge.status, 413);
   await tooLarge.arrayBuffer();
   const chunked = await fetch(`${url}/validate`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, duplex: 'half',
     body: (async function* () {
       yield Buffer.from('{"tx_blob":"');
-      yield Buffer.from('é'.repeat(260));
+      yield Buffer.from('é'.repeat(17000));
       yield Buffer.from('"}');
     })(),
   });
@@ -85,6 +83,9 @@ test('HTTP rejects oversized, malformed and non-JSON requests; remains usable', 
   const accepted = await post(JSON.stringify(envelope), 'application/json; charset=utf-8');
   assert.equal(accepted.status, 200);
   assert.equal((await accepted.json()).production_ready, false);
+  const tampered = await post(JSON.stringify({ ...envelope, amount: envelope.amount + 1 }));
+  assert.equal(tampered.status, 400);
+  assert.equal((await tampered.json()).valid, false);
   const health = await (await fetch(`${url}/healthz`)).json();
   assert.equal(health.production_ready, false);
   assert.equal(health.mode, 'demo');

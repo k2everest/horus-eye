@@ -3,8 +3,8 @@ name: aegis-flow
 services:
   validation-gateway:
     build:
-      context: ../../services/validation-gateway
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: services/validation-gateway/Dockerfile
     image: aegis-flow/validation-gateway:dev
     environment:
       NODE_ENV: development

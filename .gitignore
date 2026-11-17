@@ -25,3 +25,6 @@ dist-ssr
 *.sw?
 # Aegis Flow local environment
 aegis-flow/deployments/docker/.env
+
+# Local analysis and downloaded source vectors
+/work/

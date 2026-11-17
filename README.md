@@ -1,7 +1,8 @@
 # Horus Eye / Aegis Flow
 
-Console React/Vite e protótipo Aegis Flow/QUEER. A carteira e os verificadores
-Aegis são demonstrativos, sem valor monetário; não estão aptos à produção.
+Console React/Vite e protótipo Aegis Flow/QUEER. A carteira browser e as provas ZK
+são demonstrativas; o gateway verifica assinaturas PQC reais. Os saldos não
+têm valor monetário e os componentes não estão aptos à produção.
 
 ## Desenvolvimento
 
@@ -39,5 +40,6 @@ contratos protobuf e testes Node de crypto-core, gateway e relay.
 - Ambiente local e limites: `aegis-flow/README.md`.
 
 O gateway recusa iniciar com `NODE_ENV=production` enquanto usa verificadores
-simulados. As bibliotecas criptográficas MVP ainda contêm stubs; compilar o
+simulados. ML-DSA/ML-KEM e cifragem das notes são reais; prover/verifier ZK e commitments
+ainda contêm stubs. Consulte `aegis-flow/libs/crypto-core/README.md`. Compilar o
 frontend com sucesso não torna o protocolo seguro para movimentar valor.

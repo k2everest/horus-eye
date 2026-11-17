@@ -2,7 +2,7 @@
 
 Este guia serve apenas para demonstração sem valor monetário. A imagem usa
 `NODE_ENV=development` e `AEGIS_MODE=demo`; o gateway recusa execução em
-produção enquanto usar verificação simulada. Nenhum deploy real foi realizado
+produção enquanto provas e estado persistente não estiverem integrados. Nenhum deploy real foi realizado
 na etapa de preparação. Consulte `../planning/production-readiness.md`.
 
 Este guia coloca o `validation-gateway` no ar no Google Cloud usando **Cloud Run** com logs estruturados no **Cloud Logging**.
@@ -53,10 +53,11 @@ gcloud artifacts repositories create "$REPO" \
 Execute a partir da raiz do repositório:
 
 ```bash
-cd aegis-flow/services/validation-gateway
+cd aegis-flow
 
 gcloud builds submit \
-  --tag "$REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE:latest" \
+  --config services/validation-gateway/cloudbuild.yaml \
+  --substitutions="_IMAGE=$REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE:latest" \
   .
 ```
 

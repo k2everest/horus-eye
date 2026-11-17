@@ -3,20 +3,13 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 
 import { createValidationServer } from './server.mjs';
+import { signedRequest } from './test-fixtures.mjs';
 
 const SLO_AVAILABILITY = 0.999;
 const RECOVERY_TARGET_MS = 2_000;
 
 function validRequest(index) {
-  return {
-    tx_blob: `0123456789abcdef-load-${index}`,
-    request_id: `load-${index}`,
-    pq_signature: 'sig',
-    pq_public_key: 'pk',
-    kem_ciphertext: 'ct',
-    signature_algorithm: 'ML-DSA-65',
-    kem_algorithm: 'ML-KEM-768',
-  };
+  return signedRequest(`load-${index}`);
 }
 
 async function startServer(options = {}) {

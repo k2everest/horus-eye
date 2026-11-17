@@ -1,7 +1,7 @@
 # Aegis Flow
 
 Esta base é demonstrativa. O gateway bloqueia `NODE_ENV=production` e modos
-diferentes de `demo`; `valid: true` não comprova assinatura ou prova real.
+diferentes de `demo`; `valid: true` comprova assinatura e estrutura, mas não prova ZK ou validade financeira.
 Plano de preparação: `docs/planning/production-readiness.md`.
 
 ## QUEER
@@ -11,8 +11,8 @@ marketing está disponível em `/queer`; o roteiro de testes e as limitações d
 MVP estão documentados em `docs/testing/01-testar-queer.md`.
 
 A carteira pública de laboratório está disponível em `/queer/wallet`. Ela cria
-apenas identidades e saldo testnet demonstrativos e pode enviar envelopes ao
-Validation Gateway; não custodia valor real. O caminho até uma altcoin está em
+apenas identidades e saldo testnet demonstrativos; seus envelopes fictícios são
+rejeitados pelo gateway PQC até integrar a carteira com chaves reais; não custodia valor real. O caminho até uma altcoin está em
 `docs/planning/roadmap-altcoin-queer.md`.
 
 ## Ambiente local com Docker
@@ -65,3 +65,9 @@ defina `AEGIS_GITHUB_REPOSITORY` e `AEGIS_BASE_BRANCH` antes de executá-lo.
 - Threat model MVP: `docs/architecture/02-threat-model.md`.
 - Status de execução: `docs/planning/status-tarefas-aegis-flow.md`.
 - SLO e homologação de carga/caos: `docs/operations/01-slo-load-chaos.md`.
+
+## Criptografia nativa
+
+Node.js >=24.8 é obrigatório. API, formatos, vetores NIST e limites em
+`libs/crypto-core/README.md`. O gateway verifica ML-DSA real; o formato legado
+da carteira demonstrativa não é compatível.

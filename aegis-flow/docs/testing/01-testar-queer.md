@@ -1,3 +1,9 @@
+> Atualização PQC: o gateway agora exige transações AEGIS-PQC-V1 com ML-DSA
+> real. Os envelopes fictícios da carteira browser descrita abaixo são rejeitados;
+> a carteira permanece demonstrativa até integrar chaves reais. Para o fluxo
+> criptográfico atual use `node aegis-flow/scripts/smoke-crypto.mjs` com o gateway
+> local ativo e consulte `../../libs/crypto-core/README.md`.
+
 # Como testar a QUEER
 
 QUEER é a identidade de demonstração do Aegis Flow. O estado atual é um MVP

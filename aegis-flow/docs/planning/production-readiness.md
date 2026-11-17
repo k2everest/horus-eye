@@ -6,7 +6,8 @@ O produto atual é uma demonstração sem valor monetário. Não há release
 financeira autorizada por esta preparação. O gateway falha ao iniciar em
 `NODE_ENV=production` ou com `AEGIS_MODE` diferente de `demo`. A imagem Docker
 é explicitamente demonstrativa; mudar variáveis para `development` não elimina
-os bloqueadores. `valid: true` significa apenas envelope demo aceito.
+os bloqueadores. `valid: true` significa assinatura ML-DSA real e estrutura
+válidas; não comprova prova ZK, saldo, unicidade de nullifier ou settlement.
 
 ## Etapas e evidências de saída
 
@@ -35,9 +36,9 @@ P2P, validadores e auditoria; não cabe automaticamente nesse prazo.
 1. Ampliar a cobertura de autenticação/carteira e revisar o bundle do frontend
    (o build atual alerta sobre chunk maior que 500 KiB).
 2. ADR com alternativas de settlement e requisitos de segurança pós-quântica.
-3. Prova de viabilidade ML-DSA/ML-KEM: runtime suportado, biblioteca, formatos,
-   vetores oficiais, mensagens adulteradas e chaves erradas. Sem criptografia
-   caseira ou fallback para os stubs.
+3. ML-DSA/ML-KEM nativos e HKDF/AEAD já implementados no core e assinatura
+   integrada ao gateway, com vetores NIST. Próximo: revisão independente dos
+   formatos e construção, benchmarks, key vault e integração browser.
 4. Escolha e benchmark do sistema de provas: soundness, privacidade do witness,
    resistência quântica, tamanho e custo de verificação/settlement.
 5. Persistência e validação atômica de tx+estado (US-014), incluindo concorrência
@@ -64,3 +65,5 @@ P2P, validadores e auditoria; não cabe automaticamente nesse prazo.
 `bash aegis-flow/scripts/dev-env.sh test` executa crypto-core, gateway/hardening
 e relay sem instalar dependências externas. Os testes dos stubs comprovam
 somente seu comportamento demonstrativo. O CI executa a mesma suíte.
+As primitivas PQC agora exigem Node.js >=24.8; os testes restantes de ZK e
+commitments continuam cobrindo apenas os stubs.

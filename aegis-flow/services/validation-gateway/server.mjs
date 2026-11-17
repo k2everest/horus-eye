@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 import { validateShieldedTx } from './index.mjs';
 import { assertDemoRuntime } from './runtime-policy.mjs';
+import { assertPqcRuntime } from '../../libs/crypto-core/pqc-wrapper.mjs';
 
 function sendJson(res, statusCode, payload) {
   res.writeHead(statusCode, {
@@ -16,6 +17,7 @@ function sendJson(res, statusCode, payload) {
 
 export function createValidationServer({ sink = console.log, faultInjector = () => false, maxBodyBytes = 65536 } = {}) {
   assertDemoRuntime();
+  assertPqcRuntime();
   if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes < 1 || maxBodyBytes > 1048576) {
     throw new RangeError('maxBodyBytes must be between 1 and 1048576');
   }
@@ -63,18 +65,7 @@ export function createValidationServer({ sink = console.log, faultInjector = () 
         try {
           const parsed = body ? JSON.parse(body) : {};
           if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid object');
-          const response = validateShieldedTx(
-            {
-              tx_blob: parsed.tx_blob,
-              request_id: parsed.request_id,
-              pq_signature: parsed.pq_signature,
-              pq_public_key: parsed.pq_public_key,
-              kem_ciphertext: parsed.kem_ciphertext,
-              signature_algorithm: parsed.signature_algorithm,
-              kem_algorithm: parsed.kem_algorithm,
-            },
-            sink,
-          );
+          const response = validateShieldedTx(parsed, sink);
 
           sendJson(res, response.valid ? 200 : 400, response);
         } catch {

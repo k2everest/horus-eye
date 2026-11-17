@@ -2,7 +2,7 @@
 
 ## Mapeamento da tarefa
 
-Esta entrega implementa os critérios informados como **US-014 — Testes de carga e caos**. No CSV histórico do projeto, o mesmo título aparece como US-021; este documento registra explicitamente a divergência para evitar perda de rastreabilidade.
+Estes testes pertencem à **US-021 — Testes de carga e caos**, conforme o CSV do backlog. A classificação histórica como US-014 foi corrigida: US-014 é validação atômica de transação e estado, ainda pendente.
 
 ## SLO mínimo
 

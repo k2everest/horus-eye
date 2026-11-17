@@ -21,7 +21,10 @@ os bloqueadores. `valid: true` significa apenas envelope demo aceito.
 | P6 Segurança | Auditorias, pentest, correções e testnet adversarial | Nenhum achado crítico/alto aberto; correções revalidadas | P4, P5 |
 | P7 Lançamento | Revisão de release, responsáveis, requisitos jurídicos e limites iniciais | Evidências assinadas pelos responsáveis técnicos e operacionais | P6 |
 
-P0 iniciou nesta entrega, mas o build do frontend ainda precisa ser validado.
+P0 iniciou nesta entrega: o build do frontend foi validado e o conflito entre
+Vite 8 e lovable-tagger foi corrigido. O lockfile npm também foi sincronizado
+com as dependências declaradas (incluindo Supabase). O frontend tem CI próprio;
+seu teste unitário atual é apenas um smoke, sem cobertura dos fluxos reais.
 Responsáveis individuais e orçamento precisam ser atribuídos antes de assumir
 datas. Estimativas preliminares com equipe dedicada: testnet 3–5 meses;
 produção financeira 6–12+ meses. Rede própria exige reestimativa de consenso,
@@ -29,7 +32,8 @@ P2P, validadores e auditoria; não cabe automaticamente nesse prazo.
 
 ## Próximas mudanças, em ordem
 
-1. Validar instalação/build/testes do frontend e resolver dependências.
+1. Ampliar a cobertura de autenticação/carteira e revisar o bundle do frontend
+   (o build atual alerta sobre chunk maior que 500 KiB).
 2. ADR com alternativas de settlement e requisitos de segurança pós-quântica.
 3. Prova de viabilidade ML-DSA/ML-KEM: runtime suportado, biblioteca, formatos,
    vetores oficiais, mensagens adulteradas e chaves erradas. Sem criptografia

@@ -32,7 +32,7 @@ async function closeServer(server) {
   await once(server, 'close');
 }
 
-test('US-014: carga nominal atende SLO mínimo de disponibilidade', async (t) => {
+test('US-021: carga nominal atende SLO mínimo de disponibilidade', async (t) => {
   const { server, baseUrl } = await startServer();
   t.after(() => closeServer(server));
 
@@ -55,7 +55,7 @@ test('US-014: carga nominal atende SLO mínimo de disponibilidade', async (t) =>
   assert.ok(availability >= SLO_AVAILABILITY, `availability ${availability} below ${SLO_AVAILABILITY}`);
 });
 
-test('US-014: serviço recupera após falha injetada dentro do RTO', async (t) => {
+test('US-021: serviço recupera após falha injetada dentro do RTO', async (t) => {
   let failuresRemaining = 1;
   const { server, baseUrl } = await startServer({
     faultInjector: () => {

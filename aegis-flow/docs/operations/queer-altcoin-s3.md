@@ -149,3 +149,7 @@ Referências técnicas AWS:
 - https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html
 
 Uploads pendentes ficam vinculados à origem, ao destino e ao identificador da chave de criptografia. Uma troca de chave bloqueia a retomada; preserve a chave e a configuração anteriores até concluir a cópia e validar a restauração.
+
+## Validação desta etapa
+
+A suíte de backend terminou com 169 testes aprovados, zero falhas e 8 integrações opcionais não executadas. Um ensaio separado restaurou o artefato público `work/open-pow-v2-public.json`, verificando sua prova STARK real com o backend nativo e comparando o estado após a recuperação. O transporte S3 desse ensaio foi simulado; não constitui evidência de RTO/RPO ou acesso ao bucket real. Não houve deploy nem alteração de políticas AWS.

@@ -14,7 +14,7 @@ export async function fileDigest(filename) {
   for await (const chunk of createReadStream(filename)) hash.update(chunk);
   return hash.digest('hex');
 }
-const keyId = key => crypto.createHash('sha256').update('AEGIS_BACKUP_KEY_V1\0').update(key).digest('hex');
+export const backupKeyId = key => crypto.createHash('sha256').update('AEGIS_BACKUP_KEY_V1\0').update(key).digest('hex');
 function syncFile(path) { const fd = openSync(path, 'r'); try { fsyncSync(fd); } finally { closeSync(fd); } }
 function assertManifest(manifest) {
   const expected = 'ciphertext_sha256,context,nonce,tag';
@@ -43,7 +43,7 @@ export async function createBackup({ ledgerPath, outputDirectory, keyFile, netwo
     if (!state) throw new Error('BACKUP_REQUIRES_CONFIGURED_SETTLEMENT');
     const context = { schema: 'AEGIS_EXTERNAL_BACKUP_V1', backup_id: id, created_at: Date.now(), ledger_schema: snapshot.schemaVersion,
       network_id: snapshot.networkId, config_id: state.config_id, finalized: state.finalized, tip: snapshot.latest(),
-      key_id: keyId(key), recovery_scope: 'verified-finalized-prefix' };
+      key_id: backupKeyId(key), recovery_scope: 'verified-finalized-prefix' };
     snapshot.close(); snapshot = undefined;
     const nonce = crypto.randomBytes(12); const cipher = crypto.createCipheriv('aes-256-gcm', key, nonce);
     cipher.setAAD(Buffer.from(canonicalSerialize(context)));
@@ -74,7 +74,7 @@ export async function restoreBackup({ backupDirectory, destination, keyFile, tru
   const staging = mkdtempSync(join(dirname(resolve(destination)), '.aegis-restore-'));
   let snapshot; let recovered;
   try {
-    if (manifest.context.key_id !== keyId(key) || await fileDigest(join(backupDirectory, 'ledger.enc')) !== manifest.ciphertext_sha256) throw new Error('BACKUP_KEY_OR_CHECKSUM_MISMATCH');
+    if (manifest.context.key_id !== backupKeyId(key) || await fileDigest(join(backupDirectory, 'ledger.enc')) !== manifest.ciphertext_sha256) throw new Error('BACKUP_KEY_OR_CHECKSUM_MISMATCH');
     const plain = join(staging, 'snapshot.sqlite');
     const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(manifest.nonce, 'hex'));
     decipher.setAAD(Buffer.from(canonicalSerialize(manifest.context))); decipher.setAuthTag(Buffer.from(manifest.tag, 'hex'));

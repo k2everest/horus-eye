@@ -38,8 +38,11 @@ restauração do banco PoW revalidado em aproximadamente 225 segundos.
 | P1 | Testnet pública prolongada | Pelo menos a campanha definida, provas reais novas, terceiros e mineradores independentes, partições/reorgs/carga e evidências verificáveis; laboratório não conta como tempo público |
 | P1 | Dependências de build | Advisories dev triados/corrigidos ou mitigação formal aceita; runtime auditado sem avisos não encerra o risco de supply chain |
 
-A implantação depende dos hosts/bucket e das decisões econômicas solicitadas ao
-responsável. Auditoria, análise criptográfica e duração pública não podem ser
+O bucket informado é queer-altcoin (us-east-2, owner 941554679497). A integração
+usa aegis/pow/v2 e tem inspeção somente leitura/planos IAM e ensaio de restore;
+autenticação, KMS, estado do bucket e ensaio real ainda precisam ser verificados.
+A execução dos nós e as decisões econômicas de lançamento ainda precisam ser
+definidas pelo responsável. Auditoria, análise criptográfica e duração pública não podem ser
 substituídas por testes locais ou hashes de documentos ainda não produzidos.
 O gate/runtime de produção permanece bloqueado até esses critérios serem atendidos.
 

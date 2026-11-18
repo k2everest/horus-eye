@@ -47,7 +47,12 @@ jobs:
       - name: Spend a mined reward with a fresh native STARK on independent PoW nodes
         env:
           AEGIS_OPEN_POW_INTEGRATION: '1'
+          AEGIS_OPEN_POW_PUBLIC_ARTIFACT: work/open-pow-v2-public.json
         run: node --test aegis-flow/services/open-chain/native.integration.test.mjs
+      - name: Revalidate a native STARK through the resumable backup restore drill
+        env:
+          AEGIS_POW_RECOVERY_ARTIFACT: work/open-pow-v2-public.json
+        run: node --test aegis-flow/services/open-chain/s3-drill.integration.test.mjs
 
   native-pow-wallet:
     runs-on: ubuntu-latest

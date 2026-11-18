@@ -1,3 +1,4 @@
+import {memoryS3} from '../recovery/testing/memory-s3.mjs';
 import {S3BackupTarget} from '../recovery/s3.mjs';
 import test from 'node:test';import assert from 'node:assert/strict';import crypto from 'node:crypto';import {mkdtempSync,rmSync,writeFileSync,readFileSync} from 'node:fs';import {tmpdir} from 'node:os';import {join} from 'node:path';
 import {OpenChain} from './chain.mjs';import {createPowBackup,restorePowBackup} from './recovery.mjs';import {spendOwner} from '../../libs/crypto-core/shielded-note-v2.mjs';
@@ -13,14 +14,7 @@ test('PoW encrypted snapshot restores only after revalidation, configuration and
  await assert.rejects(restorePowBackup({...options,destinationDirectory:join(root,'too-old'),minimumWork:(BigInt(chain.tip.work)+1n).toString()}),/BELOW_VERIFIED_WORK/);
  await assert.rejects(restorePowBackup({...options,destinationDirectory:join(root,'wrong-network'),config:{...config,monetary:{...config.monetary,max_supply:'701'}}}),/CONFIG_MISMATCH/);
  const s3config={schema:'AEGIS_S3_BACKUP_TARGET_V1',bucket:'aegis-pow-dr-test',region:'us-east-1',prefix:'pow/nodes',expected_bucket_owner:'123456789012',kms_key_arn:'arn:aws:kms:us-east-1:123456789012:key/test-key'};
- const objects=new Map();const target=new S3BackupTarget(s3config,{runner:async args=>{
-  const operation=args[1],value=flag=>args[args.indexOf(flag)+1];
-  if(operation==='get-bucket-versioning')return{Status:'Enabled'};
-  if(operation==='get-public-access-block')return{PublicAccessBlockConfiguration:{BlockPublicAcls:true,IgnorePublicAcls:true,BlockPublicPolicy:true,RestrictPublicBuckets:true}};
-  if(operation==='put-object'){objects.set(value('--key'),readFileSync(value('--body')));return{VersionId:'version-1',ChecksumSHA256:value('--checksum-sha256'),ServerSideEncryption:'aws:kms',SSEKMSKeyId:s3config.kms_key_arn};}
-  if(operation==='get-object'){writeFileSync(args.at(-1),objects.get(value('--key')));return{};}
-  throw Error('UNEXPECTED_S3_TEST_OPERATION');
- }});
+ const memory=memoryS3(s3config);const target=new S3BackupTarget(s3config,{runner:memory.runner});
  const receipt=await target.upload(archived.directory);assert.equal(receipt.external_copy_completed,true);
  const downloaded=join(root,'download');await target.download({backupId:receipt.backup_id,destinationDirectory:downloaded});
  const fromS3=await restorePowBackup({...options,backupDirectory:downloaded,destinationDirectory:join(root,'s3-restored')});assert.equal(fromS3.tip.hash,chain.tip.hash);

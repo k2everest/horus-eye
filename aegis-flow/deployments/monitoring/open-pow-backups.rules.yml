@@ -1,0 +1,28 @@
+# Example thresholds; agree RPO/RTO for the actual deployment before enabling.
+groups:
+  - name: aegis-backup-health
+    rules:
+      - alert: AegisBackupStatusInvalid
+        expr: aegis_backup_status_valid == 0 or aegis_backup_pending_state_valid == 0
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: Backup status is missing or invalid
+      - alert: AegisBackupSnapshotTooOld
+        expr: aegis_backup_status_valid == 1 and aegis_backup_snapshot_age_seconds > 7200
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: Verified backup snapshot exceeds the example age budget
+      - alert: AegisBackupUploadStalled
+        expr: aegis_backup_pending_upload == 1 and aegis_backup_pending_age_seconds > 3600
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: Pending immutable upload needs attention
+      - alert: AegisBackupExternalCopyUnconfirmed
+        expr: aegis_backup_status_valid == 1 and aegis_backup_external_copy_completed == 0
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: Last backup has no completed real external transport

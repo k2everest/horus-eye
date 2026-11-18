@@ -118,3 +118,8 @@ services/open-chain/wallet.integration.test.mjs gera STARK nova e verifica envio
 recebimento, reorganização confirmada, reserva de órfãos, backup da carteira e
 backup/restauração do nó com revalidação. Os testes de contrato não substituem
 30 dias públicos, restauração no S3 real ou auditoria independente.
+
+Destino definido: bucket queer-altcoin, us-east-2, owner 941554679497, prefixo
+aegis/pow/v2. Inspeção de KMS/IAM, uploads retomáveis, fila durável e ensaio
+completo: [queer-altcoin-s3.md](queer-altcoin-s3.md). O bucket real ainda precisa
+de inspeção autenticada; o relatório local registrou AWS_CLI_REQUIRED.

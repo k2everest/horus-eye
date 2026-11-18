@@ -12,6 +12,7 @@ e provisionamento externo ainda precisam ser concluídos.
 Decisão: [ADR-0006](docs/adr/ADR-0006-open-proof-of-work.md).
 Execução: [rede aberta](docs/operations/open-chain.md).
 Carteira, operação e recuperação PoW: [runbook](docs/operations/pow-wallet-recovery.md).
+Destino S3 conhecido, IAM e ensaio de restore: [queer-altcoin](docs/operations/queer-altcoin-s3.md).
 Evidências locais: [validação de consenso e STARK](docs/testing/open-chain-validation.md).
 
 O modelo anterior opt-in de settlement permissionado usa autoridade ML-DSA,

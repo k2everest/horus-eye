@@ -55,12 +55,25 @@
     "supabase/functions/monero-rpc/handler.mjs": "12f687d547d0e93cf25cc59efac8d72068b7cde9c3687dbc37e1a05e4bf0d0e2",
     "supabase/functions/monero-rpc/index.ts": "03d51201d53f40246900653d544cd884b1204fbe4040c5a4dc5e9587e5dba0d4",
     "aegis-flow/services/open-chain/address.mjs": "1a07318b4f64764e816c3dcc48b28677d5640837c03730ea712088dc64ea112c",
-    "aegis-flow/services/open-chain/recovery.mjs": "260470a40b82074a5efbbff064daf196b2d6681d9a3cda8f5ddc932192161410",
+    "aegis-flow/services/open-chain/recovery.mjs": "34a9c187bf3aaf6840d90c87a1fd0b27505b1852e47899d28e37f7e48b5450ff",
     "aegis-flow/services/open-chain/wallet.mjs": "33aac9375995d216d27fc3301ca3e2f102bdc298e14434af110743f7fee5c2e9",
     "aegis-flow/services/wallet-local/server.mjs": "4c4bf7033002323250c9137b6aa083e03aa5ac02a5696559700c30d6b0d8275a",
     "aegis-flow/services/operational-security/profile-lock.mjs": "b840072480fffb624f6dd32c6fc55d7052b32abf2a305607c9ebc110a869423b",
     "aegis-flow/scripts/pow-recovery.mjs": "2ff2ac32a0871627e0f26bb6a4c3fd8ad9a7f6cd350196a7e075a2607c03a332",
-    "aegis-flow/scripts/scheduled-backup.mjs": "5b3e2f6740e40ae4487a776da000c15f7308db259079e64c03bb2aa4ed53ba91",
-    "aegis-flow/scripts/open-chain.mjs": "334c3222a71355a39d9fdd0b0f373f6ea7ed4569ec0c1624e1c8c92977e74920"
+    "aegis-flow/scripts/scheduled-backup.mjs": "55d08939790fd8be6f94395b4cdd79a6cd6eb4a2146cd5f16d45f8b52ccd9119",
+    "aegis-flow/scripts/open-chain.mjs": "334c3222a71355a39d9fdd0b0f373f6ea7ed4569ec0c1624e1c8c92977e74920",
+    "aegis-flow/services/recovery/backup.mjs": "57d1b8a8ca6c70adbd32feda149e71f1fba3beba562ddeaff9d18fe6379273c0",
+    "aegis-flow/services/recovery/s3.mjs": "d5e1898ba8eca97a164829f4d6d98c0071e7b7e74f0fa1e605b0ce229fdbbc9d",
+    "aegis-flow/services/recovery/disk-space.mjs": "a7504608ca2d23717f77b2b416916b696f0d47cdee6fa3c323512144a666780d",
+    "aegis-flow/services/recovery/release.mjs": "461bb8c5b8194b330c670e1caafbfde87882168a39e86d4cafe2e12800d7c56c",
+    "aegis-flow/services/recovery/s3-setup.mjs": "27a89cffd4bf3f9ba9e697a5e7a63d9bc96a7672cb8042dceed6014de93ffa2b",
+    "aegis-flow/services/recovery/backup-job.mjs": "ab51f68b0889c58bb413b88eb207dd94f764f07a93476379dc6051751c912999",
+    "aegis-flow/services/recovery/backup-metrics.mjs": "4b0c35cdfae888e1f055347452d793b1f19c819fe970d664c5da1a7a637ebe5b",
+    "aegis-flow/services/recovery/aws-cli.mjs": "d0abc012089d13b61a2abc998692d64b9f96f95728fb91b2b76f29eba239e7bb",
+    "aegis-flow/services/open-chain/s3-drill.mjs": "32f2ce66d000f26ce4e4f32eb69f74ebf77de85ab0ccd54106283257d385c433",
+    "aegis-flow/scripts/s3-target.mjs": "a53434ab5228ef366ed25cd317876d5d6eba7ded35069be8834579d882afa55f",
+    "aegis-flow/scripts/pow-s3-drill.mjs": "6ef6e7401de3212686eddaa490d02a02eea1dabfef0c30236e509b80775ccc68",
+    "aegis-flow/scripts/backup-metrics.mjs": "ed63640d36f58f7414f23b9f9a0ea8288478298878f56defd497c7af55050a1c",
+    "aegis-flow/deployments/open-pow/s3-destination.json": "a765ff54203a5f064b957b93125e4bfc700e4a05ced2661556fd7db625d6e571"
   }
 }

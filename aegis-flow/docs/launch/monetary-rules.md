@@ -13,11 +13,15 @@ comercial de ticker nem garante exclusividade de nome.
 O novo modo `AEGIS_OPEN_POW_V2` tem genesis vazio, ativo fixado na configuração,
 subsídio determinístico por bloco válido e teto explícito de emissão u64.
 O protocolo não tem autoridade monetária, cadastro de validadores ou filtro de
-país. Exige `public_amount=0`, maturidade das recompensas e consenso pelo maior
+país. O perfil anterior exige `public_amount=0`. O novo perfil de genesis
+`fee_policy: miner-fees-v1` exige `minimum_fee` positiva e paga `public_amount`
+ao minerador. Ambos exigem maturidade das recompensas e consenso pelo maior
 trabalho acumulado; confirmações podem ser reorganizadas. Cada alteração desses
 parâmetros muda a identidade da rede. Não há alocação inicial nem mint administrativo.
-Recompensas são transparentes na emissão. Faltam definição de incentivos após o
-teto e auditoria do consenso, além da campanha pública. Carteira PoW e recuperação cifrada de branches foram
+Recompensas são transparentes na emissão. A decisão do responsável é preservar o teto e remunerar com taxas após a
+emissão: a recompensa é subsídio limitado mais taxa, sendo apenas taxa quando
+o subsídio termina. Taxas reciclam valores já existentes; não aumentam o total
+emitido. Ainda faltam análise econômica, auditoria do consenso e campanha pública. Carteira PoW e recuperação cifrada de branches foram
 implementadas e ensaiadas localmente; operação externa/S3 real ainda precisa de
 validação.
 Não se presumem valores comerciais a partir do exemplo de laboratório.
@@ -55,7 +59,7 @@ as hipóteses criptográficas e a integridade do estado são premissas dessa con
 
 ## Tratamento de public_amount
 
-O builder usa o nome histórico `fee`, com default zero, e a carteira envia zero.
+No modelo permissionado anterior, o builder usa o nome histórico `fee`, com default zero, e a carteira envia zero.
 O protocolo aceita valores positivos. Hoje eles deixam de aparecer nos novos
 outputs blindados; **não há repasse implementado**. Não chamar isso de taxa
 recolhida, receita do operador, retirada paga ou burn econômico formal sem

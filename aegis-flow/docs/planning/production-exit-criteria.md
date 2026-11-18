@@ -36,7 +36,7 @@ restauração do banco PoW revalidado em aproximadamente 225 segundos.
 | Prioridade | Trabalho necessário | Critério de saída |
 | --- | --- | --- |
 | P0 | Parâmetros/motor STARK | Análise aceita que demonstre a meta pós-quântica ponta a ponta. O perfil atual continua sem demonstrar 128 bits; aumentar um rótulo não resolve |
-| P0 | Política monetária de lançamento | Escolha explícita de ativo/unidade, recompensa, teto e remuneração da segurança após a emissão; implementar e auditar a escolha. Valores do lab não são aprovados para lançamento |
+| P0 | Política monetária de lançamento | Teto preservado e taxas ao minerador após emissão escolhidos; perfil de taxas implementado. Aprovar ativo/unidade, recompensa, teto e mínimo de taxa comerciais; auditar e validar incentivos. Valores do lab não são aprovados para lançamento |
 | P0 | Histórico e escala | Plano/implementação auditada para o limite de 1 milhão de folhas, snapshots persistentes/poda canônica, restauração e recursos ao longo do tempo |
 | P0 | Auditoria independente | Revisão de consenso/circuito/carteira/chaves/backup, achados críticos e altos corrigidos e revalidados |
 | P0 | Infraestrutura real | Hosts/domínios, identidade do artefato, distribuição de peers, secrets/IAM/KMS e bucket definidos; deploy e restauração S3 real ensaiados com RTO/RPO medidos |

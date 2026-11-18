@@ -5,7 +5,7 @@ import {join} from 'node:path';
 import {canonicalSerialize} from '../../libs/crypto-core/canonical-transcript.mjs';
 import {createPrivateNote} from '../../libs/crypto-core/shielded-note-v2.mjs';
 import {defaultStarkBackend} from '../proof-engine/backend.mjs';
-import {assertOpenGenesis,openNetworkId,genesisTip,blockHash,assertBlockHeader,expectedTarget,medianTime,subsidy,digest,mineHeader} from './consensus.mjs';
+import {assertOpenGenesis,openNetworkId,genesisTip,blockHash,assertBlockHeader,expectedTarget,medianTime,subsidy,minerReward,minimumTransactionFee,digest,mineHeader} from './consensus.mjs';
 import {BranchState} from './state.mjs';
 export class OpenChain {
  #db;#config;#nodes=new Map();#best;#backend;#busy=false;#closed=false;#canonical=[];#snapshots=new Map();#cacheBytes=0;#storedBytes=0;#limits;
@@ -38,7 +38,7 @@ export class OpenChain {
  status(){const confirmed=this.confirmedHeight;const b=confirmed?this.#nodes.get(this.#canonical[confirmed-1]).block.header:undefined;
   return{model:'open-proof-of-work',config_id:openNetworkId(this.#config),network_id:this.#config.network_id,tip:this.tip,resources:{stored_blocks:this.#nodes.size,stored_body_bytes:this.#storedBytes,cached_state_bytes:this.#cacheBytes,limits:{...this.#limits}},
    confirmed:{height:confirmed,checkpoint_id:confirmed?blockHash(b):openNetworkId(this.#config),root:b?.note_root??genesisTip(this.#config).note_root},
-   confirmations_required:this.#config.confirmations,finality:'probabilistic',monetary_authority:null,protocol_minted_supply:(BigInt(this.#best.height)*BigInt(this.#config.monetary.base_reward)>BigInt(this.#config.monetary.max_supply)?BigInt(this.#config.monetary.max_supply):BigInt(this.#best.height)*BigInt(this.#config.monetary.base_reward)).toString(),production_ready:false};
+   minimum_transaction_fee:minimumTransactionFee(this.#config),fee_policy:this.#config.monetary.fee_policy??'legacy-zero',confirmations_required:this.#config.confirmations,finality:'probabilistic',monetary_authority:null,protocol_minted_supply:(BigInt(this.#best.height)*BigInt(this.#config.monetary.base_reward)>BigInt(this.#config.monetary.max_supply)?BigInt(this.#config.monetary.max_supply):BigInt(this.#best.height)*BigInt(this.#config.monetary.base_reward)).toString(),production_ready:false};
  }
  readiness(){
   const verifier=Boolean(this.#backend.availableForVerification?.());
@@ -107,7 +107,7 @@ export class OpenChain {
  }
  async mine({ownerTag,transaction=null,proof=null,maxIterations=5000000,timestamp=Date.now()}){
   const parent=this.#best.hash,parents=this.#branch(parent,true),height=parents.length+1;
-  const rewardValue=subsidy(this.#config,height);const reward=rewardValue?createPrivateNote({ownerTag,value:rewardValue,assetId:this.#config.monetary.asset_id}):null;
+  const rewardValue=minerReward(this.#config,height,transaction);const reward=rewardValue?createPrivateNote({ownerTag,value:rewardValue,assetId:this.#config.monetary.asset_id}):null;
   const body={transaction:structuredClone(transaction),proof:structuredClone(proof),reward};
   const state=await this.#stateAt(parent);
   let header;

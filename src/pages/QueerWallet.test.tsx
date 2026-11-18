@@ -34,3 +34,19 @@ it('identifies PoW confirmations and exposes only the public mining owner', asyn
  await screen.findByText(/Confirmações PoW são probabilísticas/);expect(screen.getByLabelText('Owner público para recompensas de mineração')).toHaveValue(status.owner_tag);
  expect(screen.getByText(/Confirmação PoW/)).toBeInTheDocument();expect(screen.queryByText(/depende da autoridade/)).toBeNull();
 });
+it('shows the full debit and sends the chosen miner fee, rejecting fees below the genesis minimum', async () => {
+ const status={exists:true,locked:false,busy:false,synchronized:true,consensus_model:'open-proof-of-work',minimum_transaction_fee:'1',
+  network_id:'fee-network',config_id:'a'.repeat(64),finalized:{height:3,checkpoint_id:'b'.repeat(64),root:'c'.repeat(64)},
+  balances:{AEGIS:{confirmed:'7',reserved:'0',available:'7'}},pending:[]};
+ const mockFetch=vi.fn().mockResolvedValue({ok:true,json:async()=>status});vi.stubGlobal('fetch',mockFetch);
+ render(<MemoryRouter><QueerWallet /></MemoryRouter>);
+ fireEvent.change(screen.getByLabelText('Token de pareamento'),{target:{value:'ab'.repeat(32)}});fireEvent.click(screen.getByText('Conectar'));
+ const fee=await screen.findByLabelText(/Taxa do minerador/);
+ fireEvent.change(screen.getByLabelText('Endereço do destinatário'),{target:{value:'aegis_pow_receive2_public'}});
+ fireEvent.change(screen.getByLabelText('Quantidade em unidades inteiras'),{target:{value:'3'}});
+ expect(screen.getByText(/Total debitado: 4/)).toBeInTheDocument();
+ fireEvent.change(fee,{target:{value:'0'}});expect(screen.getByText('Confirmar e enviar')).toBeDisabled();
+ fireEvent.change(fee,{target:{value:'2'}});expect(screen.getByText(/Total debitado: 5/)).toBeInTheDocument();
+ fireEvent.click(screen.getByText('Confirmar e enviar'));await screen.findByText(/Transação enviada/);
+ expect(JSON.parse(mockFetch.mock.calls.at(-1)?.[1].body)).toMatchObject({amount:'3',fee:'2'});
+});

@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import {existsSync} from 'node:fs';
 import {join} from 'node:path';
 import {OpenChain} from './chain.mjs';
-import {openNetworkId} from './consensus.mjs';
+import {openNetworkId,minimumTransactionFee,minerReward} from './consensus.mjs';
 import {syncPeer,peerOrigin,publicRequest} from './network.mjs';
 import {receiveAddress,parseReceiveAddress} from './address.mjs';
 import {defaultStarkBackend} from '../proof-engine/backend.mjs';
@@ -64,7 +64,7 @@ export class PowWallet {
  });}
  status(){
   const chain=this.#chain.status();const base={exists:existsSync(this.#path),locked:this.locked,busy:this.#busy,synchronized:this.#synced,network_id:chain.network_id,config_id:chain.config_id,
-   consensus_model:chain.model,finality:chain.finality,confirmed:chain.confirmed,finalized:chain.confirmed,best_tip:chain.tip,confirmations_required:chain.confirmations_required,production_ready:false};
+   consensus_model:chain.model,finality:chain.finality,confirmed:chain.confirmed,finalized:chain.confirmed,best_tip:chain.tip,minimum_transaction_fee:String(chain.minimum_transaction_fee),confirmations_required:chain.confirmations_required,production_ready:false};
   if(this.locked)return base;const identity=walletPublicIdentity(this.#payload.secrets);
   const balances=structuredClone(this.#balances);if(!this.#synced)for(const value of Object.values(balances))value.available='0';
   return{...base,address:receiveAddress(this.#chain.config,identity),owner_tag:identity.owner_tag,signer_tag:identity.signer_tag,balances,notes_deferred:this.#deferred,
@@ -126,18 +126,21 @@ export class PowWallet {
   for(const peer of this.#peers){try{const result=await publicRequest(peer,'/submit',bundle);if(result.accepted===true)accepted=true;}catch{/* Unknown outcome preserves the durable reservation. */}}
   if(!accepted)throw Error('POW_BROADCAST_NOT_ACKNOWLEDGED');
  }
- send({recipient,assetId,amount}){return this.#exclusive(async()=>{
+ send({recipient,assetId,amount,fee=String(minimumTransactionFee(this.#chain.config))}){return this.#exclusive(async()=>{
   this.#unlocked();const destination=parseReceiveAddress(recipient,this.#chain.config);
   if(assetId!==this.#chain.config.monetary.asset_id||typeof amount!=='string'||!/^[1-9][0-9]{0,15}$/.test(amount)||!Number.isSafeInteger(Number(amount)))throw Error('INVALID_INTEGER_AMOUNT_OR_ASSET');
+  if(typeof fee!=='string'||!/^(0|[1-9][0-9]{0,15})$/.test(fee)||!Number.isSafeInteger(Number(fee)))throw Error('INVALID_POW_TRANSACTION_FEE');
+  minerReward(this.#chain.config,this.#chain.tip.height+1,{public_amount:Number(fee)});
+  const required=BigInt(amount)+BigInt(fee);
   await this.#sync();if(!this.#synced)throw Error('WALLET_CATCH_UP_REQUIRED');if(this.#payload.pending.length)throw Error('PENDING_TRANSFER_MUST_BE_RESOLVED');
   const chosen=[];let total=0n;
-  for(const e of this.#entries.filter(e=>e.spendable).sort((a,b)=>b.note.value-a.note.value||a.height-b.height).slice(0,4)){chosen.push(e);total+=BigInt(e.note.value);if(total>=BigInt(amount))break;}
-  if(total<BigInt(amount)||total>BigInt(Number.MAX_SAFE_INTEGER))throw Error('INSUFFICIENT_VERIFIED_FUNDS_OR_INPUT_LIMIT');
+  for(const e of this.#entries.filter(e=>e.spendable).sort((a,b)=>b.note.value-a.note.value||a.height-b.height).slice(0,4)){chosen.push(e);total+=BigInt(e.note.value);if(total>=required)break;}
+  if(total<required||total>BigInt(Number.MAX_SAFE_INTEGER))throw Error('INSUFFICIENT_VERIFIED_FUNDS_OR_INPUT_LIMIT');
   const identity=walletPublicIdentity(this.#payload.secrets),outputs=[{note:createPrivateNote({ownerTag:destination.owner_tag,value:Number(amount),assetId}),recipientPublicKey:destination.kem_public_key}];
-  if(total>BigInt(amount))outputs.push({note:createPrivateNote({ownerTag:identity.owner_tag,value:Number(total-BigInt(amount)),assetId}),recipientPublicKey:identity.kem_public_key});
+  if(total>required)outputs.push({note:createPrivateNote({ownerTag:identity.owner_tag,value:Number(total-required),assetId}),recipientPublicKey:identity.kem_public_key});
   const anchorHeight=Math.max(...chosen.map(e=>e.height),this.#chain.tip.height-this.#chain.config.anchor_window+1);
   const prepared=await this.#chain.withState(s=>prepareTransferV2({requestId:crypto.randomUUID(),networkId:openNetworkId(this.#chain.config),anchorStateRoot:s.noteRoot,
-   privateKey:crypto.createPrivateKey(this.#payload.secrets.signing_private_key),inputs:chosen.map(e=>({note:e.note,spend_secret:this.#payload.secrets.spend_secret,membership:s.ledger.inclusionProof({commitment:e.commitment}).proof})),outputs}),this.#chain.hashAt(anchorHeight));
+   privateKey:crypto.createPrivateKey(this.#payload.secrets.signing_private_key),inputs:chosen.map(e=>({note:e.note,spend_secret:this.#payload.secrets.spend_secret,membership:s.ledger.inclusionProof({commitment:e.commitment}).proof})),outputs,fee:Number(fee)}),this.#chain.hashAt(anchorHeight));
   const pending={request_id:prepared.transaction.request_id,transaction_id:prepared.transaction.tx_id,input_commitments:prepared.transaction.input_commitments,phase:'PREPARING',bundle:null};
   this.#payload.pending.push(pending);this.#save();let proof;
   try{proof=await this.#backend.prove(prepared);}catch(e){this.#payload.pending=this.#payload.pending.filter(p=>p!==pending);this.#save();throw e;}

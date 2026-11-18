@@ -16,7 +16,7 @@ if(command==='lab-genesis'){
  if(!values.output)throw new Error('--output required (will not overwrite)');
  const config=assertOpenGenesis({schema:'AEGIS_OPEN_POW_V2',network_id:'aegis-open-lab',program_id:defaultStarkBackend().programId,
   genesis_time_ms:Date.now(),pow_limit:'00'+'ff'.repeat(31),target_spacing_ms:60000,retarget_interval:64,confirmations:6,coinbase_maturity:6,anchor_window:128,
-  monetary:{asset_id:'AEGIS_LAB',base_reward:7,max_supply:'700000'}});
+  monetary:{asset_id:'AEGIS_LAB',base_reward:7,max_supply:'700000',fee_policy:'miner-fees-v1',minimum_fee:1}});
  writeFileSync(values.output,JSON.stringify(config,null,2)+'\n',{flag:'wx',mode:0o600});
  console.log(JSON.stringify({config_id:openNetworkId(config),test_units_only:true,production_ready:false}));
 }else if(['status','sync','mine'].includes(command)){

@@ -16,8 +16,9 @@ export function assertOpenGenesis(config){
  for(const [key,min,max]of [['target_spacing_ms',1000,3600000],['retarget_interval',4,4096],['confirmations',2,100],['coinbase_maturity',2,100],['anchor_window',16,4096]])
   if(!Number.isSafeInteger(config[key])||config[key]<min||config[key]>max)throw new Error('INVALID_POW_PARAMETER');
  const m=config.monetary;
- if(!exact(m,['asset_id','base_reward','max_supply'])||typeof m.asset_id!=='string'||!/^[A-Za-z0-9_-]{1,64}$/.test(m.asset_id)||!Number.isSafeInteger(m.base_reward)||m.base_reward<1||
+ if(!(exact(m,['asset_id','base_reward','max_supply'])||exact(m,['asset_id','base_reward','max_supply','fee_policy','minimum_fee']))||typeof m.asset_id!=='string'||!/^[A-Za-z0-9_-]{1,64}$/.test(m.asset_id)||!Number.isSafeInteger(m.base_reward)||m.base_reward<1||
   typeof m.max_supply!=='string'||!/^[1-9][0-9]{0,19}$/.test(m.max_supply)||BigInt(m.max_supply)>((1n<<64n)-1n)||BigInt(m.max_supply)<BigInt(m.base_reward))throw new Error('INVALID_POW_MONETARY_RULE');
+ if(Object.hasOwn(m,'fee_policy')&&(m.fee_policy!=='miner-fees-v1'||!Number.isSafeInteger(m.minimum_fee)||m.minimum_fee<1||BigInt(m.minimum_fee)+BigInt(m.base_reward)>BigInt(Number.MAX_SAFE_INTEGER)))throw new Error('INVALID_POW_FEE_POLICY');
  return config;
 }
 export function openNetworkId(config){assertOpenGenesis(config);return digest('AEGIS_OPEN_POW_GENESIS_V2',config);}
@@ -26,6 +27,18 @@ export function subsidy(config,height){
  if(!Number.isSafeInteger(height)||height<1)throw new Error('INVALID_POW_HEIGHT');
  const remaining=BigInt(config.monetary.max_supply)-BigInt(height-1)*BigInt(config.monetary.base_reward);
  return remaining<=0n?0:Number(remaining<BigInt(config.monetary.base_reward)?remaining:BigInt(config.monetary.base_reward));
+}
+export function minimumTransactionFee(config){return config.monetary.fee_policy==='miner-fees-v1'?config.monetary.minimum_fee:0;}
+export function transactionFee(config,transaction){
+ if(transaction===null)return 0;
+ const fee=transaction?.public_amount;
+ if(!Number.isSafeInteger(fee)||fee<minimumTransactionFee(config)||(config.monetary.fee_policy!=='miner-fees-v1'&&fee!==0))throw Error('INVALID_POW_TRANSACTION_FEE');
+ return fee;
+}
+export function minerReward(config,height,transaction=null){
+ const reward=BigInt(subsidy(config,height))+BigInt(transactionFee(config,transaction));
+ if(reward>BigInt(Number.MAX_SAFE_INTEGER))throw Error('POW_MINER_REWARD_OVERFLOW');
+ return Number(reward);
 }
 export function blockHash(header){const first=crypto.createHash('sha256').update('AEGIS_POW_BLOCK_V2\0').update(canonicalSerialize(header)).digest();return crypto.createHash('sha256').update(first).digest('hex');}
 export function blockWork(target){return(1n<<256n)/(BigInt('0x'+target)+1n);}
@@ -50,7 +63,7 @@ export function assertBlockHeader(config,block,ancestors,{now=Date.now()}={}){
   !Number.isSafeInteger(h.timestamp_ms)||h.timestamp_ms<=medianTime(config,ancestors)||h.timestamp_ms>now+7200000||h.target!==expectedTarget(config,ancestors)||
   ![h.nonce,h.body_hash,h.note_root,h.nullifier_root].every(hex)||!Number.isSafeInteger(h.commitment_count)||h.commitment_count<1||h.commitment_count>1000000||
   h.body_hash!==digest('AEGIS_POW_BODY_V1',{transaction:block.transaction,proof:block.proof,reward:block.reward})||BigInt('0x'+blockHash(h))>BigInt('0x'+h.target))throw new Error('INVALID_POW_HEADER_OR_WORK');
- const reward=subsidy(config,h.height);
+ const reward=minerReward(config,h.height,block.transaction);
  if(reward===0){if(block.reward!==null)throw new Error('UNEXPECTED_COINBASE');}
  else{assertNoteV2(block.reward);if(block.reward.asset_id!==config.monetary.asset_id||block.reward.value!==reward)throw new Error('INVALID_PROTOCOL_SUBSIDY');noteCommitmentV2(block.reward);}
  if((block.transaction===null)!==(block.proof===null))throw new Error('POW_TRANSACTION_AND_PROOF_REQUIRED');

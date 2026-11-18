@@ -2,7 +2,7 @@ export type WalletStatus = {
   consensus_model?: "open-proof-of-work"; finality?: "probabilistic";
   confirmations_required?: number; owner_tag?: string;
   best_tip?: {height:number;hash:string;work:string};
-  notes_deferred?: number;
+  notes_deferred?: number; minimum_transaction_fee?: string;
   exists: boolean; locked: boolean; busy: boolean; synchronized: boolean; network_id: string; config_id: string;
   finalized: { height: number; checkpoint_id: string; root: string }; production_ready: false;
   address?: string; balances?: Record<string, { confirmed: string; reserved: string; available: string }>;
@@ -32,7 +32,7 @@ export class LocalWalletClient {
   unlock(passphrase: string) { return this.#request<WalletStatus>("/unlock", { passphrase }); }
   lock() { return this.#request<WalletStatus>("/lock", {}); }
   sync() { return this.#request<WalletStatus>("/sync", {}); }
-  send(recipient: string, assetId: string, amount: string) { return this.#request<WalletStatus>("/send", { recipient, assetId, amount }); }
+  send(recipient: string, assetId: string, amount: string, fee?: string) { return this.#request<WalletStatus>("/send", { recipient, assetId, amount, ...(fee === undefined ? {} : { fee }) }); }
   retry() { return this.#request<WalletStatus>("/retry", {}); }
   backup() { return this.#request<unknown>("/backup"); }
   restore(envelope: unknown, passphrase: string) { return this.#request<WalletStatus>("/restore", { envelope, passphrase }); }

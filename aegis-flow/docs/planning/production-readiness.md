@@ -18,6 +18,9 @@ auditoria independente e operação de produção continuam pendentes.
 Controles locais de RBAC/TLS, revogação, quotas, métricas protegidas e modos
 de incidente foram adicionados; instalação do monitoramento, distribuição de
 segredos e exercício de incidentes no ambiente real continuam necessários.
+Há manifesto de deploy por imagem imutável, migrações v3 controladas, backup
+criptografado/integração S3 e ensaio local de restauração com replay nativo.
+Provisionamento externo e ensaio no S3 real seguem pendentes; SQLite é single-host.
 
 ## Etapas e evidências de saída
 

@@ -1,0 +1,27 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { createBackup, restoreBackup } from './backup.mjs';
+import { PersistentLedger } from '../ledger-state/store.mjs';
+import { generateSigningKeyPair, signerTag, exportPublicKey } from '../../libs/crypto-core/pqc-wrapper.mjs';
+test('genesis snapshot is encrypted; key/checksum/anchor mismatch never promotes a destination',async t=>{
+ const directory=mkdtempSync(join(tmpdir(),'aegis-backup-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));
+ const filename=join(directory,'ledger.sqlite');const ledger=new PersistentLedger({filename});
+ const genesis=ledger.bootstrap({commitments:['12'.repeat(32)]});const authority=generateSigningKeyPair();
+ ledger.configureSettlement({schema:'AEGIS_PERMISSIONED_SETTLEMENT_V1',network_id:ledger.networkId,genesis_root:genesis.root,genesis_count:1,program_id:'34'.repeat(32),authority_public_key:exportPublicKey(authority.publicKey),authority_tag:signerTag(authority.publicKey),signature_algorithm:'ML-DSA-65'});
+ const state=ledger.settlementStatus();ledger.close();
+ const keyFile=join(directory,'key');writeFileSync(keyFile,crypto.randomBytes(32).toString('hex'),{mode:0o600});
+ const backup=await createBackup({ledgerPath:filename,networkId:'aegis-lab-v1',outputDirectory:join(directory,'backups'),keyFile});
+ const target=join(directory,'restored.sqlite');const args={backupDirectory:backup.directory,destination:target,keyFile,trustedAnchor:state.finalized,expectedConfigId:state.config_id};
+ const encrypted=readFileSync(join(backup.directory,'ledger.enc'));assert.notEqual(encrypted.subarray(0,15).toString(),'SQLite format 3');
+ const badKey=join(directory,'wrong');writeFileSync(badKey,crypto.randomBytes(32).toString('hex'),{mode:0o600});
+ await assert.rejects(restoreBackup({...args,keyFile:badKey}),/KEY_OR_CHECKSUM/);assert.equal(existsSync(target),false);
+ encrypted[0]^=1;writeFileSync(join(backup.directory,'ledger.enc'),encrypted);
+ await assert.rejects(restoreBackup(args),/KEY_OR_CHECKSUM/);assert.equal(existsSync(target),false);
+ encrypted[0]^=1;writeFileSync(join(backup.directory,'ledger.enc'),encrypted);
+ await assert.rejects(restoreBackup({...args,trustedAnchor:null}),/INDEPENDENT_RECOVERY/);
+ const result=await restoreBackup(args);assert.equal(result.finalized.height,0);
+});

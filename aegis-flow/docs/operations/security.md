@@ -142,3 +142,9 @@ dos bundles; essas medições de infraestrutura ainda dependem do ambiente impla
 Os testes automatizados exercitam RBAC, expiração, revogação imediata, arquivos
 restritos, rejeição de forwarding forjado, quotas, política inválida e modos de
 incidente. Eles não substituem um exercício operacional com pessoas e infraestrutura.
+
+No deploy single-host, monte um **diretório somente de política**, não um arquivo
+individual: Docker bind de arquivo pode continuar no inode antigo após rename,
+impedindo observar uma revogação. Emita tokens com `AEGIS_TOKEN_OUTPUT_DIR`
+apontando a outro diretório não montado no gateway; a política continua no
+primeiro diretório e pode ser atualizada atomicamente.

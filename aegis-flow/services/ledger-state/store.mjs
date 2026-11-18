@@ -1,4 +1,5 @@
 import { DatabaseSync, backup } from 'node:sqlite';
+import { migrateLedger, LEDGER_SCHEMA_VERSION } from './migrations.mjs';
 import { mkdirSync, openSync, closeSync, chmodSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { canonicalSerialize, buildTranscriptHash } from '../../libs/crypto-core/canonical-transcript.mjs';
@@ -31,7 +32,7 @@ export class PersistentLedger {
   #faultInjector;
   #closed = false;
 
-  constructor({ filename, networkId = 'aegis-lab-v1', faultInjector = () => {}, trustedFinalizedCheckpoint }) {
+  constructor({ filename, networkId = 'aegis-lab-v1', faultInjector = () => {}, trustedFinalizedCheckpoint, allowMigrations = true }) {
     if (typeof filename !== 'string' || !filename || filename === ':memory:') throw new TypeError('persistent filename required');
     if (typeof networkId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(networkId)) throw new TypeError('invalid networkId');
     this.#filename = resolve(filename);
@@ -45,48 +46,11 @@ export class PersistentLedger {
       this.#db.exec('PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA trusted_schema=OFF;');
       if (this.#db.prepare('PRAGMA journal_mode').get().journal_mode !== 'wal') throw new Error('WAL_REQUIRED');
       this.#atomic(() => {
-        const version = this.#db.prepare('PRAGMA user_version').get().user_version;
-        if (version > 2) throw new Error('UNSUPPORTED_LEDGER_SCHEMA');
-        this.#db.exec(`
-          CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;
-          CREATE TABLE IF NOT EXISTS verifications (
-            request_id TEXT PRIMARY KEY, tx_id TEXT NOT NULL UNIQUE, receipt_json TEXT NOT NULL
-          ) STRICT;
-          CREATE TABLE IF NOT EXISTS requests (
-            request_id TEXT PRIMARY KEY, tx_id TEXT NOT NULL UNIQUE,
-            transition_hash TEXT NOT NULL, receipt_json TEXT NOT NULL
-          ) STRICT;
-          CREATE TABLE IF NOT EXISTS blocks (
-            height INTEGER PRIMARY KEY CHECK(height >= 0), root TEXT NOT NULL,
-            previous_root TEXT, commitment_count INTEGER NOT NULL CHECK(commitment_count >= 0),
-            tx_id TEXT REFERENCES requests(tx_id)
-          ) STRICT;
-          CREATE TABLE IF NOT EXISTS public_transactions (
-            tx_id TEXT PRIMARY KEY REFERENCES requests(tx_id), transaction_json TEXT NOT NULL, proof_json TEXT NOT NULL
-          ) STRICT;
-          CREATE TABLE IF NOT EXISTS commitments (
-            commitment TEXT PRIMARY KEY CHECK(length(commitment)=64), leaf_index INTEGER NOT NULL UNIQUE,
-            created_height INTEGER NOT NULL REFERENCES blocks(height)
-          ) STRICT;
-          CREATE TABLE IF NOT EXISTS nullifiers (
-            nullifier TEXT PRIMARY KEY CHECK(length(nullifier)=64), tx_id TEXT NOT NULL REFERENCES requests(tx_id)
-          ) STRICT;
-          CREATE TABLE IF NOT EXISTS spent_inputs (
-            commitment TEXT PRIMARY KEY REFERENCES commitments(commitment),
-            tx_id TEXT NOT NULL REFERENCES requests(tx_id)
-          ) STRICT;
-          CREATE TABLE IF NOT EXISTS finality_certificates (
-            height INTEGER PRIMARY KEY REFERENCES blocks(height), checkpoint_id TEXT NOT NULL UNIQUE, certificate_json TEXT NOT NULL
-          ) STRICT;
-          CREATE TABLE IF NOT EXISTS orphaned_requests (
-            id INTEGER PRIMARY KEY, request_id TEXT NOT NULL, tx_id TEXT NOT NULL, receipt_json TEXT NOT NULL
-          ) STRICT;
-        `);
+        migrateLedger(this.#db, { allowMigrations, faultInjector });
         const existing = this.#db.prepare("SELECT value FROM metadata WHERE key='network_id'").get();
         if (existing && existing.value !== networkId) throw new Error('LEDGER_NETWORK_MISMATCH');
         this.#db.prepare("INSERT OR IGNORE INTO metadata(key,value) VALUES('network_id',?)").run(networkId);
         this.#db.prepare('INSERT OR IGNORE INTO blocks(height,root,commitment_count) VALUES(0,?,0)').run(merkleRoot([]));
-        this.#db.exec('PRAGMA user_version=2');
       });
       if (this.#db.prepare('PRAGMA quick_check').get().quick_check !== 'ok') throw new Error('LEDGER_INTEGRITY_FAILED');
       this.#atomic(() => {
@@ -122,6 +86,8 @@ export class PersistentLedger {
   #commitments(height) {
     return this.#db.prepare('SELECT commitment FROM commitments WHERE created_height <= ? ORDER BY leaf_index').all(height).map(row => row.commitment);
   }
+
+  get schemaVersion() { return LEDGER_SCHEMA_VERSION; }
 
   get networkId() { return this.#networkId; }
 

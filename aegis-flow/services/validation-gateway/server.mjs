@@ -26,7 +26,7 @@ function sendJson(res, statusCode, payload) {
 }
 
 export function createValidationServer({ sink = console.log, faultInjector = () => false, maxBodyBytes = 65536, maxSubmitBytes = 12 * 1024 * 1024, maxInFlightBodies = 8,
-  ledgerPath, networkId = process.env.AEGIS_NETWORK_ID || 'aegis-lab-v1', starkBackend = defaultStarkBackend(), settlementConfig, trustedFinalizedCheckpoint, accessPolicyPath, rateLimits, maxConnections = 128, tlsOptions } = {}) {
+  ledgerPath, networkId = process.env.AEGIS_NETWORK_ID || 'aegis-lab-v1', starkBackend = defaultStarkBackend(), settlementConfig, trustedFinalizedCheckpoint, accessPolicyPath, rateLimits, maxConnections = 128, tlsOptions, allowMigrations = true } = {}) {
   assertDemoRuntime();
   assertPqcRuntime();
   if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes < 1 || maxBodyBytes > 1048576) {
@@ -39,7 +39,7 @@ export function createValidationServer({ sink = console.log, faultInjector = () 
   access.load(); // Invalid startup policy fails closed. Reload on every request.
   const limits = new RequestLimits(rateLimits);
   const telemetry = new Telemetry();
-  const ledger = ledgerPath ? new PersistentLedger({ filename: ledgerPath, networkId, trustedFinalizedCheckpoint }) : undefined;
+  const ledger = ledgerPath ? new PersistentLedger({ filename: ledgerPath, networkId, trustedFinalizedCheckpoint, allowMigrations }) : undefined;
   try {
     if (settlementConfig) {
       if (!ledger) throw new Error('STATE_NOT_CONFIGURED');
@@ -273,7 +273,7 @@ export function startValidationServer({ port = Number(process.env.PORT || 8080),
     key: readRestrictedFile(process.env.AEGIS_TLS_KEY_FILE), cert: readFileSync(process.env.AEGIS_TLS_CERT_FILE, 'utf8'),
   } : undefined;
   if (!['127.0.0.1', '::1', 'localhost'].includes(host) && (!accessPolicyPath || !tlsOptions)) throw new Error('REMOTE_BIND_REQUIRES_ACCESS_POLICY_AND_TLS');
-  const server = createValidationServer({ sink, ledgerPath, settlementConfig, trustedFinalizedCheckpoint, accessPolicyPath, tlsOptions, ...options });
+  const server = createValidationServer({ sink, ledgerPath, settlementConfig, trustedFinalizedCheckpoint, accessPolicyPath, tlsOptions, allowMigrations: process.env.AEGIS_REQUIRE_MIGRATED !== '1', ...options });
   server.listen(port, host, () => {
     sink(JSON.stringify({ level: 'info', service: 'validation-gateway', message: `listening on :${port}` }));
   });

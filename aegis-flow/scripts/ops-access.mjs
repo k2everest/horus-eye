@@ -16,7 +16,9 @@ if (action === 'issue') {
   const roles = rolesText?.split(',');
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(idOrMode ?? '') || !roles?.length || new Set(roles).size !== roles.length || roles.some(r => !['reader', 'submitter', 'finalizer', 'monitor'].includes(r))) throw new Error('INVALID_PRINCIPAL');
   const token = crypto.randomBytes(32).toString('hex');
-  tokenFile = join(directory, `${idOrMode}-${crypto.randomUUID()}.token`);
+  const tokenDirectory = process.env.AEGIS_TOKEN_OUTPUT_DIR || directory;
+  mkdirSync(tokenDirectory, { recursive: true, mode: 0o700 });
+  tokenFile = join(tokenDirectory, `${idOrMode}-${crypto.randomUUID()}.token`);
   writeFileSync(tokenFile, token, { mode: 0o600, flag: 'wx' });
   policy.principals = policy.principals.filter(p => p.id !== idOrMode);
   policy.principals.push({ id: idOrMode, roles, token_sha256: crypto.createHash('sha256').update(token).digest('hex'), expires_at: Date.now() + 7 * 86400_000 });

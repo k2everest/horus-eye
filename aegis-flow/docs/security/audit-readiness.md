@@ -132,3 +132,12 @@ cancelam operações já admitidas. Testes de TLS/RBAC/incidente e exemplos de
 alertas não constituem pentest, SOC ou exercício operacional independente.
 Integração com gestor externo de segredos e execução dos alertas continuam
 pendentes. Runbook: `docs/operations/security.md`.
+
+## Infraestrutura e recuperação
+
+Incluir migrações v3 e checksums, release por digest, montagem de diretórios de
+política/âncora, snapshot SQLite, AES-GCM de backup, ACK/versionamento S3 e replay
+num banco novo. Verificar escrow externo da chave, IAM/KMS, fencing do host antigo,
+retenção e restauração contra âncora independente. Ensaio local com STARK nativo e
+testes de contrato S3 não validam infraestrutura AWS nem comprovam RPO/RTO real.
+Runbook: `docs/operations/infrastructure-recovery.md`.

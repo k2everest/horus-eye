@@ -1,0 +1,94 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Aegis single-host external backups; review before provisioning. No credentials or backup keys in this template.
+Parameters:
+  BackupBucketName:
+    Type: String
+    AllowedPattern: '[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]'
+  ExistingBackupRoleName:
+    Type: String
+    Description: Existing dedicated host role; no account-wide deployment permissions required by the backup job.
+Resources:
+  BackupKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      EnableKeyRotation: true
+      Description: Aegis S3 backup SSE-KMS key
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+  BackupBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref BackupBucketName
+      VersioningConfiguration: {Status: Enabled}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !GetAtt BackupKey.Arn
+            BucketKeyEnabled: true
+  BackupBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref BackupBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource: [!GetAtt BackupBucket.Arn, !Sub '${BackupBucket.Arn}/*']
+            Condition: {Bool: {'aws:SecureTransport': false}}
+          - Sid: RequireKmsEncryption
+            Effect: Deny
+            Principal: '*'
+            Action: s3:PutObject
+            Resource: !Sub '${BackupBucket.Arn}/*'
+            Condition: {StringNotEquals: {'s3:x-amz-server-side-encryption': 'aws:kms'}}
+          - Sid: RequireApprovedKmsKey
+            Effect: Deny
+            Principal: '*'
+            Action: s3:PutObject
+            Resource: !Sub '${BackupBucket.Arn}/*'
+            Condition:
+              StringNotEquals:
+                's3:x-amz-server-side-encryption-aws-kms-key-id': !GetAtt BackupKey.Arn
+  BackupRolePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Roles: [!Ref ExistingBackupRoleName]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: [s3:GetBucketVersioning, s3:GetBucketPublicAccessBlock]
+            Resource: !GetAtt BackupBucket.Arn
+          - Effect: Allow
+            Action: [s3:PutObject, s3:GetObject, s3:GetObjectVersion]
+            Resource: !Sub '${BackupBucket.Arn}/aegis/ledger/*'
+          - Effect: Allow
+            Action: [kms:GenerateDataKey, kms:Decrypt, kms:Encrypt]
+            Resource: !GetAtt BackupKey.Arn
+            Condition:
+              StringEquals:
+                'kms:ViaService': !Sub 's3.${AWS::Region}.${AWS::URLSuffix}'
+Outputs:
+  Bucket: {Value: !Ref BackupBucket}
+  Region: {Value: !Ref 'AWS::Region'}
+  KmsKeyArn: {Value: !GetAtt BackupKey.Arn}
+  ExpectedOwner: {Value: !Ref 'AWS::AccountId'}

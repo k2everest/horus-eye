@@ -6,3 +6,11 @@
 **/*.sqlite-wal
 **/*.sqlite-shm
 **/work
+**/*.token
+**/*.key
+**/*.pem
+**/*.p12
+**/*.enc
+**/*.vault.json
+**/access-policy.json
+**/secrets

@@ -1,5 +1,5 @@
 # Linux x86_64 lab gateway. Build with aegis-flow/ as the context.
-FROM debian:bookworm-slim AS stark-verifier
+FROM debian:bookworm-slim@sha256:c67e92c8099ba22853ab4cfda7cfb494d253d6012ca82dee98ba8976772af018 AS stark-verifier
 WORKDIR /build
 ENV CARGO_BUILD_JOBS=2 CARGO_HOME=/build-cache/cargo RUSTUP_HOME=/build-cache/rustup
 COPY services/proof-engine/verifier/ ./
@@ -18,7 +18,7 @@ RUN --mount=type=secret,id=build_ca \
     && chown 1000:1000 /out/data \
     && rm -rf /build-cache /build/target /tmp/rustup-init /var/lib/apt/lists/*
 
-FROM node:24-bookworm-slim
+FROM node:24-bookworm-slim@sha256:0e2646ab57e77b7a384a0cb59b6815b182c77e1f9c3ba36bd8435bd9c4e6680e
 COPY --from=stark-verifier --chown=node:node /out/ /
 COPY --chown=node:node . /app/
 WORKDIR /app/services/validation-gateway

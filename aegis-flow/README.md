@@ -11,6 +11,8 @@ Plano de preparação: `docs/planning/production-readiness.md`.
 Segurança operacional (acesso, segredos, limites, métricas e incidentes):
 `docs/operations/security.md`. O gateway inicia em loopback; exposição remota
 exige política de acesso e TLS.
+Infraestrutura single-host, migrações, backup S3 e ensaio de restauração:
+`docs/operations/infrastructure-recovery.md`. SQLite não oferece HA multi-host.
 
 ## QUEER
 

@@ -1,0 +1,21 @@
+[Unit]
+Description=Aegis consistent encrypted ledger backup and S3 upload
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=aegis-backup
+Group=aegis-backup
+EnvironmentFile=/etc/aegis/backup.env
+# Wrapper reads identifiers/paths from backup.env; raw credentials/keys are files or an IAM role.
+ExecStart=/usr/bin/node /opt/aegis/aegis-flow/scripts/scheduled-backup.mjs
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/aegis /var/lib/aegis-backups
+TimeoutStartSec=1800
+# Grant this OS user access to SQLite main/WAL/SHM without changing files to world-readable.
+# For a container UID 1000, explicitly align ownership/ACLs before installing.

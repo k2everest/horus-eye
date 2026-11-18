@@ -138,7 +138,7 @@ test('consistent SQLite backup restores and refuses network/schema/root mismatch
   raw.close();
   assert.throws(() => new PersistentLedger({ filename }), /UNSUPPORTED_LEDGER_SCHEMA/);
   const modified = new DatabaseSync(filename);
-  modified.exec('PRAGMA user_version=1');
+  modified.exec('PRAGMA user_version=3');
   modified.prepare('UPDATE blocks SET root=? WHERE height=1').run(hex(999));
   modified.close();
   assert.throws(() => new PersistentLedger({ filename }), /LEDGER_ROOT_MISMATCH/);

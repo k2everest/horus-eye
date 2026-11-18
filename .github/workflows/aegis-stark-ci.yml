@@ -28,6 +28,14 @@ jobs:
       - name: Prove and verify a real composite STARK, then apply durable state
         env:
           AEGIS_STARK_INTEGRATION: '1'
+          AEGIS_STARK_PUBLIC_ARTIFACT: work/stark-smoke-public.json
         run: node --test aegis-flow/services/proof-engine/integration.test.mjs
       - name: Check SQLite crash recovery, backup and process concurrency
         run: node --test aegis-flow/services/ledger-state/*.test.mjs
+
+      - name: Rehearse encrypted recovery against the freshly proved finalized state
+        env:
+          AEGIS_RECOVERY_INTEGRATION: '1'
+        run: node --test aegis-flow/services/recovery/recovery.integration.test.mjs
+      - name: Run local operational, migration and recovery contract tests
+        run: bash aegis-flow/scripts/dev-env.sh test

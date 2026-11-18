@@ -10,6 +10,9 @@ presumido a partir do exemplo de laboratório.
 
 ## Implementado e ensaiado localmente
 
+- Atualização Merkle incremental com raízes compatíveis e fronteiras locais
+  isoladas entre forks; [evidências e limites de histórico](../operations/history-scaling.md).
+
 - Carteira local/gráfica PoW: chaves protegidas no cofre, full verification,
   confirmações/maturidade, reserva antes de provar/transmitir, reversão de saldo
   em reorganização, recuperação de pagamentos órfãos e backup/restauração.

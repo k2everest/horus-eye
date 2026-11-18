@@ -7,6 +7,53 @@ const leafHash = value => hash(`${VERSION}:leaf`, value);
 const pairHash = (left, right) => hash(`${VERSION}:node`, left, right);
 const rootHash = (count, root) => hash(`${VERSION}:root`, count, root);
 
+// Compact append state for the same count-bound, duplicate-last Merkle tree.
+// A frontier is a local computation cache, never an authenticated peer snapshot.
+export class IncrementalMerkleTree {
+  #count; #frontier; #root;
+  constructor(snapshot = { count: 0, frontier: [] }) {
+    if (!snapshot || Object.keys(snapshot).sort().join(',') !== 'count,frontier' ||
+        !Number.isSafeInteger(snapshot.count) || snapshot.count < 0 || snapshot.count > 1_000_000 ||
+        !Array.isArray(snapshot.frontier) || snapshot.frontier.length !== (snapshot.count ? Math.floor(Math.log2(snapshot.count)) + 1 : 0)) {
+      throw new TypeError('invalid Merkle frontier');
+    }
+    for (let level = 0; level < snapshot.frontier.length; level++) {
+      const occupied = (snapshot.count & (1 << level)) !== 0;
+      if (occupied ? !hex(snapshot.frontier[level]) : snapshot.frontier[level] !== null) throw new TypeError('invalid Merkle frontier');
+    }
+    this.#count = snapshot.count;
+    this.#frontier = [...snapshot.frontier];
+    this.#updateRoot();
+  }
+  get count() { return this.#count; }
+  get root() { return this.#root; }
+  snapshot() { return { count: this.#count, frontier: [...this.#frontier] }; }
+  append(commitment) {
+    if (typeof commitment !== 'string' || !commitment || commitment.length > 128) throw new TypeError('invalid commitment');
+    if (this.#count >= 1_000_000) throw new RangeError('Merkle capacity exceeded');
+    let value = leafHash(commitment), level = 0;
+    while (this.#frontier[level]) {
+      value = pairHash(this.#frontier[level], value);
+      this.#frontier[level++] = null;
+    }
+    this.#frontier[level] = value;
+    this.#count++;
+    this.#updateRoot();
+    return this.#root;
+  }
+  #updateRoot() {
+    let value = null, height = 0;
+    for (let level = 0; level < this.#frontier.length; level++) {
+      if (!this.#frontier[level]) continue;
+      if (value === null) { value = this.#frontier[level]; height = level; continue; }
+      while (height < level) { value = pairHash(value, value); height++; }
+      value = pairHash(this.#frontier[level], value);
+      height = level + 1;
+    }
+    this.#root = rootHash(this.#count, value);
+  }
+}
+
 function leaves(commitments) {
   if (!Array.isArray(commitments) || commitments.length > 1_000_000 ||
       commitments.some(item => typeof item !== 'string' || !item || item.length > 128)) {

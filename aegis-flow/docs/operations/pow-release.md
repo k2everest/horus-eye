@@ -51,12 +51,12 @@ Labels Docker e checksums não substituem origem confiável do build e da imagem
 
 ## Construção no CI
 
-O workflow manual **Package Aegis PoW testnet candidate** recebe `genesis_path`,
+O workflow **Package Aegis PoW testnet candidate** recebe, no disparo manual, `genesis_path`,
 exige arquivo rastreado no checkout e programa aprovado, executa os testes locais,
 constrói a imagem, prepara/verifica o pacote e publica um artefato temporário de
-14 dias com a imagem comprimida e `SHA256SUMS`. Não publica em registry nem faz
+3 dias com a imagem comprimida e `SHA256SUMS`. Não publica em registry nem faz
 deploy. Os checksums detectam corrupção; obtenha-os pelo workflow/commit confiável.
-As integrações nativas completas continuam no workflow STARK dedicado. O pacote
+Em PRs, o workflow constrói automaticamente um candidato com genesis explícito de laboratório, sem parâmetros comerciais aprovados. As integrações nativas completas continuam no workflow STARK dedicado. O pacote
 não comprova aprovação desses jobs nem encerra os critérios de produção.
 
 ## Estado desta entrega

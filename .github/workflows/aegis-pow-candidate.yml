@@ -1,6 +1,8 @@
 name: Package Aegis PoW testnet candidate
 
 on:
+  pull_request:
+    paths: ['aegis-flow/**', '.github/workflows/aegis-pow-candidate.yml']
   workflow_dispatch:
     inputs:
       genesis_path:
@@ -20,25 +22,31 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Require a tracked public genesis and approved program
+      - name: Select an explicit lab genesis for PRs or a tracked reviewed genesis for manual builds
         env:
-          GENESIS_PATH: ${{ inputs.genesis_path }}
+          REQUESTED_GENESIS: ${{ inputs.genesis_path }}
         run: |
-          git ls-files --error-unmatch -- "$GENESIS_PATH"
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            mkdir -p work
+            node aegis-flow/scripts/open-chain.mjs lab-genesis --output work/pow-lab-genesis.json
+            export GENESIS_PATH=work/pow-lab-genesis.json
+          else
+            export GENESIS_PATH="$REQUESTED_GENESIS"
+            git ls-files --error-unmatch -- "$GENESIS_PATH"
+          fi
           node --input-type=module -e '
             import fs from "node:fs";
             import {openNetworkId} from "./aegis-flow/services/open-chain/consensus.mjs";
+            if(!/^[A-Za-z0-9_./-]+$/.test(process.env.GENESIS_PATH))throw Error("INVALID_GENESIS_PATH");
             const config=JSON.parse(fs.readFileSync(process.env.GENESIS_PATH));
             const program=JSON.parse(fs.readFileSync("aegis-flow/services/proof-engine/program.json"));
             if(config.program_id!==program.program_id)throw Error("GENESIS_PROGRAM_MISMATCH");
-            fs.appendFileSync(process.env.GITHUB_ENV,"CONFIG_ID="+openNetworkId(config)+"\n");'
+            fs.appendFileSync(process.env.GITHUB_ENV,"GENESIS_PATH="+process.env.GENESIS_PATH+"\nCONFIG_ID="+openNetworkId(config)+"\n");'
       - name: Run contract and state tests before packaging
         run: bash aegis-flow/scripts/dev-env.sh test
       - name: Build the reviewed image
         run: node aegis-flow/scripts/build-release.mjs
       - name: Prepare and independently verify the PoW candidate bundle
-        env:
-          GENESIS_PATH: ${{ inputs.genesis_path }}
         run: |
           node aegis-flow/scripts/pow-release.mjs prepare --image "aegis-flow/validation-gateway:$GITHUB_SHA" --genesis "$GENESIS_PATH" --directory work/pow-candidate
           node aegis-flow/scripts/pow-release.mjs verify --directory work/pow-candidate --expected-commit "$GITHUB_SHA" --expected-config-id "$CONFIG_ID"
@@ -49,5 +57,5 @@ jobs:
         with:
           name: aegis-pow-testnet-${{ github.sha }}
           path: work/pow-candidate/
-          retention-days: 14
+          retention-days: 3
           if-no-files-found: error

@@ -24,11 +24,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Buf
         uses: bufbuild/buf-setup-action@v1
         with:
-          version: latest
+          version: '1.75.0'
+          github_token: ${{ github.token }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -40,7 +43,12 @@ jobs:
           buf --version
           git --version
 
+      - name: Test base comparison and rejection of incompatible contracts
+        run: node --test scripts/gen-proto.test.mjs
+
       - name: Run proto pipeline
+        env:
+          AEGIS_PROTO_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: bash scripts/gen-proto.sh
       - name: Run Aegis tests (crypto, gateway and relay)
         run: bash scripts/dev-env.sh test

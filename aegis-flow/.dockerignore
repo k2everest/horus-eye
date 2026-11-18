@@ -6,6 +6,7 @@
 **/*.sqlite-wal
 **/*.sqlite-shm
 **/work
+gen/
 **/*.token
 **/*.key
 **/*.pem

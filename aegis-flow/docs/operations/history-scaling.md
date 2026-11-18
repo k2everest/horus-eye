@@ -41,3 +41,7 @@ TPS, tempo de prova, throughput de nó ou capacidade de uma rede em produção.
 Portanto, o bloqueador de histórico/capacidade permanece aberto. Esta mudança
 remove reconstruções Merkle completas do caminho de append; não comprova
 escala de produção nem modifica a meta criptográfica pós-quântica.
+
+Validação da alteração: 176 testes de backend aprovados, zero falhas e 8
+integrações opcionais não executadas; ensaio nativo separado de restauração
+com STARK existente aprovado. Esses resultados não são auditoria independente.

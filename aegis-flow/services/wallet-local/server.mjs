@@ -54,7 +54,7 @@ export function createWalletServer({ wallet, token, allowedOrigin = 'http://loca
         case '/restore': try { result = await wallet.restore({ envelope: body.envelope, passphrase: body.passphrase }); } catch (error) { failedUnlocks++; throw error; } break;
         case '/passphrase': result = await wallet.changePassphrase(body.passphrase); break;
         case '/sync': result = await wallet.sync(); break;
-        case '/send': result = await wallet.send({ recipient: body.recipient, assetId: body.assetId, amount: body.amount, fee: body.fee }); break;
+        case '/send': if (!(wallet instanceof PowWallet) && body.fee !== undefined && body.fee !== '0') throw Error('INVALID_POW_TRANSACTION_FEE'); result = await wallet.send({ recipient: body.recipient, assetId: body.assetId, amount: body.amount, fee: body.fee }); break;
         case '/retry': result = await wallet.retryPending(); break;
         case '/import-genesis-note': result = wallet.importGenesisNote(body.note); break;
       }

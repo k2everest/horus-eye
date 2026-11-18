@@ -2,9 +2,10 @@ import test from 'node:test';import assert from 'node:assert/strict';import {mkd
 import {OpenChain} from './chain.mjs';import {OpenNode} from './node.mjs';import {PowWallet} from './wallet.mjs';import {spendOwner} from '../../libs/crypto-core/shielded-note-v2.mjs';import {parseReceiveAddress} from './address.mjs';
 const backend={programId:'42'.repeat(32),verify:async()=>{throw Error('NO_TRANSACTION_EXPECTED');},prove:async()=>{throw Error('NO_PROOF_EXPECTED');}};
 const password='a protected PoW wallet passphrase';
-async function setup(t){const directory=mkdtempSync(join(tmpdir(),'pow-wallet-')),wallets=[],nodes=[];
+async function setup(t,{fees=false}={}){const directory=mkdtempSync(join(tmpdir(),'pow-wallet-')),wallets=[],nodes=[];
  t.after(async()=>{for(const w of wallets)w.close();for(const n of nodes)await n.close();rmSync(directory,{recursive:true,force:true});});
  const config={schema:'AEGIS_OPEN_POW_V2',network_id:'wallet-test',program_id:backend.programId,genesis_time_ms:Date.now()-60000,pow_limit:'00'+'ff'.repeat(31),target_spacing_ms:60000,retarget_interval:64,confirmations:2,coinbase_maturity:3,anchor_window:64,monetary:{asset_id:'AEGIS',base_reward:7,max_supply:'700'}};
+ if(fees)Object.assign(config.monetary,{fee_policy:'miner-fees-v1',minimum_fee:1});
  const node=async name=>{const n=new OpenNode({chain:await OpenChain.open({directory:join(directory,name),config,backend})});await n.listen();nodes.push(n);return n;};
  const primary=await node('node');const wallet=async(name,peer=primary.origin)=>{const w=await PowWallet.open({directory:join(directory,name),config,peers:[peer],backend});wallets.push(w);return w;};
  return{directory,config,node,primary,wallet};
@@ -26,4 +27,13 @@ test('higher-work reorg removes orphaned rewards and old cofre cannot trust a lo
  assert.deepEqual((await w.sync()).balances,{});
  const weak=await f.node('weak');await weak.mine(spendOwner('02'.repeat(32)));const restored=await f.wallet('restored',weak.origin);
  await restored.restore({envelope,passphrase:password});await assert.rejects(restored.sync(),/BELOW_VERIFIED_WORK/);assert.equal(restored.status().synchronized,false);assert.deepEqual(restored.status().balances,{});
+});
+
+test('wallet includes the genesis fee in input selection and refuses underpayment before proving or reserving',async t=>{
+ const f=await setup(t,{fees:true}),w=await f.wallet('wallet'),initial=await w.create(password);
+ for(let i=0;i<3;i++)await f.primary.mine(initial.owner_tag);
+ const status=await w.sync();assert.equal(status.minimum_transaction_fee,'1');assert.equal(status.balances.AEGIS.available,'7');
+ await assert.rejects(w.send({recipient:status.address,assetId:'AEGIS',amount:'1',fee:'0'}),/INVALID_POW_TRANSACTION_FEE/);
+ await assert.rejects(w.send({recipient:status.address,assetId:'AEGIS',amount:'7'}),/INSUFFICIENT_VERIFIED_FUNDS_OR_INPUT_LIMIT/);
+ assert.equal(w.status().pending.length,0);
 });

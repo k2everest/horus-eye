@@ -48,5 +48,5 @@ it('shows the full debit and sends the chosen miner fee, rejecting fees below th
  fireEvent.change(fee,{target:{value:'0'}});expect(screen.getByText('Confirmar e enviar')).toBeDisabled();
  fireEvent.change(fee,{target:{value:'2'}});expect(screen.getByText(/Total debitado: 5/)).toBeInTheDocument();
  fireEvent.click(screen.getByText('Confirmar e enviar'));await screen.findByText(/Transação enviada/);
- expect(JSON.parse(mockFetch.mock.calls.at(-1)?.[1].body)).toMatchObject({amount:'3',fee:'2'});
+ expect(JSON.parse(mockFetch.mock.calls[mockFetch.mock.calls.length - 1]?.[1].body)).toMatchObject({amount:'3',fee:'2'});
 });

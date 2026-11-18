@@ -59,7 +59,7 @@
     "aegis-flow/services/open-chain/address.mjs": "1a07318b4f64764e816c3dcc48b28677d5640837c03730ea712088dc64ea112c",
     "aegis-flow/services/open-chain/recovery.mjs": "34a9c187bf3aaf6840d90c87a1fd0b27505b1852e47899d28e37f7e48b5450ff",
     "aegis-flow/services/open-chain/wallet.mjs": "25c9a300e482a408cd0e49405639ee44abc0e91c6c5dc4943147019ae643499e",
-    "aegis-flow/services/wallet-local/server.mjs": "34563a67f62b37f14b9ea2f0b217a53deb8aa22781f25da7f65d00bf850004b0",
+    "aegis-flow/services/wallet-local/server.mjs": "bc078e8bf091e898a4eacb8371073395eafb549ff9b1bdfc7f327e23a1489b66",
     "aegis-flow/services/operational-security/profile-lock.mjs": "b840072480fffb624f6dd32c6fc55d7052b32abf2a305607c9ebc110a869423b",
     "aegis-flow/scripts/pow-recovery.mjs": "2ff2ac32a0871627e0f26bb6a4c3fd8ad9a7f6cd350196a7e075a2607c03a332",
     "aegis-flow/scripts/scheduled-backup.mjs": "55d08939790fd8be6f94395b4cdd79a6cd6eb4a2146cd5f16d45f8b52ccd9119",

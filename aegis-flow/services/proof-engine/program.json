@@ -10,5 +10,5 @@
     "guest/src/main.rs"
   ],
   "program_binary_sha256": "aa792292aa680db07862cc166e227465ba58f2a825709434342236e7eefdf6d9",
-  "security_note": "RISC Zero default conjectured security is approximately 98 bits; no claim of 128-bit post-quantum security or production readiness."
+  "security_note": "128-bit post-quantum security is NOT demonstrated. The pinned upstream toy estimator includes a 2^-100 FRI error term; this is not a quantum security bound. See security-profile.json and docs/security/stark-parameters.md. Production remains blocked."
 }

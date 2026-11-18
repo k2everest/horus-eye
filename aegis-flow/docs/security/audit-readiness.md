@@ -34,12 +34,13 @@ As descrições não substituem especificação/revisão da relação. Ver tamb�
 
 ## Orçamento de segurança a definir antes do parecer
 
-A configuração padrão do SDK tem aproximadamente 98 bits de segurança
-conjecturada. Isso não é uma garantia de 128 bits pós-quânticos. ML-DSA/ML-KEM
+A configuração fixada não demonstra 128 bits pós-quânticos; a revisão de
+parâmetros abaixo substitui a indicação anterior de aproximadamente 98 bits.
+ML-DSA/ML-KEM
 não elevam automaticamente a segurança dos transcripts SHA-256, commitments
 ou STARK. O auditor deve definir o adversário/modelo e avaliar cada componente,
 incluindo Fiat–Shamir/QROM, pré-imagem, colisão, hiding e composição.
-Não converter os 98 bits para uma estimativa quântica por uma divisão simples.
+Não converter estimativas conjecturais em segurança quântica por divisão simples.
 
 ## Fronteiras de confiança obrigatórias
 
@@ -93,3 +94,10 @@ Permanece fechado até haver relatório externo, parâmetros aceitos, correçõe
 de todos os críticos/altos, reteste externo no candidato final e aceite dos
 riscos residuais pelos responsáveis. Outros P0 de carteira, consenso,
 autenticação e operação não são encerrados por uma auditoria de criptografia.
+## Revisão dos parâmetros STARK
+
+O requisito de 128 bits pós-quânticos permanece **não atendido**. Consulte
+[a revisão reproduzível dos parâmetros](stark-parameters.md), o inventário
+`services/proof-engine/security-profile.json` e o comando de liberação
+`node aegis-flow/scripts/review-stark-security.mjs --require-production`.
+O comando falha enquanto faltar evidência; não representa auditoria independente.

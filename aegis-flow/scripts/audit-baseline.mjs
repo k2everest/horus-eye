@@ -3,10 +3,14 @@ import { readFileSync, existsSync, createReadStream } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { reviewStarkSecurity } from '../services/proof-engine/security-review.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const files = [
   'aegis-flow/services/proof-engine/program.json',
+  'aegis-flow/services/proof-engine/security-profile.json',
+  'aegis-flow/services/proof-engine/security-review.mjs',
+  'aegis-flow/scripts/review-stark-security.mjs',
   'aegis-flow/services/proof-engine/tools.lock.json',
   'aegis-flow/services/proof-engine/guest/Cargo.toml',
   'aegis-flow/services/proof-engine/guest/Cargo.lock',
@@ -43,6 +47,7 @@ console.log(JSON.stringify({
   working_tree_dirty: git(['status', '--porcelain']).length > 0,
   node_version: process.version, program_id: program.program_id,
   independent_audit_completed: false, production_ready: false,
+  stark_security_review: reviewStarkSecurity(),
   default_local_artifact_sha256: artifacts,
   file_sha256: Object.fromEntries(files.map(name => [name, crypto.createHash('sha256').update(readFileSync(join(root, name))).digest('hex')])),
 }, null, 2));

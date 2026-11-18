@@ -10,6 +10,7 @@ cadeia de maior trabalho. Não foi implantada uma rede pública. Carteira gráfi
 e ferramentas permissionadas ainda precisam de adaptação a este modo.
 Decisão: [ADR-0006](docs/adr/ADR-0006-open-proof-of-work.md).
 Execução: [rede aberta](docs/operations/open-chain.md).
+Evidências locais: [validação de consenso e STARK](docs/testing/open-chain-validation.md).
 
 O modelo anterior opt-in de settlement permissionado usa autoridade ML-DSA,
 certificados de finalização e recuperação; exige confiança nessa autoridade.

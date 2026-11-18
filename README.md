@@ -38,6 +38,7 @@ contratos protobuf e testes Node de crypto-core, gateway e relay.
 - Plano e critérios: `aegis-flow/docs/planning/production-readiness.md`.
 - Status corrigido: `aegis-flow/docs/planning/status-tarefas-aegis-flow.md`.
 - Ambiente local e limites: `aegis-flow/README.md`.
+- Escopo e evidências para auditoria independente: `aegis-flow/docs/security/audit-readiness.md`.
 
 O gateway recusa iniciar com `NODE_ENV=production` até concluir as revisões de
 protocolo/parâmetros, gestão de chaves e operação de produção. ML-DSA/ML-KEM, cifragem das notes, composite STARK e SQLite WAL são reais.

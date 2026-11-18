@@ -19,7 +19,7 @@ function sendJson(res, statusCode, payload) {
   res.end(JSON.stringify(payload));
 }
 
-export function createValidationServer({ sink = console.log, faultInjector = () => false, maxBodyBytes = 65536, maxSubmitBytes = 12 * 1024 * 1024,
+export function createValidationServer({ sink = console.log, faultInjector = () => false, maxBodyBytes = 65536, maxSubmitBytes = 12 * 1024 * 1024, maxInFlightBodies = 8,
   ledgerPath, networkId = process.env.AEGIS_NETWORK_ID || 'aegis-lab-v1', starkBackend = defaultStarkBackend() } = {}) {
   assertDemoRuntime();
   assertPqcRuntime();
@@ -27,8 +27,10 @@ export function createValidationServer({ sink = console.log, faultInjector = () 
     throw new RangeError('maxBodyBytes must be between 1 and 1048576');
   }
   if (!Number.isSafeInteger(maxSubmitBytes) || maxSubmitBytes < 1 || maxSubmitBytes > 12 * 1024 * 1024) throw new RangeError('invalid submit size limit');
+  if (!Number.isSafeInteger(maxInFlightBodies) || maxInFlightBodies < 1 || maxInFlightBodies > 64) throw new RangeError('invalid body admission limit');
   const ledger = ledgerPath ? new PersistentLedger({ filename: ledgerPath, networkId }) : undefined;
   let verifying = false;
+  let inFlightBodies = 0;
   const server = http.createServer((req, res) => {
     if (req.method === 'OPTIONS') {
       sendJson(res, 204, {});
@@ -86,6 +88,22 @@ export function createValidationServer({ sink = console.log, faultInjector = () 
         sendJson(res, 415, { valid: false, status_code: 'UNSUPPORTED_MEDIA_TYPE' });
         return;
       }
+      // Reserve before reading any bytes, not only when verification starts.
+      if (inFlightBodies >= maxInFlightBodies) {
+        req.resume();
+        res.setHeader('retry-after', '1');
+        sendJson(res, 429, { valid: false, status_code: 'REQUEST_CAPACITY_EXCEEDED' });
+        return;
+      }
+      inFlightBodies += 1;
+      let released = false;
+      const release = () => {
+        if (!released) { released = true; inFlightBodies -= 1; }
+      };
+      req.once('aborted', release);
+      req.once('error', release);
+      res.once('finish', release);
+      res.once('close', release);
       let body = '';
       let bytes = 0;
       let oversized = false;
@@ -105,6 +123,11 @@ export function createValidationServer({ sink = console.log, faultInjector = () 
 
       req.on('end', async () => {
         if (oversized) return;
+        if (submitting && verifying) {
+          chunks.length = 0;
+          sendJson(res, 503, { status_code: 'VERIFIER_BUSY' });
+          return;
+        }
         body = Buffer.concat(chunks).toString('utf8');
         if (faultInjector({ method: req.method, url: req.url })) {
           sendJson(res, 503, { status_code: 'UNAVAILABLE', retryable: true });

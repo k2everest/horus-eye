@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
 import { buildTranscriptHash, canonicalSerialize } from './canonical-transcript.mjs';
 import { signDigest, verifyDigest, signerTag, exportPublicKey, kemRecipientTag, SUPPORTED_SIG, decodeHex } from './pqc-wrapper.mjs';
-import { sealEnvelope, assertEnvelopeShape } from './sealed-envelope.mjs';
-import { assertNoteV2, noteCommitmentV2, noteNullifierV2 } from './shielded-note-v2.mjs';
+import { sealEnvelope, openEnvelope, assertEnvelopeShape } from './sealed-envelope.mjs';
+import { assertNoteV2, noteCommitmentV2, noteNullifierV2, spendOwner } from './shielded-note-v2.mjs';
 import { assertStarkStatement, STATEMENT_VERSION } from './stark-statement.mjs';
 
 const PAYLOAD_FIELDS = ['crypto_version', 'network_id', 'request_id', 'anchor_state_root', 'input_commitments', 'output_commitments', 'nullifiers', 'public_amount', 'public_asset_id', 'encrypted_outputs', 'sender_tag', 'pq_public_key', 'signature_algorithm'];
@@ -88,4 +88,23 @@ export function verifyTransferSignature(transaction) {
     const digest = transcript(payload);
     return digest === transaction.tx_id && verifyDigest({ algorithm: transaction.signature_algorithm, publicKey: transaction.pq_public_key, messageDigest: digest, domainTag: 'SIG_TRANSFER_V2', signature: transaction.pq_signature }).valid;
   } catch { return false; }
+}
+
+// Recipient-side only. Decryption is not proof of inclusion or settlement.
+export function openTransferOutputV2({ transaction, index, recipientPrivateKey, spendSecret }) {
+  let plaintext;
+  try {
+    if (!verifyTransferSignature(transaction) || !Number.isSafeInteger(index) || index < 0 || index >= transaction.encrypted_outputs.length) throw new Error('invalid transaction/output');
+    if (!(recipientPrivateKey instanceof crypto.KeyObject) || recipientPrivateKey.type !== 'private') throw new Error('private KEM key required');
+    const output = transaction.encrypted_outputs[index];
+    if (kemRecipientTag(crypto.createPublicKey(recipientPrivateKey), output.envelope.kem_algorithm) !== output.recipient_tag) throw new Error('recipient mismatch');
+    plaintext = openEnvelope({ envelope: output.envelope, recipientPrivateKey,
+      expectedContext: contextFor(transaction.network_id, transaction.request_id, index) });
+    const note = JSON.parse(plaintext.toString('utf8'));
+    assertNoteV2(note);
+    if (note.asset_id !== transaction.public_asset_id || noteCommitmentV2(note) !== transaction.output_commitments[index] || spendOwner(spendSecret) !== note.owner_tag) throw new Error('note mismatch');
+    return { note, commitment: transaction.output_commitments[index], confirmed: false };
+  } catch {
+    throw new Error('OUTPUT_NOTE_AUTHENTICATION_FAILED');
+  } finally { plaintext?.fill(0); }
 }

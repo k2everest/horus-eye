@@ -45,6 +45,10 @@ A factory de testes só abre um banco quando `ledgerPath` é informado.
   Apenas uma verificação STARK por processo; excesso retorna VERIFIER_BUSY/503.
 - Schema/assinatura/prova inválidos: 400; conflitos de root, gasto ou request_id:
   409; backend/estado indisponível: 503. Retry idêntico é idempotente.
+- Admissão de corpos reservada antes de ler bytes, padrão oito requisições
+  (`maxInFlightBodies`, 1..64). Excesso recebe 429/Retry-After; aborto/erro/fim
+  liberam o slot. Dimensionar memória para JSON/clones, além dos buffers brutos;
+  isso não substitui cotas de conexão, autenticação ou rate limit no proxy.
 - Persistem somente dados públicos e outputs cifrados. Não enviar witness,
   openings, spend_secret ou chaves privadas. Body de /submit rejeita campos extras.
 - Logs V1 mantêm hash do input, sem payload. Política completa de logs,

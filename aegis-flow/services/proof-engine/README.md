@@ -105,6 +105,10 @@ de revisão. Inputs, outputs, nullifiers e fee são públicos; valores das notes
 e segredos ficam privados. Isso não entrega anonimato de rede nem unlinkability
 completa. Correção do conteúdo cifrado de uma saída não faz parte do guest:
 o destinatário deve decriptar e conferir commitment/owner antes de importar a note.
+O helper local `openTransferOutputV2` faz essas verificações junto de assinatura,
+contexto, asset e identidade KEM. Seu retorno `confirmed:false` exige confirmação
+separada contra estado/prova confiáveis; o helper não credita saldo nem finaliza
+uma transação. A carteira browser ainda precisa integrar esse caminho.
 
 Não há consenso, ancoragem externa de roots, keystore browser, indexador público,
 controle de acesso de produção ou auditoria concluída. O bloqueio de produção

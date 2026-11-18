@@ -50,6 +50,10 @@ P2P, validadores e auditoria; não cabe automaticamente nesse prazo.
 
 ## Condições para remover o bloqueio de produção
 
+Pacote de escopo, achados internos e critérios do parecer externo:
+`../security/audit-readiness.md`. O trabalho interno não encerra a auditoria
+independente nem autoriza remover o bloqueio.
+
 - Nenhum stub no caminho de aceitação; assinatura, prova, root e regras
   monetárias realmente verificadas. Não basta adicionar um flag de configuração.
 - Invariantes de valor e não reutilização de nullifiers preservados sob

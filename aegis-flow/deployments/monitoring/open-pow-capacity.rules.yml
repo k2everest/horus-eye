@@ -1,0 +1,21 @@
+groups:
+  - name: aegis-pow-capacity
+    rules:
+      - alert: AegisPowCanonicalStorageNearLimit
+        expr: aegis_pow_retained_blocks / aegis_pow_block_limit > 0.8 or aegis_pow_retained_body_bytes / aegis_pow_body_bytes_limit > 0.8
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: Node storage is approaching its configured admission limit
+      - alert: AegisPowCommitmentCapacityNearLimit
+        expr: aegis_pow_commitment_count / aegis_pow_leaf_limit > 0.8
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: Protocol leaf capacity needs a reviewed upgrade before exhaustion
+      - alert: AegisPowNotReady
+        expr: aegis_pow_ready == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: Node cannot admit normal verified work

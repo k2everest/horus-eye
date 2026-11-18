@@ -22,8 +22,8 @@ Recompensas são transparentes na emissão. A decisão do responsável é preser
 emissão: a recompensa é subsídio limitado mais taxa, sendo apenas taxa quando
 o subsídio termina. Taxas reciclam valores já existentes; não aumentam o total
 emitido. Ainda faltam análise econômica, auditoria do consenso e campanha pública. Carteira PoW e recuperação cifrada de branches foram
-implementadas e ensaiadas localmente; operação externa/S3 real ainda precisa de
-validação.
+implementadas e ensaiadas localmente; operação externa e recuperação independente de provedor ainda precisam de
+validação. S3 não é requisito da rede.
 Não se presumem valores comerciais a partir do exemplo de laboratório.
 
 O quadro e os comentários abaixo descrevem **o modelo permissionado anterior**,

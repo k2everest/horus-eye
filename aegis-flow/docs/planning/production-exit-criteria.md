@@ -39,14 +39,16 @@ restauração do banco PoW revalidado em aproximadamente 225 segundos.
 | P0 | Política monetária de lançamento | Teto preservado e taxas ao minerador após emissão escolhidos; perfil de taxas implementado. Aprovar ativo/unidade, recompensa, teto e mínimo de taxa comerciais; auditar e validar incentivos. Valores do lab não são aprovados para lançamento |
 | P0 | Histórico e escala | Plano/implementação auditada para o limite de 1 milhão de folhas, snapshots persistentes/poda canônica, restauração e recursos ao longo do tempo |
 | P0 | Auditoria independente | Revisão de consenso/circuito/carteira/chaves/backup, achados críticos e altos corrigidos e revalidados |
-| P0 | Infraestrutura real | Hosts/domínios, identidade do artefato, distribuição de peers, secrets/IAM/KMS e bucket definidos; deploy e restauração S3 real ensaiados com RTO/RPO medidos |
+| P0 | Infraestrutura real | Nós/peers independentes, identidade do artefato, configuração e segredos locais definidos; deploy e recuperação por peers ensaiados, com disponibilidade e perda de dados medidas |
 | P0 | Operação adversarial | Falha de host/disco/rede, reorgs com muitas intents, capacidade de cofre, rotação de chaves e recuperação sob carga demonstradas no destino |
 | P1 | Testnet pública prolongada | Pelo menos a campanha definida, provas reais novas, terceiros e mineradores independentes, partições/reorgs/carga e evidências verificáveis; laboratório não conta como tempo público |
 | P1 | Dependências de build | Advisories dev triados/corrigidos ou mitigação formal aceita; runtime auditado sem avisos não encerra o risco de supply chain |
 
-O bucket informado é queer-altcoin (us-east-2, owner 941554679497). A integração
-usa aegis/pow/v2 e tem inspeção somente leitura/planos IAM e ensaio de restore;
-autenticação, KMS, estado do bucket e ensaio real ainda precisam ser verificados.
+S3 e AWS não são requisitos da blockchain nem condições de liberação.
+O transporte S3 existente é opcional e não foi utilizado. A recuperação do nó
+pode reconstruir o banco com blocos/provas verificados de peers e piso de trabalho
+independente, sem aceitar um banco remoto como estado confiável. Chaves de
+carteira não são recuperadas da cadeia: exigem backup privado pelo usuário.
 A execução dos nós e as decisões econômicas de lançamento ainda precisam ser
 definidas pelo responsável. Auditoria, análise criptográfica e duração pública não podem ser
 substituídas por testes locais ou hashes de documentos ainda não produzidos.

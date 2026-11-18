@@ -96,7 +96,7 @@ export function reviewLaunch({dossier,registry=[],approvals=[],now=Date.now(),ro
  for(const[key,value]of Object.entries(checks))if(!value)blockers.push(key);
  // Referenced hashes/signatures are document controls, not validation of the
  // external opinion, professional mandate, audit, deployment or economic rights.
- const knownTechnicalBlockers=['128-bit post-quantum STARK security not demonstrated','Independent cryptographic audit not validated by this review','Public prolonged testnet and external restoration evidence not validated by this review','Fee-funded security after the supply cap requires economic and adversarial validation','Canonical history/witness capacity and long-duration resource behavior require validation','Production hosts, immutable deployment and external PoW S3 restoration have not been validated'];
+ const knownTechnicalBlockers=['128-bit post-quantum STARK security not demonstrated','Independent cryptographic audit not validated by this review','Public prolonged testnet and external restoration evidence not validated by this review','Fee-funded security after the supply cap requires economic and adversarial validation','Canonical history/witness capacity and long-duration resource behavior require validation','Independent nodes, immutable deployment and provider-independent PoW recovery have not been validated'];
  return{schema:'AEGIS_LAUNCH_REVIEW_RESULT_V1',review_id:dossier.review_id,review_digest:digest,scope:dossier.scope,checks,
   monetary_facts:CURRENT_MONETARY_FACTS,source_mismatches:mismatches,document_mismatches:documentMismatches,unassigned_roles:unassigned,
   approved_roles:[...approved],rejected_roles:[...rejected],invalid_approvals:invalidApprovals,

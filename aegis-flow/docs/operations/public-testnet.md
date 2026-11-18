@@ -5,6 +5,10 @@ recibos STARK reaproveitados ou participantes gerados pelo autor não comprovam
 30 dias de uso público. Esta campanha não remove auditoria, segurança STARK de
 128 bits, gestão de chaves ou os demais bloqueios de produção financeira.
 
+Este documento detalha o harness do settlement permissionado anterior, que
+não comprova confirmações PoW. Para a rede descentralizada, use o
+[procedimento PoW sem dependência de provedor](pow-operations.md).
+
 ## Requisitos para iniciar a janela
 
 - Host/URL HTTPS públicos autorizados e estáveis, imagem imutável registrada,
@@ -14,10 +18,10 @@ recibos STARK reaproveitados ou participantes gerados pelo autor não comprovam
 - Autoridade de laboratório, emissão regular de finalizações e publicação externa
   das âncoras. Não há consenso BFT ou failover automático de notário. Não mantenha
   duas cópias capazes de assinar após uma recuperação.
-- S3/IAM/KMS e escrow externo da chave de backup provisionados; ensaio real de
-  upload/download/restore. O template e o teste local da etapa anterior não bastam.
+- Recuperação externa ensaiada e backups privados de chaves protegidos. S3/IAM/KMS
+  são uma integração opcional, não um requisito da blockchain.
 - Monitoramento/alertas efetivamente instalados, escala de atendimento, orçamento
-  de VM/disco/S3, política de retenção e participantes externos cadastrados.
+  de execução/disco/rede, política de retenção e participantes externos cadastrados.
 - Ativos sem valor, identidades exclusivas para laboratório, termos/consentimento
   claros e canal de suporte. Não aceitar depósitos/vender tokens ou reutilizar
   chaves de produção. O modo permanece `demo` mesmo com exposição pública testnet.
@@ -43,8 +47,8 @@ não há flag para reduzir a janela e chamar um smoke de campanha prolongada.
 | Transferências novas | >=1.000 IDs distintos, provas/finalizações verificadas e atividade em >=21 dias UTC |
 | Latência ponta a ponta | p95 <=20 min, incluindo prova, submissão, espera e conferência |
 | Terceiros | >=10 participantes externos revisados, cada um com >=10 transações próprias e roteiro assinado |
-| Falhas externas | gateway-kill, network-partition, disk-full e recuperação de host via S3 |
-| Recuperação | <=2 min para as três primeiras; <=60 min para recuperação de host/S3 |
+| Falhas externas | gateway-kill, network-partition, disk-full e recuperação de host sem exigir um provedor |
+| Recuperação | <=2 min para as três primeiras; <=60 min para recuperação de host |
 
 Esses são **alvos para homologar**, não SLAs demonstrados. Não excluir manutenção
 ou 429/503 de carga nominal para melhorar artificialmente disponibilidade. Stress
@@ -78,7 +82,7 @@ quatro inputs. Planeje vários clientes, limites de CPU e baseline antes de
 prometer taxa. O cofre limita notes/histórico; mantenha menos de 4.096 notes por
 perfil nesta fase e distribua a campanha entre perfis de teste independentes.
 Não remova histórico à mão para esconder esse limite. O armazenamento de proofs,
-réplicas, journals e snapshots S3 precisa de orçamento/retencão próprios.
+réplicas, journals e snapshots opcionais precisa de orçamento/retencão próprios.
 
 ## Executar os observadores e geradores
 
@@ -175,17 +179,17 @@ firewall ou kill em máquinas de produção/usuários deste workspace.
 | SIGKILL do gateway | Reiniciar mesma imagem/dados; nenhuma inclusão parcial, replay idempotente, mesmo checkpoint finalizado |
 | Partição de rede | Falhas/timeouts observáveis, reserva de inputs preservada, reconexão sem crédito/gasto duplicado |
 | Disco cheio | Usar filesystem/volume descartável ou quota; rollback de SQLite, sem recibo de sucesso parcial; recuperar espaço e repetir com segurança |
-| Perda de host/S3 | Cercar host/autoridade antiga; buscar versões S3, recuperar chave por escrow e restaurar com âncora independente antes de assinar |
+| Perda de host | Cercar host/autoridade antiga; buscar versões S3, recuperar chave por escrow e restaurar com âncora independente antes de assinar |
 
 Registre commit/imagem, config ID, checkpoints antes/depois, início/fim, métricas,
 logs redigidos e hashes dos artefatos. Um HTTP 503 injetado não equivale a perda de
 host, partição ou disco cheio. O runner não aplica falhas remotas automaticamente.
 Use o runbook de infraestrutura/segurança para incidentes e restauração. O ensaio
-local SIGKILL/restore demonstra um caminho, não a recuperação do S3 real.
+local SIGKILL/restore demonstra um caminho, não a recuperação num ambiente externo.
 
 Relatório de falha, assinado por observador cadastrado como operator: campos exatos
 `kind: infrastructure_drill`, `campaign_id`, `config_id`, `observer_id`, `scenario`
-(`gateway-kill`, `network-partition`, `disk-full`, `host-recovery-s3`),
+(`gateway-kill`, `network-partition`, `disk-full`, `host-recovery`),
 `artifact_sha256`, `measured_recovery_ms`, `recovered` e `external_environment`.
 O assessor exige recuperação e RTO alvo; assinatura/autodeclaração não comprova
 sozinha que a infraestrutura falhou. A revisão independente examina o artefato.

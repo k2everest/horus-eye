@@ -5,11 +5,28 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import {OpenChain} from './chain.mjs';
-import {assertOpenGenesis,openNetworkId,blockHash,digest,mineHeader,subsidy} from './consensus.mjs';
+import {assertOpenGenesis,openNetworkId,blockHash,digest,mineHeader,subsidy,assertBlockHeader,expectedTarget,medianTime} from './consensus.mjs';
 import {OpenNode} from './node.mjs';
 import {syncPeer,miningCandidate} from './network.mjs';
 import {spendOwner,noteCommitmentV2} from '../../libs/crypto-core/shielded-note-v2.mjs';
 const backend={programId:'42'.repeat(32),verify:async()=>{throw new Error('NO_TRANSACTION_EXPECTED');}};
+test('bounded ancestor windows preserve retargets and median time across restart and canonical storage exhaustion',async t=>{
+ const {directory,config}=setup(t),limits={maxBlocks:48,maxBytes:2*1024*1024,maxCacheBytes:65536};
+ let chain=await OpenChain.open({directory,config,backend,limits});t.after(()=>chain.close());
+ const ancestors=[];
+ for(let height=1;height<=48;height++){
+  const block=await chain.mine({ownerTag:spendOwner('03'.repeat(32)),timestamp:config.genesis_time_ms+height*1000});
+  assert.doesNotThrow(()=>assertBlockHeader(config,block,ancestors));
+  assert.equal(expectedTarget(config,ancestors),expectedTarget(config,ancestors.slice(-Math.max(11,config.retarget_interval))));
+  assert.equal(medianTime(config,ancestors),medianTime(config,ancestors.slice(-Math.max(11,config.retarget_interval))));
+  ancestors.push(block);
+ }
+ const tip=chain.tip;
+ await assert.rejects(chain.mine({ownerTag:spendOwner('03'.repeat(32)),timestamp:config.genesis_time_ms+49000}),/STORAGE_CAPACITY/);
+ assert.deepEqual(chain.tip,tip);assert.equal(chain.status().resources.stored_blocks,48);
+ chain.close();chain=await OpenChain.open({directory,config,backend,limits});assert.deepEqual(chain.tip,tip);
+ for(let height=1;height<=48;height++)assert.equal(chain.hashAt(height),blockHash(ancestors[height-1].header));
+});
 function setup(t){const directory=mkdtempSync(join(tmpdir(),'aegis-pow-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));const config={schema:'AEGIS_OPEN_POW_V2',network_id:'open-pow-unit',program_id:backend.programId,genesis_time_ms:Date.now()-1000000,pow_limit:'00'+'ff'.repeat(31),target_spacing_ms:1000,retarget_interval:4,confirmations:2,coinbase_maturity:2,anchor_window:64,monetary:{asset_id:'AEGIS',base_reward:7,max_supply:'700'}};return{directory,config};}
 test('open genesis has no authority/country registry and subsidy is deterministic/capped',t=>{
  const{config}=setup(t);assert.equal(assertOpenGenesis(config),config);assert.equal(subsidy(config,1),7);assert.equal(subsidy({...config,monetary:{...config.monetary,max_supply:'10'}},2),3);assert.equal(subsidy(config,101),0);

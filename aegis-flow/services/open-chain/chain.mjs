@@ -64,13 +64,19 @@ export class OpenChain {
   return state;
  }
  async withState(operation,hash=this.#best.hash){return operation(await this.#stateAt(hash));}
- async #check(block){const parents=this.#branch(block.header.parent,true);const checked=assertBlockHeader(this.#config,block,parents);
+ #recentAncestors(hash){
+  const blocks=[],genesis=openNetworkId(this.#config),window=Math.max(11,this.#config.retarget_interval);
+  while(hash!==genesis&&blocks.length<window){const row=this.#nodes.get(hash);if(!row)throw Error('POW_UNKNOWN_PARENT');blocks.push(row.block);hash=row.block.header.parent;}
+  return blocks.reverse();
+ }
+ async #check(block){const parents=this.#recentAncestors(block.header.parent);const checked=assertBlockHeader(this.#config,block,parents);
   const state=await this.#stateAt(block.header.parent);await state.applyBody(block,block.header.height);
   if(state.noteRoot!==block.header.note_root||state.nullifierRoot!==block.header.nullifier_root||state.count!==block.header.commitment_count)throw new Error('POW_STATE_ROOT_MISMATCH');
   if(serialize(state.snapshot()).byteLength>this.#limits.maxCacheBytes)throw new Error('POW_STATE_MEMORY_CAPACITY');
   const parent=this.#nodes.get(block.header.parent);return{hash:checked.hash,work:((parent?BigInt(parent.work):0n)+checked.work).toString(),block,state};
  }
  #reserve(bytes,parent){
+  if(this.#nodes.size+1<=this.#limits.maxBlocks&&this.#storedBytes+bytes<=this.#limits.maxBytes&&this.#nodes.size-this.#canonical.length+1<=this.#limits.maxForkBlocks)return;
   const pinned=new Set([...this.#canonical,...this.#branch(parent,true).map(b=>blockHash(b.header))]);
   while(this.#nodes.size+1>this.#limits.maxBlocks||this.#storedBytes+bytes>this.#limits.maxBytes||this.#nodes.size-this.#canonical.length+1>this.#limits.maxForkBlocks){
    const parents=new Set([...this.#nodes.values()].map(r=>r.block.header.parent));
@@ -82,7 +88,7 @@ export class OpenChain {
  }
  #storeRow(row,bytes){this.#nodes.set(row.hash,{hash:row.hash,work:row.work,block:{header:structuredClone(row.block.header),transaction:row.block.transaction?{tx_id:row.block.transaction.tx_id,request_id:row.block.transaction.request_id}:null},bytes});this.#storedBytes+=bytes;this.#remember(row.hash,row.state);}
  #consider(row){const better=BigInt(row.work)>BigInt(this.#best.work)||(row.work===this.#best.work&&row.hash<this.#best.hash);
-  if(better){const h=row.block.header;this.#best={hash:row.hash,height:h.height,work:row.work,note_root:h.note_root,nullifier_root:h.nullifier_root,commitment_count:h.commitment_count,timestamp_ms:h.timestamp_ms};this.#canonical=this.#branch(row.hash,true).map(b=>blockHash(b.header));}return better;
+  if(better){const h=row.block.header,extendsBest=h.parent===this.#best.hash;this.#best={hash:row.hash,height:h.height,work:row.work,note_root:h.note_root,nullifier_root:h.nullifier_root,commitment_count:h.commitment_count,timestamp_ms:h.timestamp_ms};if(extendsBest)this.#canonical.push(row.hash);else this.#canonical=this.#branch(row.hash,true).map(b=>blockHash(b.header));}return better;
  }
  async #recover(){if(this.#db.prepare('PRAGMA quick_check').get().quick_check!=='ok')throw new Error('POW_DATABASE_INTEGRITY_FAILED');
   const size=this.#db.prepare('SELECT COUNT(*) AS n,COALESCE(SUM(length(CAST(block_json AS BLOB))),0) AS bytes,COALESCE(MAX(length(CAST(block_json AS BLOB))),0) AS largest FROM pow_blocks').get();
@@ -106,7 +112,7 @@ export class OpenChain {
   try{await this.withState(state=>state.applyTransaction(transaction,proof,this.#best.height+1));return true;}finally{this.#busy=false;}
  }
  async mine({ownerTag,transaction=null,proof=null,maxIterations=5000000,timestamp=Date.now()}){
-  const parent=this.#best.hash,parents=this.#branch(parent,true),height=parents.length+1;
+  const parent=this.#best.hash,parents=this.#recentAncestors(parent),height=this.#best.height+1;
   const rewardValue=minerReward(this.#config,height,transaction);const reward=rewardValue?createPrivateNote({ownerTag,value:rewardValue,assetId:this.#config.monetary.asset_id}):null;
   const body={transaction:structuredClone(transaction),proof:structuredClone(proof),reward};
   const state=await this.#stateAt(parent);

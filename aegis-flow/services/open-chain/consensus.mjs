@@ -43,7 +43,7 @@ export function minerReward(config,height,transaction=null){
 export function blockHash(header){const first=crypto.createHash('sha256').update('AEGIS_POW_BLOCK_V2\0').update(canonicalSerialize(header)).digest();return crypto.createHash('sha256').update(first).digest('hex');}
 export function blockWork(target){return(1n<<256n)/(BigInt('0x'+target)+1n);}
 export function expectedTarget(config,ancestors){
- const height=ancestors.length+1;
+ const height=ancestors.length?ancestors.at(-1).header.height+1:1;
  if(height===1)return config.pow_limit;
  const previous=ancestors.at(-1).header;
  if((height-1)%config.retarget_interval!==0)return previous.target;
@@ -59,7 +59,7 @@ export function medianTime(config,ancestors){const values=ancestors.slice(-11).m
 export function assertBlockHeader(config,block,ancestors,{now=Date.now()}={}){
  if(!exact(block,['header','transaction','proof','reward'])||!exact(block.header,['version','network','height','parent','timestamp_ms','target','nonce','body_hash','note_root','nullifier_root','commitment_count']))throw new Error('INVALID_POW_BLOCK_SHAPE');
  const h=block.header,parent=ancestors.length?blockHash(ancestors.at(-1).header):openNetworkId(config);
- if(h.version!=='AEGIS_POW_HEADER_V2'||h.network!==openNetworkId(config)||h.height!==ancestors.length+1||h.parent!==parent||
+ if(h.version!=='AEGIS_POW_HEADER_V2'||h.network!==openNetworkId(config)||h.height!==(ancestors.length?ancestors.at(-1).header.height+1:1)||h.parent!==parent||
   !Number.isSafeInteger(h.timestamp_ms)||h.timestamp_ms<=medianTime(config,ancestors)||h.timestamp_ms>now+7200000||h.target!==expectedTarget(config,ancestors)||
   ![h.nonce,h.body_hash,h.note_root,h.nullifier_root].every(hex)||!Number.isSafeInteger(h.commitment_count)||h.commitment_count<1||h.commitment_count>1000000||
   h.body_hash!==digest('AEGIS_POW_BODY_V1',{transaction:block.transaction,proof:block.proof,reward:block.reward})||BigInt('0x'+blockHash(h))>BigInt('0x'+h.target))throw new Error('INVALID_POW_HEADER_OR_WORK');

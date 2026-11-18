@@ -53,6 +53,10 @@ jobs:
         env:
           AEGIS_POW_RECOVERY_ARTIFACT: work/open-pow-v2-public.json
         run: node --test aegis-flow/services/open-chain/s3-drill.integration.test.mjs
+      - name: Recover an empty node from peers and reverify the native STARK without external storage
+        env:
+          AEGIS_POW_RECOVERY_ARTIFACT: work/open-pow-v2-public.json
+        run: node --test aegis-flow/services/open-chain/peer-recovery.integration.test.mjs
 
   native-pow-wallet:
     runs-on: ubuntu-latest

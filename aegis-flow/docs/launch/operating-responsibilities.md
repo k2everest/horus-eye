@@ -12,7 +12,7 @@ usa IDs e hashes/referências de versões aprovadas.
 | Operações | Host único, imagens/digests, disco, certificados TLS, acesso e manutenção | Policy reader/submitter/monitor não é chave da autoridade; não abrir segundo escritor em outro host |
 | Guardião da autoridade | Chave de finalização, emissão de certificados, âncoras externas e fencing | Comprometimento/equivocação exige conter; não apagar prefixo finalizado para corrigir incidente |
 | Segurança/incidente | Alertas, triagem, contenção, evidências, revogação e reteste | Pode recomendar/bloquear ingresso e modos halt/read-only; não tratar revogação como cancelamento de trabalho já admitido |
-| Backup/DR | Cópias externas, escrow, versões S3, ensaios e medição de RPO/RTO | Não promover snapshot antigo abaixo da âncora; separar escritor/restore quando possível |
+| Backup/DR | Backup privado de chaves, recuperação do nó por peers ou cópia cifrada opcional, ensaios e medição de RPO/RTO | Não promover snapshot antigo abaixo da âncora; separar escritor/restore quando possível |
 | Jurídico/compliance | Enquadramento por atividade/jurisdição, contratos, autorizações e obrigações aplicáveis | Requer profissional habilitado e responsável da entidade; chave criptográfica não é qualificação |
 | Privacidade | Inventário, papéis, minimização, retenção, direitos e incidentes | Nomear função/encarregado quando aplicável; blockchain não dá exclusão automática de histórico finalizado |
 | Suporte/comunicação | Onboarding, avisos, feedback, encaminhamento de incidentes | Nunca pedir senha, spend secret, note aberta ou chave privada; não prometer moeda/rendimento/certificação inexistentes |

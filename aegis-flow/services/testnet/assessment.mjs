@@ -5,8 +5,8 @@ import { settlementConfigId } from '../ledger-state/finality.mjs';
 import { assertCampaign, readJournal, loadPublicEvidence, verifyFinalizedBundle } from './evidence.mjs';
 export const REQUIREMENTS=Object.freeze({days:30,heartbeat_coverage:0.95,max_gap_hours:6,nominal_replays:10000,nominal_acceptance:0.999,fresh_finalized:1000,fresh_active_days:21,external_participants:10,flows_per_participant:10,p95_e2e_ms:1200000});
 const FLOWS=['create','backup','restore','send','receive','sync','lock'];
-const DRILLS=['gateway-kill','network-partition','disk-full','host-recovery-s3'];
-const DRILL_RTO={'gateway-kill':120000,'network-partition':120000,'disk-full':120000,'host-recovery-s3':3600000};
+const DRILLS=['gateway-kill','network-partition','disk-full','host-recovery'];
+const DRILL_RTO={'gateway-kill':120000,'network-partition':120000,'disk-full':120000,'host-recovery':3600000};
 const LATENCY_BUCKETS=[1,5,10,25,50,100,250,500,1000,5000,30000,60000,Infinity];
 const hex=v=>typeof v==='string'&&/^[0-9a-f]{64}$/.test(v);
 function assertReport(payload){
@@ -16,7 +16,7 @@ function assertReport(payload){
   if(Object.keys(payload).sort().join(',')!=='campaign_id,config_id,flows,heads,kind,observer_id,transactions'||!Array.isArray(payload.transactions)||payload.transactions.length>10000||
    !payload.transactions.every(hex)||new Set(payload.transactions).size!==payload.transactions.length||!Array.isArray(payload.heads)||!payload.heads.length||payload.heads.length>10000||!payload.heads.every(hex)||
    !Array.isArray(payload.flows)||new Set(payload.flows).size!==payload.flows.length||payload.flows.some(f=>!FLOWS.includes(f)))throw new Error('INVALID_TESTNET_REPORT');
- }else if(Object.keys(payload).sort().join(',')!=='artifact_sha256,campaign_id,config_id,external_environment,kind,measured_recovery_ms,observer_id,recovered,scenario'||!DRILLS.includes(payload.scenario)||
+ }else if(Object.keys(payload).sort().join(',')!=='artifact_sha256,campaign_id,config_id,external_environment,kind,measured_recovery_ms,observer_id,recovered,scenario'||!(DRILLS.includes(payload.scenario)||['host-recovery-s3','host-recovery-peers'].includes(payload.scenario))||
   !hex(payload.artifact_sha256)||!Number.isSafeInteger(payload.measured_recovery_ms)||payload.measured_recovery_ms<0||typeof payload.external_environment!=='boolean'||typeof payload.recovered!=='boolean')throw new Error('INVALID_TESTNET_REPORT');
 }
 export function signTestnetReport(payload,privateKey){assertReport(payload);return{payload,signature:signDigest({algorithm:'ML-DSA-65',privateKey,messageDigest:buildTranscriptHash({domainTag:'AEGIS_TESTNET_REPORT_V1',payload}),domainTag:'AEGIS_TESTNET_REPORT_V1'}).signature};}
@@ -79,7 +79,7 @@ export async function assessCampaign({campaign,config,journalPaths,registry=[],r
  for(const envelope of reports){const report=verifyEnrolledReport(envelope,campaign,registry);if(!report){invalidReports++;continue;}
   if(report.kind==='participant'){
    if(FLOWS.every(flow=>report.flows.includes(flow))&&report.heads.some(h=>heads.get(report.observer_id)?.has(h))&&report.transactions.filter(tx=>finalized.has(tx)&&finalized.get(tx).sender_tag===registry.find(r=>r.observer_id===report.observer_id).wallet_signer_tag).length>=REQUIREMENTS.flows_per_participant)participants.add(report.observer_id);
-  }else if(campaign.environment==='public-testnet'&&report.external_environment&&report.recovered&&report.measured_recovery_ms<=DRILL_RTO[report.scenario])drills.add(report.scenario);
+  }else if(campaign.environment==='public-testnet'&&report.external_environment&&report.recovered&&report.measured_recovery_ms<=DRILL_RTO[['host-recovery-s3','host-recovery-peers'].includes(report.scenario)?'host-recovery':report.scenario])drills.add(['host-recovery-s3','host-recovery-peers'].includes(report.scenario)?'host-recovery':report.scenario);
  }
  const replayPercentile=fraction=>{if(!accepted)return null;let total=0;for(let i=0;i<replayHistogram.length;i++){total+=replayHistogram[i];if(total>=Math.ceil(accepted*fraction))return Number.isFinite(LATENCY_BUCKETS[i])?LATENCY_BUCKETS[i]:null;}return null;};
  const p95=latencies.length?latencies[Math.max(0,Math.ceil(latencies.length*0.95)-1)]:null;

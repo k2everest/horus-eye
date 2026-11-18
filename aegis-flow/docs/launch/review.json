@@ -80,12 +80,12 @@
     {
       "id": "monetary-rules",
       "file": "docs/launch/monetary-rules.md",
-      "sha256": "3112a16f94138caae0428b7ca7581c713a7519c042b6e5a426a2ff0662383ed4"
+      "sha256": "6830562a4d6e8b7219f071aea26278e75ceecc059b8d519bf5f25027b8a9dbb3"
     },
     {
       "id": "operating-responsibilities",
       "file": "docs/launch/operating-responsibilities.md",
-      "sha256": "4cab8f1bb93e58a02465592e292e9e7a5cfe3ad25e0677b04ea96c2bc7120c11"
+      "sha256": "dfbe5a12161e6ad18948a2b2bee274b0dbd5cf6db7a1af60778d0b7113bd6527"
     },
     {
       "id": "legal-review",

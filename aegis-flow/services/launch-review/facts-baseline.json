@@ -48,10 +48,10 @@
     "aegis-flow/services/wallet-local/wallet.mjs": "301077978d8f8b01d53b993da7c8442f161449be591c451b959ccdc3878d8654",
     "aegis-flow/services/validation-gateway/server.mjs": "8077942eb71d3a948113b8edff82601ab1a956e8ddc2f1306f11ec84abb9c7ac",
     "aegis-flow/services/validation-gateway/runtime-policy.mjs": "295f8823987e4d91bb564a361265f64addf792f6112de17757a44d96b24264d7",
-    "aegis-flow/services/open-chain/chain.mjs": "4e8fe733b6b4236994afc298f7e48bf3ed83e691aa08636f4065c93157162da9",
-    "aegis-flow/services/open-chain/consensus.mjs": "89a2bb9439b9e9965eeec1c3bcc82a69510cdebeb76b103c282c0aa6efab0a13",
-    "aegis-flow/services/open-chain/network.mjs": "d98212f2e31d19108d7cfc19a056136aacb0adef9c90570ad8946115d8242cd3",
-    "aegis-flow/services/open-chain/node.mjs": "eb7bc7a8c31079257b4b32962c06a35cbf2d0dc5185a7b988b39f2b91e1dc007",
+    "aegis-flow/services/open-chain/chain.mjs": "a7821c50e54f74b794ba982caa92be4e0df943d414bdb971e9c6ea7f941257a4",
+    "aegis-flow/services/open-chain/consensus.mjs": "f0114f9cd7a0c57c5337d5f04a820f12543235b7f9b00457a074c0fe13c79b98",
+    "aegis-flow/services/open-chain/network.mjs": "5ba82f19a9c282fa52b24a80b476f44c386e2a9f58635d29f1a3fd98e381a871",
+    "aegis-flow/services/open-chain/node.mjs": "9d1c9b17a26b1cd4bb4c4e545cd0700e745ce6a73383bc11822146e984107be5",
     "aegis-flow/services/open-chain/state.mjs": "64f6887cf3f29cfd455e89cae5bccde3aaeaa5722683aa2de1ba7c0579af3fb3",
     "aegis-flow/services/wallet-local/note-window.mjs": "535dce18369c422242961d9638ebc9e7b3527c5a5f5caa19ae080a551a78779d",
     "supabase/functions/monero-rpc/handler.mjs": "12f687d547d0e93cf25cc59efac8d72068b7cde9c3687dbc37e1a05e4bf0d0e2",
@@ -80,6 +80,8 @@
     "aegis-flow/services/open-chain/release.mjs": "6917dd5427fbb61eabf99a595c13c1e38daf550decfa7521b38f3d83c8dbc267",
     "aegis-flow/scripts/pow-release.mjs": "7d8f4d5b4397f9bb8ac7678d7575f1eff3521b5578899c6fd5686a3ad7d06eba",
     "aegis-flow/deployments/open-pow/compose.yaml": "54b6f48794cb5bbee6c6e91798bc2ead7396ed99830e53b253246bc2bf8b4b7c",
-    "aegis-flow/libs/crypto-core/merkle-proof.mjs": "139764d3d991c3ed37b093f649ad1e5f1bb42533d655045b2671217ef542fc77"
+    "aegis-flow/libs/crypto-core/merkle-proof.mjs": "139764d3d991c3ed37b093f649ad1e5f1bb42533d655045b2671217ef542fc77",
+    "aegis-flow/services/open-chain/peer-recovery.mjs": "d33ef8391194b7100ab1fd8e8133c5e22573f5cf42130e1f090e319e670277f3",
+    "aegis-flow/scripts/pow-peer-recovery.mjs": "373f1a2ad221e0fd79205e1c92d3ce6646341bd3dacccbccd1e45f1911a01f05"
   }
 }

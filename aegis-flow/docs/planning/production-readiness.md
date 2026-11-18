@@ -10,7 +10,7 @@ operada por terceiros. Carteira local/gráfica PoW e backup cifrado de branches 
 incluindo reversão de saldo/reservas, watermark de trabalho e restore revalidado.
 Um teste com STARK nova cobre envio/recebimento, reorg confirmado e recuperação.
 Há composição restrita de nó, métricas/readiness e locks de kernel com ensaio de
-crash. Não houve implantação pública ou restauração no bucket real. Campanha,
+crash. Não houve implantação pública; S3 não é requisito do modo PoW. Campanha,
 revisão independente, incentivos e capacidade de histórico continuam abertos.
 Runbook: [rede aberta](../operations/open-chain.md).
 
@@ -32,7 +32,8 @@ de incidente foram adicionados; instalação do monitoramento, distribuição de
 segredos e exercício de incidentes no ambiente real continuam necessários.
 Há manifesto de deploy por imagem imutável, migrações v3 controladas, backup
 criptografado/integração S3 e ensaio local de restauração com replay nativo.
-Provisionamento externo e ensaio no S3 real seguem pendentes; SQLite é single-host.
+S3 é opcional. Recuperação por peers não depende de AWS; deploy e recuperação
+externos ainda exigem ensaio. Cada nó SQLite tem seu próprio host/disco.
 Ferramentas da campanha pública prolongada distinguem replay de novas provas,
 verificam artefatos/relatos e exigem revisão independente. O ensaio local com
 prova nova, HTTP, SIGKILL e restauração passou; 30 dias públicos e terceiros

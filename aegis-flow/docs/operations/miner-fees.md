@@ -48,3 +48,13 @@ segurança econômica após o teto. Faltam análise adversarial, auditoria indep
 meta STARK de 128 bits pós-quânticos, ensaios públicos e critérios operacionais.
 O gate de produção continua bloqueado. A assinatura/prova torna a taxa pública;
 não anunciar sigilo do valor da taxa nem garantia de confirmação por pagá-la.
+
+## Validação desta implementação
+
+181 testes de backend aprovados, zero falhas e 8 integrações opt-in não
+executadas no runner rápido; 6 testes de interface, TypeScript, lint e build
+aprovados. A integração nativa da carteira gerou uma STARK nova e passou em
+aproximadamente 238 segundos: teto de laboratório 21, taxa 1, recompensa somente
+com taxa após esgotar o subsídio, emissão mantida em 21, journal com taxa alterada
+rejeitado, recebimento, reorg e restauração cifrada revalidada. Esses valores
+são exclusivamente do teste, não parâmetros econômicos aprovados para lançamento.

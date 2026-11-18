@@ -2,7 +2,7 @@ import {parseArgs} from 'node:util';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {OpenChain} from '../services/open-chain/chain.mjs';
 import {assertOpenGenesis,openNetworkId} from '../services/open-chain/consensus.mjs';
-import {syncPeer,publicRequest,peerOrigin} from '../services/open-chain/network.mjs';
+import {syncPeer,publicRequest,peerOrigin,miningCandidate} from '../services/open-chain/network.mjs';
 import {defaultStarkBackend} from '../services/proof-engine/backend.mjs';
 import {assertDemoRuntime} from '../services/validation-gateway/runtime-policy.mjs';
 
@@ -27,8 +27,8 @@ if(command==='lab-genesis'){
    const count=Number(values.count);if(!Number.isSafeInteger(count)||count<1||count>100)throw new Error('--count must be 1..100');
    for(let i=0;i<count;i++){
     if(values.peer)await syncPeer(chain,values.peer);
-    const candidate=values.peer?await publicRequest(values.peer,'/mempool/next'):null;
-    const block=await chain.mine({ownerTag:values.owner,...(candidate??{})});
+    const candidate=miningCandidate(values.peer?await publicRequest(values.peer,'/mempool/next'):null);
+    const block=await chain.mine({transaction:candidate.transaction,proof:candidate.proof,ownerTag:values.owner});
     if(values.peer)await publicRequest(values.peer,'/p2p/block',{block});
     console.log(JSON.stringify({height:block.header.height,tip:chain.tip.hash,production_ready:false}));
    }

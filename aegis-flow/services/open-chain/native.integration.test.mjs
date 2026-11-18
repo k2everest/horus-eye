@@ -22,7 +22,7 @@ test('native STARK spends a mature PoW reward across independent full nodes and 
   monetary:{asset_id:'AEGIS',base_reward:7,max_supply:'700'}};
  for(let i=0;i<3;i++){const chain=await OpenChain.open({directory:join(directory,String(i)),config,backend});const node=new OpenNode({chain});await node.listen();nodes.push(node);}
  for(const node of nodes)for(const peer of nodes)if(peer!==node)node.addPeer(peer.origin);
- for(let i=0;i<3;i++)await nodes[0].mine(identity.owner_tag);
+ await nodes[0].mine(identity.owner_tag);
  for(const node of nodes)await node.sync();
  const reward=nodes[0].chain.blockAt(1).reward;
  const outputs=[{note:createPrivateNote({ownerTag:to.owner_tag,value:3,assetId:'AEGIS'}),recipientPublicKey:to.kem_public_key},
@@ -30,6 +30,9 @@ test('native STARK spends a mature PoW reward across independent full nodes and 
  const prepared=await nodes[0].chain.withState(state=>prepareTransferV2({requestId:'native-open-transfer',networkId:config.network_id,
   anchorStateRoot:state.noteRoot,privateKey:crypto.createPrivateKey(secrets.signing_private_key),
   inputs:[{note:reward,spend_secret:secrets.spend_secret,membership:state.ledger.inclusionProof({commitment:noteCommitmentV2(reward)}).proof}],outputs}));
+ await assert.rejects(nodes[0].chain.validateTransaction(prepared.transaction,{}),/POLICY_OR_ANCHOR/);
+ // Mature the reward while preserving the earlier, smaller membership witness.
+ for(let i=0;i<2;i++)await nodes[0].mine(identity.owner_tag);
  console.log('Generating a new native STARK from a mined reward (no simulated verifier)');
  const proof=await backend.prove(prepared);
  // A block arrives while the proof is being built: historical canonical roots remain usable.
@@ -41,6 +44,6 @@ test('native STARK spends a mature PoW reward across independent full nodes and 
  for(const node of nodes){assert.equal(node.chain.tip.hash,nodes[1].chain.tip.hash);assert.equal(node.chain.transactionReceipt('native-open-transfer').status,'CONFIRMED_POW');
   await assert.rejects(node.chain.validateTransaction(prepared.transaction,proof));}
  const opened=openTransferOutputV2({transaction:prepared.transaction,index:0,recipientPrivateKey:crypto.createPrivateKey(recipient.kem_private_key),spendSecret:recipient.spend_secret});
- assert.equal(opened.value,3);const tip=nodes[2].chain.tip;await nodes[2].close();
+ assert.equal(opened.note.value,3);const tip=nodes[2].chain.tip;await nodes[2].close();
  const recovered=await OpenChain.open({directory:join(directory,'2'),config,backend});try{assert.deepEqual(recovered.tip,tip);}finally{recovered.close();}
 });

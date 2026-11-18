@@ -1,6 +1,12 @@
 import {setTimeout as pause} from 'node:timers/promises';
 import {openNetworkId} from './consensus.mjs';
 export function peerOrigin(value){const u=new URL(value);if(!['http:','https:'].includes(u.protocol)||u.origin!==value||u.username||u.password)throw new Error('INVALID_POW_PEER_ORIGIN');return u.origin;}
+export function miningCandidate(value){
+ if(value===null)return{transaction:null,proof:null};
+ if(!value||Array.isArray(value)||Object.keys(value).sort().join(',')!=='proof,transaction'||!value.transaction||!value.proof)throw new Error('INVALID_POW_MEMPOOL_CANDIDATE');
+ // Public peer data must never override local mining options/reward ownership.
+ return{transaction:structuredClone(value.transaction),proof:structuredClone(value.proof)};
+}
 export async function publicRequest(origin,path,body,{timeoutMs=10000}={}){
  const response=await fetch(peerOrigin(origin)+path,{method:body===undefined?'GET':'POST',redirect:'error',headers:body===undefined?{}:{'content-type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(timeoutMs)});
  if(!response.body)throw new Error('POW_PEER_EMPTY_RESPONSE');const reader=response.body.getReader(),chunks=[];let size=0;

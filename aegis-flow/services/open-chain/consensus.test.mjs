@@ -7,7 +7,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {OpenChain} from './chain.mjs';
 import {assertOpenGenesis,openNetworkId,blockHash,digest,mineHeader,subsidy} from './consensus.mjs';
 import {OpenNode} from './node.mjs';
-import {syncPeer} from './network.mjs';
+import {syncPeer,miningCandidate} from './network.mjs';
 import {spendOwner,noteCommitmentV2} from '../../libs/crypto-core/shielded-note-v2.mjs';
 const backend={programId:'42'.repeat(32),verify:async()=>{throw new Error('NO_TRANSACTION_EXPECTED');}};
 function setup(t){const directory=mkdtempSync(join(tmpdir(),'aegis-pow-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));const config={schema:'AEGIS_OPEN_POW_V1',network_id:'open-pow-unit',program_id:backend.programId,genesis_time_ms:Date.now()-1000000,pow_limit:'00'+'ff'.repeat(31),target_spacing_ms:1000,retarget_interval:4,confirmations:2,coinbase_maturity:2,anchor_window:64,monetary:{asset_id:'AEGIS',base_reward:7,max_supply:'700'}};return{directory,config};}
@@ -15,6 +15,23 @@ test('open genesis has no authority/country registry and subsidy is deterministi
  const{config}=setup(t);assert.equal(assertOpenGenesis(config),config);assert.equal(subsidy(config,1),7);assert.equal(subsidy({...config,monetary:{...config.monetary,max_supply:'10'}},2),3);assert.equal(subsidy(config,101),0);
  assert.throws(()=>assertOpenGenesis({...config,authority_public_key:'not-allowed'}),/INVALID_OPEN_GENESIS/);assert.throws(()=>assertOpenGenesis({...config,country:'BR'}),/INVALID_OPEN_GENESIS/);
  assert.notEqual(openNetworkId(config),openNetworkId({...config,monetary:{...config.monetary,max_supply:'701'}}));
+});
+test('untrusted mempool replies cannot redirect mining rewards or override local work limits',()=>{
+ assert.deepEqual(miningCandidate(null),{transaction:null,proof:null});
+ assert.throws(()=>miningCandidate({transaction:{},proof:{},ownerTag:'attacker'}),/INVALID_POW_MEMPOOL/);
+ assert.throws(()=>miningCandidate({transaction:{},proof:{},maxIterations:100000000}),/INVALID_POW_MEMPOOL/);
+});
+test('partial last reward reaches the exact cap and subsequent blocks cannot issue more',async t=>{
+ const{directory,config}=setup(t);config.monetary.max_supply='10';
+ const chain=await OpenChain.open({directory,config,backend});t.after(()=>chain.close());
+ const ownerTag=spendOwner('08'.repeat(32));
+ assert.equal((await chain.mine({ownerTag})).reward.value,7);
+ assert.equal((await chain.mine({ownerTag})).reward.value,3);
+ const third=await chain.mine({ownerTag});assert.equal(third.reward,null);
+ assert.equal(chain.tip.commitment_count,2);assert.equal(chain.status().protocol_minted_supply,'10');
+ const altered=structuredClone(third);altered.reward=chain.blockAt(1).reward;
+ altered.header.body_hash=digest('AEGIS_POW_BODY_V1',{transaction:null,proof:null,reward:altered.reward});altered.header=await mineHeader(altered.header);
+ await assert.rejects(chain.addBlock(altered),/UNEXPECTED_COINBASE/);
 });
 test('work, subsidy and state roots are checked before adopting a block',async t=>{
  const{directory,config}=setup(t),chain=await OpenChain.open({directory,config,backend});t.after(()=>chain.close());

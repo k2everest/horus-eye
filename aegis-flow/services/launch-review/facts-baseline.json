@@ -44,7 +44,7 @@
     "aegis-flow/services/validation-gateway/runtime-policy.mjs": "295f8823987e4d91bb564a361265f64addf792f6112de17757a44d96b24264d7",
     "aegis-flow/services/open-chain/chain.mjs": "a796787483d446507d9966588bb32df835b9dd03d733015427ae65e9d531b268",
     "aegis-flow/services/open-chain/consensus.mjs": "0ac6be60252da046654d08bfc86bda4b3957d67d3c456ef7f13cf5bfcd6cc862",
-    "aegis-flow/services/open-chain/network.mjs": "fa00fd5608de39b8a7272becb59a5810306778c64acc10e3e296c5b4c211fe4c",
+    "aegis-flow/services/open-chain/network.mjs": "691e998635b0aaaf4c9926e4b882effa5fc1f01a35dee3977e60fbcf40bc89b0",
     "aegis-flow/services/open-chain/node.mjs": "afec04abc006e735f9517dbb4461a96c85528fbef31a922739d9d40cfd981b8b",
     "aegis-flow/services/open-chain/state.mjs": "40959ce8e2d5fe7fd9376a0758e1e329c9cde1a58ffb5fa7f43c1c907888f666"
   }

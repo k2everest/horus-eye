@@ -74,6 +74,9 @@
     "aegis-flow/scripts/s3-target.mjs": "a53434ab5228ef366ed25cd317876d5d6eba7ded35069be8834579d882afa55f",
     "aegis-flow/scripts/pow-s3-drill.mjs": "6ef6e7401de3212686eddaa490d02a02eea1dabfef0c30236e509b80775ccc68",
     "aegis-flow/scripts/backup-metrics.mjs": "ed63640d36f58f7414f23b9f9a0ea8288478298878f56defd497c7af55050a1c",
-    "aegis-flow/deployments/open-pow/s3-destination.json": "a765ff54203a5f064b957b93125e4bfc700e4a05ced2661556fd7db625d6e571"
+    "aegis-flow/deployments/open-pow/s3-destination.json": "a765ff54203a5f064b957b93125e4bfc700e4a05ced2661556fd7db625d6e571",
+    "aegis-flow/services/open-chain/release.mjs": "dbf3072159568ecc897bec2b757fc0d5b5ccfcf2b81a89113cba81a7c5331422",
+    "aegis-flow/scripts/pow-release.mjs": "256449f608fc6f4734ce75d55b7bf90070b5c3a72c7bb04f669dc8af78c3a7c9",
+    "aegis-flow/deployments/open-pow/compose.yaml": "54b6f48794cb5bbee6c6e91798bc2ead7396ed99830e53b253246bc2bf8b4b7c"
   }
 }

@@ -1,0 +1,53 @@
+name: Package Aegis PoW testnet candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      genesis_path:
+        description: Reviewed public PoW V2 genesis JSON path in this checkout (no secrets)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Require a tracked public genesis and approved program
+        env:
+          GENESIS_PATH: ${{ inputs.genesis_path }}
+        run: |
+          git ls-files --error-unmatch -- "$GENESIS_PATH"
+          node --input-type=module -e '
+            import fs from "node:fs";
+            import {openNetworkId} from "./aegis-flow/services/open-chain/consensus.mjs";
+            const config=JSON.parse(fs.readFileSync(process.env.GENESIS_PATH));
+            const program=JSON.parse(fs.readFileSync("aegis-flow/services/proof-engine/program.json"));
+            if(config.program_id!==program.program_id)throw Error("GENESIS_PROGRAM_MISMATCH");
+            fs.appendFileSync(process.env.GITHUB_ENV,"CONFIG_ID="+openNetworkId(config)+"\n");'
+      - name: Run contract and state tests before packaging
+        run: bash aegis-flow/scripts/dev-env.sh test
+      - name: Build the reviewed image
+        run: node aegis-flow/scripts/build-release.mjs
+      - name: Prepare and independently verify the PoW candidate bundle
+        env:
+          GENESIS_PATH: ${{ inputs.genesis_path }}
+        run: |
+          node aegis-flow/scripts/pow-release.mjs prepare --image "aegis-flow/validation-gateway:$GITHUB_SHA" --genesis "$GENESIS_PATH" --directory work/pow-candidate
+          node aegis-flow/scripts/pow-release.mjs verify --directory work/pow-candidate --expected-commit "$GITHUB_SHA" --expected-config-id "$CONFIG_ID"
+          docker save "aegis-flow/validation-gateway:$GITHUB_SHA" | gzip > work/pow-candidate/image.tar.gz
+          cd work/pow-candidate
+          sha256sum image.tar.gz release.json compose.yaml pow-genesis.json > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aegis-pow-testnet-${{ github.sha }}
+          path: work/pow-candidate/
+          retention-days: 14
+          if-no-files-found: error

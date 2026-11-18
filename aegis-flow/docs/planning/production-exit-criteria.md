@@ -1,6 +1,9 @@
 # Critérios de saída para produção — PoW V2
 
 Estado: preparação em andamento; sem liberação ou rede pública implantada.
+O empacotamento específico do nó PoW agora tem manifesto, verificação de
+imagem/genesis e workflow manual de artefato; construção e deploy reais seguem
+pendentes. Procedimento: [release PoW](../operations/pow-release.md).
 A alteração atual fecha integrações de código, não valida todas as premissas de
 produção. Nenhum valor comercial de emissão ou destino de infraestrutura foi
 presumido a partir do exemplo de laboratório.

@@ -6,6 +6,14 @@ comercial, emissão de QER, preço, rendimento ou resgate. QUEER é a marca da
 experiência; `AEGIS` é o asset ID padrão do código. Isso não constitui registro
 comercial de ticker nem garante exclusividade de nome.
 
+## Valores solicitados para QUEER
+
+O responsável definiu 1 QUEER = 105.000.000 AEGIS e teto de 20.000.000 QUEER
+(2.100.000.000.000.000 AEGIS), com custo crescente por dificuldade PoW.
+O registro e as decisões de consenso ainda necessárias estão em
+[requisitos monetários QUEER](queer-monetary-request.md). A conversão exata foi
+implementada separadamente; estes valores ainda não foram ativados em genesis.
+
 ## Regras implementadas
 
 ### Extensão de rede aberta (ADR-0006)

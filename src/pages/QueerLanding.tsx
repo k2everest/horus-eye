@@ -3,26 +3,25 @@ import { ArrowRight, Check, Copy, EyeOff, Fingerprint, LockKeyhole, Network, Shi
 import { Link } from "react-router-dom";
 
 const pillars = [
-  { icon: EyeOff, title: "Privacidade por padrão", text: "Remetente, destinatário, valor e metadados permanecem blindados no desenho do protocolo." },
-  { icon: ShieldCheck, title: "Preparada para PQC", text: "Envelopes com ML-KEM e ML-DSA formam a base de migração pós-quântica do Aegis Flow." },
-  { icon: Network, title: "Integração verificável", text: "Contratos versionados, logs sem segredos e APIs prontas para evolução via gRPC." },
+  { icon: EyeOff, title: "Notes cifradas", text: "Notes ficam cifradas. Commitments, nullifiers, tags e outros dados da transação são públicos." },
+  { icon: ShieldCheck, title: "Criptografia em avaliação", text: "ML-KEM e ML-DSA reais; a segurança STARK de 128 bits pós-quânticos ainda não foi demonstrada." },
+  { icon: Network, title: "Finalização permissionada", text: "Certificados de uma autoridade identificada; não há consenso descentralizado nesta etapa." },
 ];
 
-const stages = ["Envelope criado", "Assinatura verificada", "Nullifier reservado", "Transação aceita"];
+const stages = ["Estrutura do envelope", "Etapa de assinatura", "Etapa de prova", "Etapa de inclusão"];
 
 export default function QueerLanding() {
   const [amount, setAmount] = useState("25");
-  const [result, setResult] = useState<null | { id: string; elapsed: number }>(null);
+  const [result, setResult] = useState<null | { id: string }>(null);
   const [copied, setCopied] = useState(false);
 
-  const txId = useMemo(() => result?.id ?? "qer_test_••••••••••••", [result]);
+  const txId = useMemo(() => result?.id ?? "qer_example_••••••••••••", [result]);
 
   const simulate = () => {
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0) return;
     setResult({
-      id: `qer_test_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
-      elapsed: Math.floor(38 + Math.random() * 24),
+      id: `qer_example_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
     });
   };
 
@@ -55,13 +54,13 @@ export default function QueerLanding() {
       <section id="top" className="relative z-10 mx-auto grid min-h-[76vh] max-w-7xl items-center gap-16 px-6 pb-20 pt-16 lg:grid-cols-[1.15fr_0.85fr] lg:px-10">
         <div>
           <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-fuchsia-300/20 bg-fuchsia-300/5 px-3 py-1.5 text-xs font-medium text-fuchsia-200">
-            <Sparkles className="size-3.5" /> Aegis Flow experimental network
+            <Sparkles className="size-3.5" /> Aegis Flow · laboratório
           </div>
           <h1 className="max-w-4xl text-6xl font-black leading-[0.88] tracking-[-0.07em] sm:text-7xl lg:text-[7.2rem]">
             VALOR SEM<br />VIGILÂNCIA<span className="text-fuchsia-300">.</span>
           </h1>
           <p className="mt-8 max-w-xl text-lg leading-8 text-white/58">
-            QUEER é a identidade pública de uma experiência de dinheiro digital blindado: plural, privado e construído para um futuro pós-quântico.
+            QUEER é a interface experimental do Aegis Flow para testar notes cifradas e transferências verificáveis, sem valor monetário.
           </p>
           <div className="mt-10 flex flex-wrap gap-3">
             <Link to="/queer/wallet" className="group inline-flex items-center gap-3 rounded-full bg-white px-6 py-3.5 font-semibold text-black transition hover:bg-fuchsia-200">
@@ -106,10 +105,10 @@ export default function QueerLanding() {
         <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-6 shadow-2xl backdrop-blur sm:p-8">
           <div className="flex items-center justify-between border-b border-white/10 pb-5">
             <div>
-              <p className="text-sm font-semibold">Transação de teste</p>
-              <p className="mt-1 text-xs text-white/35">Ambiente isolado · QER sem valor</p>
+              <p className="text-sm font-semibold">Exemplo visual</p>
+              <p className="mt-1 text-xs text-white/35">Ilustração local · sem envio à rede</p>
             </div>
-            <span className="flex items-center gap-2 rounded-full bg-teal-300/10 px-3 py-1 text-xs text-teal-200"><span className="size-1.5 rounded-full bg-teal-300" /> testnet online</span>
+            <span className="flex items-center gap-2 rounded-full bg-teal-300/10 px-3 py-1 text-xs text-teal-200"><span className="size-1.5 rounded-full bg-teal-300" /> preview local</span>
           </div>
 
           <label className="mt-7 block text-xs uppercase tracking-[0.16em] text-white/40" htmlFor="qer-amount">Quantidade de teste</label>
@@ -133,11 +132,11 @@ export default function QueerLanding() {
 
           <div className="mt-5 flex items-center justify-between rounded-xl bg-black/25 px-4 py-3 font-mono text-xs text-white/40">
             <span>{txId}</span>
-            <button onClick={copyId} disabled={!result} className="text-white/50 transition hover:text-white disabled:opacity-20" aria-label="Copiar identificador da transação">
+            <button onClick={copyId} disabled={!result} className="text-white/50 transition hover:text-white disabled:opacity-20" aria-label="Copiar identificador do exemplo">
               {copied ? <Check className="size-4 text-teal-300" /> : <Copy className="size-4" />}
             </button>
           </div>
-          {result && <p className="mt-3 text-right font-mono text-[11px] text-teal-300">VALIDADA EM {result.elapsed}ms</p>}
+          {result && <p className="mt-3 text-right font-mono text-[11px] text-teal-300">Exemplo visual: nenhuma prova foi gerada ou transação enviada.</p>}
         </div>
       </section>
 

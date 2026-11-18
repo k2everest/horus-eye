@@ -25,6 +25,9 @@ Ferramentas da campanha pública prolongada distinguem replay de novas provas,
 verificam artefatos/relatos e exigem revisão independente. O ensaio local com
 prova nova, HTTP, SIGKILL e restauração passou; 30 dias públicos e terceiros
 reais continuam pendentes (`docs/operations/public-testnet.md`).
+Há pacote de revisão de lançamento com baseline monetária, funções operacionais,
+matriz jurídica e aprovações vinculadas ao dossier. Entidade/países, decisões
+comerciais, nomeações e pareceres continuam pendentes (`docs/launch/README.md`).
 
 ## Etapas e evidências de saída
 

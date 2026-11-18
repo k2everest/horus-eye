@@ -12,6 +12,11 @@ Este documento separa o **MVP público demonstrável** de uma altcoin apta a cus
 - [x] CORS configurável no gateway para permitir a interface pública.
 - [x] Alertas explícitos de que assinatura, KEM, saldo e settlement ainda são simulações.
 
+Nota de revisão: este roteiro preserva itens históricos de Sepolia/MVP. A decisão
+atual é settlement permissionado (ADR-0005). O pacote `docs/launch/README.md`
+formaliza limites monetários implementados e pendências jurídicas/operacionais;
+prepará-lo não conclui QER-022, QER-054, QER-055 ou QER-058.
+
 ## Fase 1 — Testnet de settlement (bloqueadora)
 
 - [ ] **QER-022 — Especificação monetária:** supply, unidades, emissão, taxas, burn e governança.

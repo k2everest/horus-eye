@@ -1,0 +1,34 @@
+{
+  "schema": "AEGIS_MONETARY_FACTS_V1",
+  "facts": {
+    "unit_model": "integer-atomic-units",
+    "max_note_value": "9007199254740991",
+    "inputs_max": 4,
+    "outputs_max": 4,
+    "per_transition_assets": 1,
+    "global_asset_allowlist": false,
+    "conservation": "sum(inputs)=sum(outputs)+public_amount",
+    "public_amount_max": "9007199254740991",
+    "public_amount_payout_implemented": false,
+    "public_mint_endpoint": false,
+    "genesis_value_total_proof": false,
+    "settlement": "permissioned-single-authority",
+    "monetary_value_authorized": false,
+    "explicit_max_supply_registry": false,
+    "supply_model": "trusted-genesis-conserving-transfers",
+    "merkle_leaf_count_max": 1000000
+  },
+  "source_sha256": {
+    "aegis-flow/libs/crypto-core/shielded-note-v2.mjs": "91dfdce702ebb648087a7ab0bbbd9e8bda4fc66dc7d945e51e2119549de2a851",
+    "aegis-flow/libs/crypto-core/stark-statement.mjs": "ef946cd928966b9357bbdc1d7251c3ccc4798be1abf4be73f2b1bbc2b10b30a5",
+    "aegis-flow/libs/crypto-core/transfer-v2.mjs": "8871fc3088d2387c9d986d9f6400af2c3245da79606b07d679edf856d4a31fc3",
+    "aegis-flow/services/proof-engine/guest/src/main.rs": "40dc07fb2895ad608844c4ddaed865b2fa27138762276c890fd8f2a1d0187cc0",
+    "aegis-flow/services/proof-engine/program.json": "7faf9ec6952c4c40fe86e309153e3a9c6e0081a1c2a5c0b61191ed9421fac04d",
+    "aegis-flow/services/ledger-state/store.mjs": "2a7206f96f4aebc2fa7e4865c3a0ca7ac96223a77e1517cfa848c46d515367d5",
+    "aegis-flow/services/ledger-state/finality.mjs": "d393e18279f06e6f862822b63ffd61c47caf658622922ab8d089305df0c6e00a",
+    "aegis-flow/services/ledger-state/submit-transfer.mjs": "6d034fae0d8f7f3a5962e9d927a83195673bf35b613d68f4000843bd6651ddf2",
+    "aegis-flow/services/wallet-local/wallet.mjs": "fb2bd56e473d69ea3ea436a44711cb2206bd32deafe66734446efa1a032d0a34",
+    "aegis-flow/services/validation-gateway/server.mjs": "8077942eb71d3a948113b8edff82601ab1a956e8ddc2f1306f11ec84abb9c7ac",
+    "aegis-flow/services/validation-gateway/runtime-policy.mjs": "295f8823987e4d91bb564a361265f64addf792f6112de17757a44d96b24264d7"
+  }
+}

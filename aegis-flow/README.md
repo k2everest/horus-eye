@@ -15,6 +15,8 @@ Infraestrutura single-host, migrações, backup S3 e ensaio de restauração:
 `docs/operations/infrastructure-recovery.md`. SQLite não oferece HA multi-host.
 Campanha prolongada com provas novas, carga de replay e evidências de terceiros:
 `docs/operations/public-testnet.md`. P1 público ainda não foi concluído.
+Revisão monetária, responsabilidades e matriz jurídica: `docs/launch/README.md`.
+O pacote permanece bloqueado até decisões, nomeações e evidências reais.
 
 ## QUEER
 

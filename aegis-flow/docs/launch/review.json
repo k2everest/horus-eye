@@ -1,0 +1,104 @@
+{
+  "schema": "AEGIS_LAUNCH_REVIEW_V1",
+  "review_id": "aegis-launch-review-draft",
+  "scope": "lab-testnet",
+  "candidate": {
+    "source_commit": null,
+    "image_ref": null,
+    "config_id": null,
+    "genesis_root": null
+  },
+  "operator": {
+    "entity_reference_sha256": null,
+    "jurisdictions": [],
+    "legal_assessment_sha256": null
+  },
+  "monetary_decisions": {
+    "asset_unit_policy_sha256": null,
+    "genesis_allocation_review_sha256": null,
+    "supply_issuance_policy_sha256": null,
+    "public_amount_policy_sha256": null,
+    "governance_policy_sha256": null
+  },
+  "operating_roles": {
+    "product": {
+      "responsible_id": null,
+      "deputy_id": null,
+      "appointment_sha256": null,
+      "coverage_sha256": null
+    },
+    "protocol": {
+      "responsible_id": null,
+      "deputy_id": null,
+      "appointment_sha256": null,
+      "coverage_sha256": null
+    },
+    "operations": {
+      "responsible_id": null,
+      "deputy_id": null,
+      "appointment_sha256": null,
+      "coverage_sha256": null
+    },
+    "authority": {
+      "responsible_id": null,
+      "deputy_id": null,
+      "appointment_sha256": null,
+      "coverage_sha256": null
+    },
+    "security": {
+      "responsible_id": null,
+      "deputy_id": null,
+      "appointment_sha256": null,
+      "coverage_sha256": null
+    },
+    "backup_recovery": {
+      "responsible_id": null,
+      "deputy_id": null,
+      "appointment_sha256": null,
+      "coverage_sha256": null
+    },
+    "legal": {
+      "responsible_id": null,
+      "deputy_id": null,
+      "appointment_sha256": null,
+      "coverage_sha256": null
+    },
+    "privacy": {
+      "responsible_id": null,
+      "deputy_id": null,
+      "appointment_sha256": null,
+      "coverage_sha256": null
+    },
+    "support": {
+      "responsible_id": null,
+      "deputy_id": null,
+      "appointment_sha256": null,
+      "coverage_sha256": null
+    }
+  },
+  "documents": [
+    {
+      "id": "monetary-rules",
+      "file": "docs/launch/monetary-rules.md",
+      "sha256": "3fe0fa5455d07b2673d353b070e10389e0ecc0188461075ef80f8af5f4f171ea"
+    },
+    {
+      "id": "operating-responsibilities",
+      "file": "docs/launch/operating-responsibilities.md",
+      "sha256": "4cab8f1bb93e58a02465592e292e9e7a5cfe3ad25e0677b04ea96c2bc7120c11"
+    },
+    {
+      "id": "legal-review",
+      "file": "docs/launch/legal-review.md",
+      "sha256": "908d3313a5c4f34bbeb9d4a49e5efd2a8c3fd87518c1915c4ea719dd05c513d1"
+    }
+  ],
+  "evidence": {
+    "independent_crypto_audit_sha256": null,
+    "pq_parameter_review_sha256": null,
+    "key_lifecycle_review_sha256": null,
+    "external_restore_drill_sha256": null,
+    "public_testnet_acceptance_sha256": null,
+    "communications_review_sha256": null
+  }
+}

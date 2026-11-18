@@ -150,3 +150,12 @@ alcance público, relógio ou execução de falhas reais. Revisar cadastro vincu
 ao signer tag, heads preservados externamente, deduplicação, denominadores de
 disponibilidade e distinção entre replay/fresh. Assessor mantém P1/produção falsos
 até aceitação independente; ensaio local não é janela de 30 dias ou uso por terceiros.
+
+## Revisão de lançamento
+
+`services/launch-review` fixa baseline de fontes/fatos monetários e vincula decisões
+e documentos a assinaturas ML-DSA por função. Referências e assinaturas não validam
+conteúdo jurídico, competência, independência humana ou enforcement econômico
+ausente. A landing passou a identificar o exemplo local sem latência/validação
+fictícia nem promessa de todos os metadados ocultos. Parecer, comunicação final,
+responsáveis, parâmetros/auditoria e demais gates continuam pendentes.

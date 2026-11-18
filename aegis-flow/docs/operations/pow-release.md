@@ -68,3 +68,5 @@ A construção/verificação real do artefato permanece pendente. As demais exig
 estão em [critérios de produção](../planning/production-exit-criteria.md), incluindo
 128 bits pós-quânticos demonstrados, auditoria independente, política monetária,
 capacidade do histórico, operação adversarial, restauração S3 real e testnet pública.
+
+Validação local: 172 testes de backend aprovados, zero falhas, 8 integrações opcionais não executadas. Após reforçar a vinculação da composição ao checkout confiável, os 8 testes de release/revisão foram reexecutados e aprovados. Os gates criptográfico e de lançamento continuam retornando `production_ready: false`.

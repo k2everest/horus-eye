@@ -1,5 +1,37 @@
 # Revisão técnica do repositório — 18/11/2026
 
+## Correções posteriores à revisão
+
+O texto de achados abaixo registra a versão examinada originalmente. As correções
+de código começaram em `bc05afb`; não interpretar a lista histórica como o estado
+atual de todos os itens.
+
+| Item | Tratamento aplicado | Evidência/limite |
+| --- | --- | --- |
+| 1 — Replay entre genesis | PoW V2 usa o config_id completo como network_id da transferência, assinatura, journal e envelopes | STARK nova aceita na rede de origem e rejeitada em genesis distinto com notes/raízes espelhadas; V1 não é migrado silenciosamente |
+| 2 — SSRF/autorização | Destino HTTPS exclusivo configurado no servidor; usuário validado e permissão view_monitor; somente leitura, sem raw paths/redirects | Testes offline de autenticação, destino interno, método administrativo e limites; deployment externo depende dos secrets descritos no runbook |
+| 3 — Cópia da cadeia | Índice canônico por altura e leitura apenas do bloco solicitado no SQLite | Teste impede uso de blocks() na consulta e verifica isolamento de mutações |
+| 4 — Recursos | Snapshots verificados em memória, corpos no SQLite, limites de retenção/cache/reconstrução e poda de forks não canônicos | Testes de capacidade/poda e STARK real sem reverificar prefixo em filhos vazios; poda de histórico canônico/snapshots persistentes continuam pendentes para operação longa |
+| 5 — Notes acumuladas | Janela ativa de envio, remoção de notes gastas e recuperação incremental das excedentes do histórico verificado | Teste com 4097 notes; saldo confirmado agrega excedentes e UI informa a janela disponível |
+| 6 — Sync parcial | Refresh ocorre em finally quando o tip muda, inclusive após falha do peer | Peer de teste entrega prefixo válido e falha no restante do lote |
+| 7 — Senha RPC | Campos removidos de Settings; configuração antiga apagada de localStorage; credenciais não são enviadas pelo cliente | Teste de migração de credencial e contrato público da chamada |
+| 8 — Dependências | React Router 7, Recharts 3, Zod 4, PostCSS atualizado; ferramentas separadas de runtime; plugin antigo de tagging removido; Vite/Vitest/parser atualizados | npm audit --omit=dev: zero; auditoria completa ainda tem 30 entradas (25 altas, 4 moderadas, 1 baixa), todas no conjunto dev |
+
+Parte dos avisos de desenvolvimento propaga o advisory ReDoS de picomatch
+`<=4.0.7`; a versão latest consultada nesta rodada era a própria 4.0.7, sem patch
+publicado. Não foram forçados downgrades de ferramentas ou apagados advisories.
+O servidor Vite agora fica em loopback; CI tem permissões somente leitura e
+timeouts. Não expor ferramentas de desenvolvimento a usuários não confiáveis.
+Triagem/atualização das ferramentas continua aberta e não é uma liberação de
+produção. Auditoria independente, 128 bits PQ, incentivos e operação pública
+independente continuam pendentes.
+
+Validação das correções: 145 testes de backend e 4 de interface aprovados,
+STARK nova com rejeição cruzada entre genesis e reinício aprovada em 224 s,
+checagem TypeScript, build e lint (zero erros, 8 avisos de Fast Refresh).
+
+## Registro original
+
 Conclusão: **não liberar para produção**. Os testes atuais passam, mas há
 defeitos de isolamento de rede, disponibilidade e segurança da aplicação.
 Esta revisão registra achados; não os corrige nem constitui auditoria independente.

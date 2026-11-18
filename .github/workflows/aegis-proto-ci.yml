@@ -11,9 +11,13 @@ on:
       - 'aegis-flow/**'
       - '.github/workflows/aegis-proto-ci.yml'
 
+permissions:
+  contents: read
+
 jobs:
   proto:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: aegis-flow

@@ -54,10 +54,12 @@ Transações órfãs só retornam ao mempool após nova validação de estado.
   STARK atuais continuam sem comprovação de 128 bits PQ.
 - Bootstrap é por peers configurados localmente, sem descoberta/seleção robusta
   anti-Sybil. Não há dependência de uma autoridade de cadastro de participantes.
-- Reexecução integral de cada branch é deliberadamente simples e cara. Faltam
-  snapshots verificáveis, poda de forks, índices incrementais e limites de
-  armazenamento resistentes a abuso. Histórico de notes do guest limita-se a
-  1.000.000 de folhas. Não há alegação de capacidade de mainnet.
+- PoW V2 reaproveita snapshots de estado verificado em memória, lê corpos do
+  SQLite e aplica orçamentos locais de armazenamento, forks, reconstrução e cache.
+  Reinício continua revalidando os dados. Faltam snapshots persistentes e poda
+  do histórico canônico para operação longa. Limites locais podem exigir mais
+  recursos para acompanhar uma cadeia válida; não constituem finalização.
+  O histórico de notes do guest continua limitado a 1.000.000 de folhas.
 - A emissão finita e taxa obrigatoriamente zero deixam o incentivo após o teto
   em aberto. Parâmetros comerciais, distribuição de trabalho, retarget sob ataques
   e economia de mineração precisam de especificação/revisão antes de lançamento.
@@ -72,3 +74,12 @@ Próximos gates: carteira com sincronização PoW e restauração sob reorg; aud
 independente do consenso/circuito; proteção de recursos e recuperação; testnet
 prolongada com operadores/mineradores independentes. Critérios de revisão de uma
 organização operadora não são regras de admissão ou autoridade sobre o protocolo.
+
+## Atualização PoW V2
+
+A identidade completa do genesis, de 64 caracteres hexadecimais, é o network_id
+assinado e verificado dentro do journal STARK e dos contextos de cifragem. O nome
+textual da configuração é apenas rótulo. V2 exige nova configuração e rejeita
+blocos/genesis V1, sem reinterpretar saldos antigos. O circuito já suporta esse
+campo, mantendo o mesmo programa STARK. Teste com prova real confirmou rejeição
+entre duas configurações que compartilham as mesmas notes/raízes.

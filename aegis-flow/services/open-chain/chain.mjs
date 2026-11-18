@@ -40,6 +40,11 @@ export class OpenChain {
    confirmed:{height:confirmed,checkpoint_id:confirmed?blockHash(b):openNetworkId(this.#config),root:b?.note_root??genesisTip(this.#config).note_root},
    confirmations_required:this.#config.confirmations,finality:'probabilistic',monetary_authority:null,protocol_minted_supply:(BigInt(this.#best.height)*BigInt(this.#config.monetary.base_reward)>BigInt(this.#config.monetary.max_supply)?BigInt(this.#config.monetary.max_supply):BigInt(this.#best.height)*BigInt(this.#config.monetary.base_reward)).toString(),production_ready:false};
  }
+ readiness(){
+  const verifier=Boolean(this.#backend.availableForVerification?.());
+  const capacity=this.#nodes.size<this.#limits.maxBlocks&&this.#storedBytes+this.#limits.maxBlockBytes<=this.#limits.maxBytes;
+  return{ready:!this.#closed&&verifier&&capacity,verifier_available:verifier,storage_capacity:capacity,production_ready:false};
+ }
  #remember(hash,state){
   const snapshot=state.snapshot(),bytes=serialize(snapshot).byteLength;if(bytes>this.#limits.maxCacheBytes)throw new Error('POW_STATE_MEMORY_CAPACITY');
   if(this.#snapshots.has(hash)){this.#cacheBytes-=this.#snapshots.get(hash).bytes;this.#snapshots.delete(hash);}

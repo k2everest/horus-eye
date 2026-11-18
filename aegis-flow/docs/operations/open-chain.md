@@ -41,8 +41,9 @@ curl http://127.0.0.1:8091/chain/status
 
 `--owner` é o **owner_tag público**, derivado do spend secret com `spendOwner`.
 Não use o próprio spend secret. Guarde o segredo correspondente: sem ele as
-recompensas não são gastáveis. A carteira gráfica atual ainda atende a rede
-permissionada; não copie o endereço dela para esta rede incompatível.
+recompensas não são gastáveis. A carteira local seleciona o modo PoW pelo genesis V2. Use o endereço
+aegis_pow_receive2_ da mesma configuração; endereços permissionados são incompatíveis.
+Execução: [carteira e recuperação PoW](pow-wallet-recovery.md).
 O gerador usa unidades exclusivamente de laboratório, recompensa 7, teto 700000,
 target fácil, seis confirmações e maturidade seis. Esses valores não são uma
 proposta de política monetária comercial nem de segurança para mainnet.
@@ -100,3 +101,12 @@ Planeje quota real de filesystem/WAL, memória de trabalho além do cache, limpe
 e recuperação: esses limites de retenção não constituem garantia de HA nem de
 resistência completa a DoS. Snapshots em disco/poda de histórico canônico e
 análise de complexidade permanecem necessários para uma mainnet de longa duração.
+
+## Carteira, recuperação e operação
+
+A carteira/gráfica local agora suporta PoW V2 e reverte saldo/reservas em reorgs.
+O backup cifrado de branches PoW revalida blocos/provas no restore e exige um piso
+de trabalho adquirido independentemente. O transporte S3 existente é reutilizado
+com o novo manifest; o ensaio no bucket real ainda está pendente. Consulte
+[pow-wallet-recovery.md](pow-wallet-recovery.md). Servidor, CLI e carteira usam
+locks do kernel Linux; é necessário flock.

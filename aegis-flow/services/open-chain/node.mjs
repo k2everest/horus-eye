@@ -1,3 +1,6 @@
+import {acquireProfileLock} from '../operational-security/profile-lock.mjs';
+import {join} from 'node:path';
+import {mkdirSync} from 'node:fs';
 import http from 'node:http';
 import {once} from 'node:events';
 import {fileURLToPath} from 'node:url';
@@ -8,8 +11,9 @@ import {peerOrigin,publicRequest,syncPeer} from './network.mjs';
 import {RequestLimits} from '../operational-security/access.mjs';
 import {assertDemoRuntime} from '../validation-gateway/runtime-policy.mjs';
 export class OpenNode {
- #chain;#server;#peers;#pool=new Map();#poolBytes=0;#working=false;#timer;#closed=false;
- constructor({chain,peers=[],sink=()=>{}}){
+ #chain;#server;#peers;#pool=new Map();#poolBytes=0;#working=false;#timer;#closed=false;#closing;#onClosed;
+ constructor({chain,peers=[],sink=()=>{},onClosed=()=>{}}){
+  this.#onClosed=onClosed;
   assertDemoRuntime();if(!Array.isArray(peers)||peers.length>16)throw new Error('POW_PEER_LIMIT');this.#chain=chain;this.#peers=[...new Set(peers.map(peerOrigin))];
   const limits=new RequestLimits({perIp:600,global:1200});let bodies=0;
   this.#server=http.createServer({maxHeaderSize:16384},async(req,res)=>{
@@ -19,6 +23,8 @@ export class OpenNode {
     if(req.method==='OPTIONS'){reply(204,{});return;}
     if(req.method==='GET'){
      if(req.url==='/healthz'){reply(200,{status:'ok',mode:'experimental-open-pow',production_ready:false});return;}
+     if(req.url==='/readyz'){const state=chain.readiness();reply(state.ready?200:503,state);return;}
+     if(req.url==='/metrics'){const s=chain.status();const metrics={aegis_pow_tip_height:s.tip.height,aegis_pow_confirmed_height:s.confirmed.height,aegis_pow_commitment_count:s.tip.commitment_count,aegis_pow_retained_blocks:s.resources.stored_blocks,aegis_pow_retained_body_bytes:s.resources.stored_body_bytes,aegis_pow_cached_state_bytes:s.resources.cached_state_bytes,aegis_pow_tip_age_seconds:Math.max(0,Date.now()-s.tip.timestamp_ms)/1000,aegis_pow_peers_configured:this.#peers.length,aegis_pow_mempool_entries:this.#pool.size,aegis_pow_mempool_bytes:this.#poolBytes,aegis_pow_ready:chain.readiness().ready?1:0};res.writeHead(200,{'content-type':'text/plain; version=0.0.4','cache-control':'no-store'});res.end(Object.entries(metrics).map(([k,v])=>k+' '+v).join('\n')+'\n');return;}
      if(req.url==='/chain/status'){reply(200,chain.status());return;}
      if(req.url==='/chain/genesis'){reply(200,chain.config);return;}
      const block=req.url?.match(/^\/chain\/blocks\/([1-9][0-9]{0,9})$/);if(block){const b=chain.blockAt(Number(block[1]));reply(b?200:404,b??{error:'NOT_FOUND'});return;}
@@ -84,15 +90,19 @@ export class OpenNode {
   if(!Number.isSafeInteger(syncIntervalMs)||syncIntervalMs<100||syncIntervalMs>60000)throw new Error('INVALID_POW_SYNC_INTERVAL');
   this.#server.listen(port,host);await once(this.#server,'listening');this.#timer=setInterval(()=>{void this.sync();},syncIntervalMs);this.#timer.unref();return this;
  }
- async close(){if(this.#closed)return;clearInterval(this.#timer);this.#server.closeAllConnections();await new Promise(resolve=>this.#server.close(resolve));
-  while(this.#working)await new Promise(resolve=>setTimeout(resolve,10));this.#chain.close();this.#closed=true;
+ async close(){if(this.#closing)return this.#closing;
+  this.#closing=(async()=>{clearInterval(this.#timer);this.#server.closeAllConnections();await new Promise(resolve=>this.#server.close(resolve));
+   while(this.#working)await new Promise(resolve=>setTimeout(resolve,10));this.#chain.close();this.#closed=true;await this.#onClosed();})();return this.#closing;
  }
+
 }
 export async function startOpenNode(env=process.env){
  assertDemoRuntime(env);if(!env.AEGIS_POW_GENESIS)throw new Error('POW_GENESIS_FILE_REQUIRED');
- const config=JSON.parse(readFileSync(env.AEGIS_POW_GENESIS,'utf8'));const chain=await OpenChain.open({directory:env.AEGIS_POW_DIR??'work/open-pow-node',config,limits:env.AEGIS_POW_LIMITS?JSON.parse(env.AEGIS_POW_LIMITS):{}});
- const peers=env.AEGIS_POW_PEERS?JSON.parse(env.AEGIS_POW_PEERS):[];let node;
- try{node=new OpenNode({chain,peers,sink:console.log});await node.listen(Number(env.PORT??8090),env.AEGIS_BIND_HOST??'127.0.0.1');}catch(error){chain.close();throw error;}
+ const directory=env.AEGIS_POW_DIR??'work/open-pow-node';mkdirSync(directory,{recursive:true,mode:0o700});const release=await acquireProfileLock(join(directory,'process.lock'));
+ let chain,node;
+ try{const config=JSON.parse(readFileSync(env.AEGIS_POW_GENESIS,'utf8'));chain=await OpenChain.open({directory,config,limits:env.AEGIS_POW_LIMITS?JSON.parse(env.AEGIS_POW_LIMITS):{}});
+  const peers=env.AEGIS_POW_PEERS?JSON.parse(env.AEGIS_POW_PEERS):[];node=new OpenNode({chain,peers,sink:console.log,onClosed:release});await node.listen(Number(env.PORT??8090),env.AEGIS_BIND_HOST??'127.0.0.1');
+ }catch(error){chain?.close();await release();throw error;}
  for(const signal of ['SIGTERM','SIGINT'])process.once(signal,()=>{void node.close();});console.log(JSON.stringify({event:'open_pow_node_started',network:chain.status().config_id,port:Number(env.PORT??8090),monetary_authority:null,production_ready:false}));return node;
 }
 if(process.argv[1]===fileURLToPath(import.meta.url))await startOpenNode();

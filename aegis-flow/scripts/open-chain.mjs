@@ -1,3 +1,6 @@
+import {acquireProfileLock} from '../services/operational-security/profile-lock.mjs';
+import {mkdirSync} from 'node:fs';
+import {join} from 'node:path';
 import {parseArgs} from 'node:util';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {OpenChain} from '../services/open-chain/chain.mjs';
@@ -18,8 +21,8 @@ if(command==='lab-genesis'){
  console.log(JSON.stringify({config_id:openNetworkId(config),test_units_only:true,production_ready:false}));
 }else if(['status','sync','mine'].includes(command)){
  if(!values.genesis||!values.directory)throw new Error('--genesis and --directory required');
- const chain=await OpenChain.open({config:JSON.parse(readFileSync(values.genesis,'utf8')),directory:values.directory,limits:process.env.AEGIS_POW_LIMITS?JSON.parse(process.env.AEGIS_POW_LIMITS):{}});
- try{
+ mkdirSync(values.directory,{recursive:true,mode:0o700});const release=await acquireProfileLock(join(values.directory,'process.lock'));let chain;
+ try{chain=await OpenChain.open({config:JSON.parse(readFileSync(values.genesis,'utf8')),directory:values.directory,limits:process.env.AEGIS_POW_LIMITS?JSON.parse(process.env.AEGIS_POW_LIMITS):{}});
   if(values.peer){peerOrigin(values.peer);let result;do{result=await syncPeer(chain,values.peer);}while(result.imported===16);}
   if(command==='sync'&&!values.peer)throw new Error('--peer required');
   if(command==='mine'){
@@ -33,5 +36,5 @@ if(command==='lab-genesis'){
     console.log(JSON.stringify({height:block.header.height,tip:chain.tip.hash,production_ready:false}));
    }
   }else console.log(JSON.stringify(chain.status(),null,2));
- }finally{chain.close();}
+ }finally{chain?.close();await release();}
 }else throw new Error('Usage: open-chain.mjs lab-genesis --output FILE | status|sync|mine --genesis FILE --directory DIR [--peer ORIGIN] [--owner PUBLIC_OWNER_TAG --count N]');

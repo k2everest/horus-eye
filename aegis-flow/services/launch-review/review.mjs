@@ -15,7 +15,7 @@ export const CURRENT_MONETARY_FACTS=Object.freeze({
  public_amount_payout_implemented:false,public_mint_endpoint:false,genesis_value_total_proof:false,
  settlement:'legacy-permissioned-and-experimental-open-pow',monetary_value_authorized:false,
  open_pow:{protocol:'AEGIS_OPEN_POW_V2',transaction_network_binding:'full-genesis-config-id',genesis:'empty',asset:'fixed-by-genesis',supply_cap:'fixed-by-genesis-u64',subsidy:'deterministic-capped-per-block',
-  monetary_authority:false,participant_country_filter:false,validator_allowlist:false,public_amount_required:0,finality:'probabilistic',wallet_integrated:false},
+  monetary_authority:false,participant_country_filter:false,validator_allowlist:false,public_amount_required:0,finality:'probabilistic',wallet_integrated:true,node_backup:'encrypted-verified-pow-branches',wallet_reorg:'canonical-balance-and-orphan-reservations'},
 });
 const hash=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 const hex=value=>typeof value==='string'&&/^[0-9a-f]{64}$/.test(value);
@@ -96,7 +96,7 @@ export function reviewLaunch({dossier,registry=[],approvals=[],now=Date.now(),ro
  for(const[key,value]of Object.entries(checks))if(!value)blockers.push(key);
  // Referenced hashes/signatures are document controls, not validation of the
  // external opinion, professional mandate, audit, deployment or economic rights.
- const knownTechnicalBlockers=['128-bit post-quantum STARK security not demonstrated','Independent cryptographic audit not validated by this review','Public prolonged testnet and external restoration evidence not validated by this review'];
+ const knownTechnicalBlockers=['128-bit post-quantum STARK security not demonstrated','Independent cryptographic audit not validated by this review','Public prolonged testnet and external restoration evidence not validated by this review','Finite subsidy with zero fees requires an explicit launch incentive policy','Canonical history/witness capacity and long-duration resource behavior require validation','Production hosts, immutable deployment and external PoW S3 restoration have not been validated'];
  return{schema:'AEGIS_LAUNCH_REVIEW_RESULT_V1',review_id:dossier.review_id,review_digest:digest,scope:dossier.scope,checks,
   monetary_facts:CURRENT_MONETARY_FACTS,source_mismatches:mismatches,document_mismatches:documentMismatches,unassigned_roles:unassigned,
   approved_roles:[...approved],rejected_roles:[...rejected],invalid_approvals:invalidApprovals,

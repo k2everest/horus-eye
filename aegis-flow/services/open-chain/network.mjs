@@ -13,7 +13,7 @@ export async function publicRequest(origin,path,body,{timeoutMs=10000}={}){
  try{for(;;){const p=await reader.read();if(p.done)break;size+=p.value.length;if(size>16*1024*1024)throw new Error('POW_PEER_RESPONSE_LIMIT');chunks.push(Buffer.from(p.value));}}finally{await reader.cancel();}
  if(!response.ok)throw new Error(`POW_PEER_HTTP_${response.status}`);return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
-export async function syncPeer(chain,origin,{maxBlocks=16}={}){
+export async function syncPeer(chain,origin,{maxBlocks=16,onBestChanged}={}){
  if(!Number.isSafeInteger(maxBlocks)||maxBlocks<1||maxBlocks>256)throw new Error('INVALID_POW_SYNC_BUDGET');
  const remote=await publicRequest(origin,'/chain/status');
  if(remote.config_id!==openNetworkId(chain.config)||!Number.isSafeInteger(remote.tip?.height)||remote.tip.height<0||remote.tip.height>10000000)throw new Error('POW_PEER_NETWORK_MISMATCH');
@@ -26,7 +26,8 @@ export async function syncPeer(chain,origin,{maxBlocks=16}={}){
  for(let height=low+1;height<=remote.tip.height&&imported<maxBlocks;height++){
   const block=await publicRequest(origin,`/chain/blocks/${height}`);
   if(block?.header?.height!==height)throw new Error('POW_PEER_BLOCK_HEIGHT_MISMATCH');
-  await chain.addBlock(block);imported++;
+  const before=chain.tip.hash;const result=await chain.addBlock(block);imported++;
+  if(result.best_changed&&onBestChanged)await onBestChanged(before);
  }
  return{imported,tip:chain.tip};
 }

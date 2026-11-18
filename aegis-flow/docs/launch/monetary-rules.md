@@ -17,7 +17,9 @@ país. Exige `public_amount=0`, maturidade das recompensas e consenso pelo maior
 trabalho acumulado; confirmações podem ser reorganizadas. Cada alteração desses
 parâmetros muda a identidade da rede. Não há alocação inicial nem mint administrativo.
 Recompensas são transparentes na emissão. Faltam definição de incentivos após o
-teto e auditoria do consenso, além da integração de carteira/campanha/recuperação.
+teto e auditoria do consenso, além da campanha pública. Carteira PoW e recuperação cifrada de branches foram
+implementadas e ensaiadas localmente; operação externa/S3 real ainda precisa de
+validação.
 Não se presumem valores comerciais a partir do exemplo de laboratório.
 
 O quadro e os comentários abaixo descrevem **o modelo permissionado anterior**,

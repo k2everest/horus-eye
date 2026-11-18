@@ -1,4 +1,7 @@
 export type WalletStatus = {
+  consensus_model?: "open-proof-of-work"; finality?: "probabilistic";
+  confirmations_required?: number; owner_tag?: string;
+  best_tip?: {height:number;hash:string;work:string};
   notes_deferred?: number;
   exists: boolean; locked: boolean; busy: boolean; synchronized: boolean; network_id: string; config_id: string;
   finalized: { height: number; checkpoint_id: string; root: string }; production_ready: false;

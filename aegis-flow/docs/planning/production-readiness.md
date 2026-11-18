@@ -6,10 +6,12 @@ Direção atual: rede aberta experimental por Proof of Work (ADR-0006), sem list
 de validadores, restrição de país ou autoridade monetária. Full nodes independentes
 verificam emissão limitada por genesis, STARK e cadeia de maior trabalho; forks,
 reorganizações e persistência estão implementados. Isso não é uma rede pública já
-operada por terceiros. Carteira gráfica, campanha e backup/revisão de lançamento
-abaixo ainda pertencem ao modo permissionado anterior e precisam de adaptação.
-Prioridade nova: carteira PoW com rollback de saldo/reservas, revisão adversarial
-de consenso e incentivos, limites de recursos e testnet com mineração independente.
+operada por terceiros. Carteira local/gráfica PoW e backup cifrado de branches foram implementados,
+incluindo reversão de saldo/reservas, watermark de trabalho e restore revalidado.
+Um teste com STARK nova cobre envio/recebimento, reorg confirmado e recuperação.
+Há composição restrita de nó, métricas/readiness e locks de kernel com ensaio de
+crash. Não houve implantação pública ou restauração no bucket real. Campanha,
+revisão independente, incentivos e capacidade de histórico continuam abertos.
 Runbook: [rede aberta](../operations/open-chain.md).
 
 O produto atual é uma demonstração sem valor monetário. Não há release

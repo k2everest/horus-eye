@@ -6,10 +6,12 @@ estado local; APPLIED_LOCAL não significa mainnet ou settlement em rede.
 Há um novo modo experimental de **rede aberta com Proof of Work**, sem cadastro
 de validadores, filtro de país ou chave de autoridade monetária. Cada nó verifica
 os blocos em banco próprio; emissão limitada por genesis e reorganizações pela
-cadeia de maior trabalho. Não foi implantada uma rede pública. Carteira gráfica
-e ferramentas permissionadas ainda precisam de adaptação a este modo.
+cadeia de maior trabalho. Não foi implantada uma rede pública. Carteira local/gráfica e backup cifrado de nó já têm modo PoW opt-in, com
+revalidação, reorganizações e restauração ensaiadas localmente. Campanha pública
+e provisionamento externo ainda precisam ser concluídos.
 Decisão: [ADR-0006](docs/adr/ADR-0006-open-proof-of-work.md).
 Execução: [rede aberta](docs/operations/open-chain.md).
+Carteira, operação e recuperação PoW: [runbook](docs/operations/pow-wallet-recovery.md).
 Evidências locais: [validação de consenso e STARK](docs/testing/open-chain-validation.md).
 
 O modelo anterior opt-in de settlement permissionado usa autoridade ML-DSA,
@@ -17,6 +19,7 @@ certificados de finalização e recuperação; exige confiança nessa autoridade
 Decisão: `docs/adr/ADR-0005-permissioned-settlement.md`.
 Operação: `docs/operations/settlement.md`.
 Plano de preparação: `docs/planning/production-readiness.md`.
+Critérios atuais de liberação PoW: [checklist](docs/planning/production-exit-criteria.md).
 Segurança operacional (acesso, segredos, limites, métricas e incidentes):
 `docs/operations/security.md`. O gateway inicia em loopback; exposição remota
 exige política de acesso e TLS.

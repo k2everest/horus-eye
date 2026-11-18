@@ -29,7 +29,9 @@
       "validator_allowlist": false,
       "public_amount_required": 0,
       "finality": "probabilistic",
-      "wallet_integrated": false
+      "wallet_integrated": true,
+      "node_backup": "encrypted-verified-pow-branches",
+      "wallet_reorg": "canonical-balance-and-orphan-reservations"
     }
   },
   "source_sha256": {
@@ -44,13 +46,21 @@
     "aegis-flow/services/wallet-local/wallet.mjs": "301077978d8f8b01d53b993da7c8442f161449be591c451b959ccdc3878d8654",
     "aegis-flow/services/validation-gateway/server.mjs": "8077942eb71d3a948113b8edff82601ab1a956e8ddc2f1306f11ec84abb9c7ac",
     "aegis-flow/services/validation-gateway/runtime-policy.mjs": "295f8823987e4d91bb564a361265f64addf792f6112de17757a44d96b24264d7",
-    "aegis-flow/services/open-chain/chain.mjs": "f3fa05da6fcff7acc6c3066283dd849ee259189fdae7f7a5bd3fa8aa4e503e4c",
+    "aegis-flow/services/open-chain/chain.mjs": "2673736fa5a4e954c8dc67107572f79903afd5c9ad7e200436ef25953364c988",
     "aegis-flow/services/open-chain/consensus.mjs": "b34ab7b90d7f998afe3e68d1743bbc68fd8e755d8c21ebbdc8c0a444650a85e1",
-    "aegis-flow/services/open-chain/network.mjs": "691e998635b0aaaf4c9926e4b882effa5fc1f01a35dee3977e60fbcf40bc89b0",
-    "aegis-flow/services/open-chain/node.mjs": "d879f58c423e6fe950ce7bd47e4b306e50fa7907309b1c063c1769f292fcba14",
+    "aegis-flow/services/open-chain/network.mjs": "d98212f2e31d19108d7cfc19a056136aacb0adef9c90570ad8946115d8242cd3",
+    "aegis-flow/services/open-chain/node.mjs": "eb7bc7a8c31079257b4b32962c06a35cbf2d0dc5185a7b988b39f2b91e1dc007",
     "aegis-flow/services/open-chain/state.mjs": "d87e6511b443352f077742f16fd3f935ef62e2a0cbf1b82f9646d9619424397f",
     "aegis-flow/services/wallet-local/note-window.mjs": "535dce18369c422242961d9638ebc9e7b3527c5a5f5caa19ae080a551a78779d",
     "supabase/functions/monero-rpc/handler.mjs": "12f687d547d0e93cf25cc59efac8d72068b7cde9c3687dbc37e1a05e4bf0d0e2",
-    "supabase/functions/monero-rpc/index.ts": "03d51201d53f40246900653d544cd884b1204fbe4040c5a4dc5e9587e5dba0d4"
+    "supabase/functions/monero-rpc/index.ts": "03d51201d53f40246900653d544cd884b1204fbe4040c5a4dc5e9587e5dba0d4",
+    "aegis-flow/services/open-chain/address.mjs": "1a07318b4f64764e816c3dcc48b28677d5640837c03730ea712088dc64ea112c",
+    "aegis-flow/services/open-chain/recovery.mjs": "260470a40b82074a5efbbff064daf196b2d6681d9a3cda8f5ddc932192161410",
+    "aegis-flow/services/open-chain/wallet.mjs": "33aac9375995d216d27fc3301ca3e2f102bdc298e14434af110743f7fee5c2e9",
+    "aegis-flow/services/wallet-local/server.mjs": "4c4bf7033002323250c9137b6aa083e03aa5ac02a5696559700c30d6b0d8275a",
+    "aegis-flow/services/operational-security/profile-lock.mjs": "b840072480fffb624f6dd32c6fc55d7052b32abf2a305607c9ebc110a869423b",
+    "aegis-flow/scripts/pow-recovery.mjs": "2ff2ac32a0871627e0f26bb6a4c3fd8ad9a7f6cd350196a7e075a2607c03a332",
+    "aegis-flow/scripts/scheduled-backup.mjs": "5b3e2f6740e40ae4487a776da000c15f7308db259079e64c03bb2aa4ed53ba91",
+    "aegis-flow/scripts/open-chain.mjs": "334c3222a71355a39d9fdd0b0f373f6ea7ed4569ec0c1624e1c8c92977e74920"
   }
 }

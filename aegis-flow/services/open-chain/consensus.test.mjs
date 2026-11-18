@@ -113,3 +113,8 @@ test('low-work orphan leaves are pruned without deleting the canonical chain',as
  }
  assert.equal(a.tip.hash,best);assert.ok(a.status().resources.stored_blocks<=6);assert.equal(a.blockAt(1).header.height,1);
 });
+test('public readiness fails closed without a verifier and metrics contain only bounded public gauges',async t=>{
+ const{directory,config}=setup(t);const node=new OpenNode({chain:await OpenChain.open({directory,config,backend})});await node.listen();t.after(()=>node.close());
+ const ready=await fetch(node.origin+'/readyz');assert.equal(ready.status,503);assert.equal((await ready.json()).verifier_available,false);
+ const metrics=await(await fetch(node.origin+'/metrics')).text();assert.match(metrics,/aegis_pow_tip_height 0/);assert.doesNotMatch(metrics,/spend_secret|private_key/);
+});

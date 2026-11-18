@@ -48,3 +48,22 @@ jobs:
         env:
           AEGIS_OPEN_POW_INTEGRATION: '1'
         run: node --test aegis-flow/services/open-chain/native.integration.test.mjs
+
+  native-pow-wallet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@1.100.0
+      - name: Build pinned guest and verifier
+        run: python3 aegis-flow/scripts/setup-stark.py
+      - name: Verify native wallet reorg and encrypted PoW recovery
+        env:
+          AEGIS_POW_WALLET_INTEGRATION: '1'
+        run: node --test aegis-flow/services/open-chain/wallet.integration.test.mjs

@@ -1,3 +1,5 @@
+import {acquireProfileLock} from '../operational-security/profile-lock.mjs';
+import {PowWallet} from '../open-chain/wallet.mjs';
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { readFileSync, writeFileSync, mkdirSync, openSync, closeSync, unlinkSync, statSync, existsSync } from 'node:fs';
@@ -74,28 +76,34 @@ export function createWalletServer({ wallet, token, allowedOrigin = 'http://loca
   return server;
 }
 
-export function startLocalWallet(env = process.env) {
+export async function startLocalWallet(env = process.env) {
   assertDemoRuntime(env);
   const directory = env.AEGIS_WALLET_DIR || 'work/local-wallet';
-  if (!env.AEGIS_WALLET_CONFIG || !env.AEGIS_WALLET_GENESIS || !env.AEGIS_WALLET_ANCHOR) throw new Error('PINNED_WALLET_CONFIG_GENESIS_AND_ANCHOR_REQUIRED');
+  if (!env.AEGIS_WALLET_CONFIG) throw new Error('PINNED_WALLET_CONFIG_REQUIRED');
+  const config = JSON.parse(readFileSync(env.AEGIS_WALLET_CONFIG, 'utf8'));
+  const pow = config.schema === 'AEGIS_OPEN_POW_V2';
+  if (!pow && (!env.AEGIS_WALLET_GENESIS || !env.AEGIS_WALLET_ANCHOR)) throw new Error('PINNED_WALLET_CONFIG_GENESIS_AND_ANCHOR_REQUIRED');
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const lockfile = join(directory, 'process.lock');
-  const fd = openSync(lockfile, 'wx', 0o600); writeFileSync(fd, String(process.pid)); closeSync(fd);
+  const releaseProfile = await acquireProfileLock(lockfile);
   let wallet;
   try {
     const tokenPath = join(directory, 'pairing-token');
     if (!existsSync(tokenPath)) writeFileSync(tokenPath, crypto.randomBytes(32).toString('hex'), { mode: 0o600, flag: 'wx' });
     if ((statSync(tokenPath).mode & 0o077) !== 0) throw new Error('PAIRING_FILE_REQUIRES_MODE_0600');
     const token = readBearerSecret(tokenPath);
-    const config = JSON.parse(readFileSync(env.AEGIS_WALLET_CONFIG, 'utf8'));
+    if(pow){
+      wallet = await PowWallet.open({directory, config, peers: JSON.parse(env.AEGIS_POW_PEERS || '["http://127.0.0.1:8090"]'), limits: env.AEGIS_POW_LIMITS ? JSON.parse(env.AEGIS_POW_LIMITS) : undefined});
+    } else {
     const genesisCommitments = JSON.parse(readFileSync(env.AEGIS_WALLET_GENESIS, 'utf8'));
     wallet = new LocalWallet({ directory, config, genesisCommitments, gatewayUrl: env.AEGIS_GATEWAY_URL || 'http://127.0.0.1:8081', gatewayTokenFile: env.AEGIS_GATEWAY_TOKEN_FILE, trustedAnchor: JSON.parse(readFileSync(env.AEGIS_WALLET_ANCHOR, 'utf8')) });
+    }
     const server = createWalletServer({ wallet, token, allowedOrigin: env.AEGIS_WALLET_ORIGIN || 'http://localhost:8080',
-      onDisposed: () => { if (existsSync(lockfile)) unlinkSync(lockfile); } });
+      onDisposed: () => { void releaseProfile().catch(()=>{process.exitCode=1;}); } });
     server.once('error', () => { if (!server.listening) server.close(); });
     server.listen(8765, '127.0.0.1', () => console.log(`Local wallet listening on 127.0.0.1:8765. Pair using the token file: ${tokenPath}`));
     for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => server.close());
     return server;
-  } catch (error) { wallet?.close(); if (existsSync(lockfile)) unlinkSync(lockfile); throw error; }
+  } catch (error) { wallet?.close(); await releaseProfile(); throw error; }
 }
-if (process.argv[1] === fileURLToPath(import.meta.url)) startLocalWallet();
+if (process.argv[1] === fileURLToPath(import.meta.url)) await startLocalWallet();

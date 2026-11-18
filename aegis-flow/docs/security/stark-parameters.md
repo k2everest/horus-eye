@@ -69,6 +69,66 @@ uma soma de erros de 64 segmentos pode consumir até 6 bits de uma estimativa
 por segmento sob hipóteses apropriadas; isso não constitui a análise quântica
 de composição exigida.
 
+## Cálculo reproduzível do circuito efetivo
+
+A revisão agora inclui o termo de lookup do estimador upstream, usando a largura
+real do grupo `accum` no `TapSet` do rv32im 4.1.0: **103 colunas**. O grau 5 é
+uma constante hardcoded desse estimador, não uma nova medição do grau do circuito.
+Os fontes `src/zirgen/taps.rs` e `risc0-zkp/src/taps.rs` também ficam fixados por
+SHA-256 no inventário; com `--source-root`, a revisão confere largura e grau.
+
+No modelo conjectural upstream, com p = 2013265921 e extensão d = 4:
+
+```text
+lookup = (103 / 4) × (5 - 2) × 2^po2 / p^4
+constraints = 1 / p^4
+fri = 4^-50
+segment_error_model = lookup + constraints + fri
+illustrative_64_segment_union = min(1, 64 × segment_error_model)
+```
+
+| Tamanho do segmento | -log2(erro modelado por segmento) | -log2(soma ilustrativa para 64 segmentos) |
+| --- | ---: | ---: |
+| 2^18, prover local | 98,6424 | 92,6424 |
+| 2^24, máximo aceito upstream | 93,3417 | 87,3417 |
+
+**Esses valores não são bits de segurança pós-quântica, complexidade de ataque
+nem uma garantia de segurança real.** São reprodução numérica de um estimador
+clássico conjectural. A soma ilustrativa exige que os limites por segmento sejam
+aplicáveis ao protocolo composto; não os demonstra. Fiat–Shamir/QROM, hash,
+zero knowledge e composição completa continuam fora do cálculo. A precisão da
+tabela não significa certeza criptográfica; a implementação JS usa double em
+vez do float32 upstream. Não retomamos o antigo rótulo genérico “98 bits”.
+
+O relatório JSON inclui termos separados, po2 e quantidade de segmentos. Aumentar
+somente as consultas deixa o erro de lookup do campo atual praticamente intacto.
+O perfil aceito do prover/verificador não foi alterado, e `target_met` continua
+falso mesmo que alguém forneça parâmetros hipotéticos maiores ao diagnóstico.
+
+A literatura distingue segurança conjectural de limites demonstrados para FRI
+não interativo; uma análise clássica não substitui a redução quântica exigida:
+[Block–Tiwari, SCN 2024](https://eprint.iacr.org/2024/1161).
+
+### Trabalho necessário para substituir o perfil
+
+1. Selecionar backend/parâmetros STARK com análise concreta aplicável ao campo,
+   lookups, funções hash e Fiat–Shamir do protocolo completo no modelo quântico.
+   Aumentar a extensão e as consultas sem essa análise não aprova o perfil.
+2. Definir orçamento de erro por receipt e cenário de uso, incluindo segmentos,
+   múltiplas tentativas/transações e recursos do adversário. Revisar soundness,
+   conhecimento, zero knowledge e propriedades de binding separadamente.
+3. Implementar os parâmetros no prover **e** no verificador, gerar novo programa,
+   schema de prova e identidade de rede quando necessário. O circuito rv32im
+   fixado instancia Poseidon2 internamente; trocar um rótulo no cliente não muda
+   o hash efetivo. Não aceitar Fake/Groth16 para contornar o requisito.
+4. Reconstruir os binários e reproduzir provas e rejeições adversariais, além de
+   custo de CPU, memória, tamanho, segmentos e replay/reorg/restauração.
+5. Obter revisão independente do argumento e implementação exatos, corrigir
+   achados críticos/altos e fixar os artefatos revisados antes de autorizar release.
+
+Não foi selecionado nem integrado um motor alternativo sem evidência aplicável.
+Não há demonstração de 128 bits pós-quânticos entregue nesta revisão.
+
 ## Reprodução e bloqueio
 
 Na raiz do repositório:

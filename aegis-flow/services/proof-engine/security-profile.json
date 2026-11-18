@@ -26,7 +26,9 @@
     "poseidon_partial_rounds": 21,
     "prover_segment_po2": 18,
     "sdk_max_segment_po2": 24,
-    "max_segments": 64
+    "max_segments": 64,
+    "accumulator_columns": 103,
+    "constraint_degree": 5
   },
   "program_id": "c57dad1e424a8049010a037cce9372d74f0a13368d13eeb1a63560915765006e",
   "repository_sha256": {
@@ -43,7 +45,9 @@
     "risc0-zkp-3.0.6/src/core/hash/poseidon2/consts.rs": "5ee51bce046bce1306181a43136aa0731dcf976ab10e2e8d82db88711efdcc41",
     "risc0-core-3.0.2/src/field/baby_bear.rs": "df3e77d606dd74d78fb6b6f3dbbe72455c5ed5b091f7a74de8c049e85b857ff3",
     "risc0-circuit-rv32im-4.1.0/src/lib.rs": "0d54248a3252fa2a0d314a119068a854a80ee1274167388c324c2fcb7a00937a",
-    "risc0-zkvm-3.1.0/src/receipt/segment.rs": "de2d75f84f20107aa5d8cacf606e734229ce7b63bfee8da1aa7d37446244d191"
+    "risc0-zkvm-3.1.0/src/receipt/segment.rs": "de2d75f84f20107aa5d8cacf606e734229ce7b63bfee8da1aa7d37446244d191",
+    "risc0-circuit-rv32im-4.1.0/src/zirgen/taps.rs": "fb109cc9d24c6b9caaccaf3204b8f38a985dab909e0fa50f755d612db0356eca",
+    "risc0-zkp-3.0.6/src/taps.rs": "f5f69bcbed730cc8acd43da89dd4e37ca7560b9eb991a37238482f3655f7e402"
   },
   "upstream_source_url_template": "https://docs.rs/crate/{crate}/{version}/source/{path}",
   "independent_quantum_analysis": null

@@ -4,7 +4,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { reviewStarkSecurity, securityProfile, toyModelDiagnostics } from './security-review.mjs';
+import { reviewStarkSecurity, securityProfile, toyModelDiagnostics, circuitToyDiagnostics } from './security-review.mjs';
 
 test('pinned inventory matches and current profile does not demonstrate target', () => {
   const report = reviewStarkSecurity();
@@ -24,6 +24,21 @@ test('query-only increase cannot lift toy estimator ceiling to 128', () => {
   for (const bad of [NaN, Infinity, 0, -1, 2.5]) {
     assert.throws(() => toyModelDiagnostics({ ...securityProfile.parameters, fri_queries: bad }));
   }
+});
+
+test('circuit-specific lookup errors and segment composition are explicit without asserting quantum bits', () => {
+  for (const tracePo2 of [18, 24]) {
+    const one = circuitToyDiagnostics(securityProfile.parameters, {tracePo2});
+    const combined = circuitToyDiagnostics(securityProfile.parameters, {tracePo2, segments:64});
+    // Independent direct reproduction of upstream lookup + constraints + FRI.
+    const field = 2013265921 ** 4;
+    const error = (103 / 4) * 3 * 2 ** tracePo2 / field + 1 / field + 4 ** -50;
+    assert.ok(Math.abs(one.toy_segment_error_negative_log2 + Math.log2(error)) < 1e-10);
+    assert.ok(Math.abs(combined.toy_union_error_negative_log2 - (one.toy_segment_error_negative_log2 - 6)) < 1e-10);
+    assert.equal(combined.target_met, false);assert.equal(combined.demonstrated_post_quantum_bits, null);
+    assert.ok(circuitToyDiagnostics({...securityProfile.parameters,fri_queries:128},{tracePo2,segments:64}).toy_union_error_negative_log2 < 100);
+  }
+  for(const options of [{tracePo2:25},{tracePo2:18,segments:65},{tracePo2:18,segments:0},{tracePo2:NaN}])assert.throws(()=>circuitToyDiagnostics(securityProfile.parameters,options));
 });
 
 test('missing upstream sources fail inventory verification', () => {

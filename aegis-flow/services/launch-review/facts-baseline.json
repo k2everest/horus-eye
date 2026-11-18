@@ -82,6 +82,9 @@
     "aegis-flow/deployments/open-pow/compose.yaml": "54b6f48794cb5bbee6c6e91798bc2ead7396ed99830e53b253246bc2bf8b4b7c",
     "aegis-flow/libs/crypto-core/merkle-proof.mjs": "139764d3d991c3ed37b093f649ad1e5f1bb42533d655045b2671217ef542fc77",
     "aegis-flow/services/open-chain/peer-recovery.mjs": "ff86ecec274fb5a8d1d1d1caf3c389e0ffff713a804dea43d3fb80ecc65e0ad1",
-    "aegis-flow/scripts/pow-peer-recovery.mjs": "373f1a2ad221e0fd79205e1c92d3ce6646341bd3dacccbccd1e45f1911a01f05"
+    "aegis-flow/scripts/pow-peer-recovery.mjs": "373f1a2ad221e0fd79205e1c92d3ce6646341bd3dacccbccd1e45f1911a01f05",
+    "aegis-flow/services/proof-engine/security-profile.json": "dc5c357e211a44cc01b4c041bc958e6e864f3434ccf4cba73243e4c25b41e462",
+    "aegis-flow/services/proof-engine/security-review.mjs": "9d55d0def30ba0f2bd281b7a357ed505460b01e13f10df6de4875011878c122f",
+    "aegis-flow/scripts/review-stark-security.mjs": "68b10bc1e4aae0fa59aecc89dcc1b7080a8edf03945566862f4129672e2b1ea3"
   }
 }

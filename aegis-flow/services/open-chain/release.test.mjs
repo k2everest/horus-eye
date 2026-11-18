@@ -20,7 +20,7 @@ function fixture(t) {
   writeFileSync(join(directory,'pow-genesis.json'),genesis);
   writeFileSync(join(directory,'compose.yaml'),compose);
   const save = () => writeFileSync(join(directory,'release.json'),JSON.stringify(manifest)); save();
-  const trusted = {expectedCommit:manifest.source_commit,expectedConfigId:manifest.config_id,expectedProgramId:manifest.program_id};
+  const trusted = {expectedCommit:manifest.source_commit,expectedConfigId:manifest.config_id,expectedProgramId:manifest.program_id,expectedComposeSha256:manifest.compose_sha256};
   return {directory,manifest,config,trusted,save};
 }
 test('PoW bundle requires independently trusted commit, genesis and approved program', t => {
@@ -39,6 +39,9 @@ test('altered economic rules fail even when the manifest checksum is recomputed'
 test('bundle rejects altered compose, symlinks and fabricated production status', t => {
   const f = fixture(t); writeFileSync(join(f.directory,'compose.yaml'),'altered');
   assert.throws(() => verifyPowRelease(f.directory,f.trusted),/CONTENT_MISMATCH/);
+  f.manifest.compose_sha256 = releaseHash('altered'); f.save();
+  assert.throws(() => verifyPowRelease(f.directory,f.trusted),/IDENTITY_MISMATCH/);
+  f.manifest.compose_sha256 = f.trusted.expectedComposeSha256; f.save();
   rmSync(join(f.directory,'compose.yaml')); symlinkSync('pow-genesis.json',join(f.directory,'compose.yaml'));
   assert.throws(() => verifyPowRelease(f.directory,f.trusted),/INVALID_RELEASE_FILE/);
   f.manifest.production_ready = true; f.save();

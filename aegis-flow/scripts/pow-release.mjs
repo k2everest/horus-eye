@@ -40,12 +40,12 @@ try {
       writeFileSync(join(v.directory,'pow-genesis.json'),genesis,{flag:'wx',mode:0o600});
       copyFileSync(compose,join(v.directory,'compose.yaml'));
       writeFileSync(join(v.directory,'release.json'),JSON.stringify(manifest,null,2)+'\n',{flag:'wx',mode:0o600});
-      verifyPowRelease(v.directory,{expectedCommit:commit,expectedConfigId:configId,expectedProgramId:approved.program_id});
+      verifyPowRelease(v.directory,{expectedCommit:commit,expectedConfigId:configId,expectedProgramId:approved.program_id,expectedComposeSha256:releaseHash(readFileSync(join(root,'aegis-flow/deployments/open-pow/compose.yaml')))});
     } catch (error) { rmSync(v.directory,{recursive:true,force:true}); throw error; }
     console.log(JSON.stringify(manifest,null,2));
   } else if (positionals[0] === 'verify') {
     if (run('git',['status','--porcelain']).trim() || run('git',['rev-parse','HEAD']).trim() !== v['expected-commit']) throw Error('VERIFICATION_REQUIRES_TRUSTED_CLEAN_CHECKOUT');
-    const manifest = verifyPowRelease(v.directory,{expectedCommit:v['expected-commit'],expectedConfigId:v['expected-config-id'],expectedProgramId:approved.program_id});
+    const manifest = verifyPowRelease(v.directory,{expectedCommit:v['expected-commit'],expectedConfigId:v['expected-config-id'],expectedProgramId:approved.program_id,expectedComposeSha256:releaseHash(readFileSync(join(root,'aegis-flow/deployments/open-pow/compose.yaml')))});
     const runtime = inspectImage(manifest.image_id,manifest.source_commit);
     if (runtime.verifier_sha256 !== manifest.verifier_sha256 || runtime.node !== manifest.node) throw Error('LOADED_IMAGE_RUNTIME_MISMATCH');
     console.log(JSON.stringify({verified:true,...manifest}));

@@ -39,3 +39,8 @@ jobs:
         run: node --test aegis-flow/services/recovery/recovery.integration.test.mjs
       - name: Run local operational, migration and recovery contract tests
         run: bash aegis-flow/scripts/dev-env.sh test
+
+      - name: Rehearse fresh-proof testnet tooling locally (not public acceptance)
+        env:
+          AEGIS_TESTNET_INTEGRATION: '1'
+        run: node --test aegis-flow/services/testnet/campaign.integration.test.mjs

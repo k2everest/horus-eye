@@ -1,0 +1,12 @@
+{
+  "schema": "AEGIS_TESTNET_CAMPAIGN_V1",
+  "campaign_id": "aegis-public-testnet-01",
+  "config_id": "REPLACE_WITH_PINNED_CONFIG_SHA256",
+  "environment": "public-testnet",
+  "image_ref": "REPLACE_WITH_IMMUTABLE_RELEASE_REFERENCE",
+  "start_anchor": {
+    "height": 0,
+    "checkpoint_id": "REPLACE_WITH_INDEPENDENT_START_CHECKPOINT"
+  },
+  "target_origin": "https://REPLACE_WITH_AUTHORIZED_TESTNET_HOST"
+}

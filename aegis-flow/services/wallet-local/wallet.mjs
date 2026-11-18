@@ -140,7 +140,7 @@ export class LocalWallet {
       entry.confirmed += BigInt(owned.note.value);
       entry[owned.reserved ? 'reserved' : 'available'] += BigInt(owned.note.value);
     }
-    return { ...base, address: receiveAddress({ config: this.#config, identity: walletPublicIdentity(this.#payload.secrets) }),
+    return { ...base, signer_tag: walletPublicIdentity(this.#payload.secrets).signer_tag, address: receiveAddress({ config: this.#config, identity: walletPublicIdentity(this.#payload.secrets) }),
       balances: Object.fromEntries(Object.entries(balances).map(([asset, amounts]) => [asset, Object.fromEntries(Object.entries(amounts).map(([key, value]) => [key, value.toString()]))])),
       pending: this.#payload.pending.map(({ request_id, transaction_id }) => ({ request_id, transaction_id })) };
   }
@@ -261,6 +261,15 @@ export class LocalWallet {
       if (pending?.phase === 'BROADCASTING') { await this.#broadcast(pending.bundle); this.#synced = false; }
       return this.status();
     });
+  }
+  confirmationEvidence(requestId) {
+    if (this.#busy) throw new Error('WALLET_BUSY'); this.#unlocked();
+    if (typeof requestId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(requestId)) throw new Error('INVALID_REQUEST_ID');
+    const receipt = this.#ledger.receipt(requestId);
+    if (!receipt?.settled) return undefined;
+    const stored = this.#ledger.publicTransaction(receipt.transaction_id);
+    if (!stored || stored.transaction.sender_tag !== walletPublicIdentity(this.#payload.secrets).signer_tag) return undefined;
+    return { ...stored, receipt, certificate: this.#ledger.finalityCertificate(receipt.height) };
   }
   close() {
     if (this.#closed) return;

@@ -112,8 +112,13 @@ test('real signing/encryption, reservation, idempotent retry, finalized balance 
   f.badCertificate(false);
   assert.equal((await f.wallet.sync()).balances.AEGIS.available, '4');
   assert.equal(f.wallet.status().pending.length, 0);
+  const ownRequest = JSON.parse(sent[0].body).transaction.request_id;
+  const evidence = f.wallet.confirmationEvidence(ownRequest);
+  assert.equal(evidence.receipt.settled, true);
+  assert.ok(!JSON.stringify(evidence).includes(f.secrets.spend_secret));
   const recipient = await f.createWallet('recipient', recipientSecrets);
   assert.equal((await recipient.sync()).balances.AEGIS.available, '3');
+  assert.equal(recipient.confirmationEvidence(ownRequest), undefined);
   const restored = await f.createWallet('old-backup', undefined, earlyBackup);
   assert.equal(restored.status().synchronized, false);
   assert.equal((await restored.sync()).balances.AEGIS.available, '4');

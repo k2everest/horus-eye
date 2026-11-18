@@ -25,7 +25,7 @@ stubs não demonstram segurança criptográfica nem prontidão para produção.
 | US-018 gRPC | Parcial | Contratos proto documentados; servidor gRPC e testes de interoperabilidade pendentes. |
 | US-019 Autenticação | Parcial | Bearer de alta entropia, RBAC, expiração/revogação, arquivos restritos e TLS 1.3 no gateway; quotas, métricas protegidas e modos de incidente implementados. mTLS, gestor de segredos externo, monitoramento implantado e revisão de produção pendentes. |
 | US-020 Observabilidade | Parcial | Hash do payload testado; faltam política completa de metadados, alertas e retenção. |
-| US-021 Carga/caos | Parcial | Testes HTTP com assinatura real, STARK + estado, crash SIGKILL, backup e concorrência de processos; carga STARK prolongada e infraestrutura distribuída pendentes. |
+| US-021 Carga/caos | Parcial | Ferramentas de campanha com STARKs novos, replay segregado, journals, relatos ML-DSA e assessor. Ensaio nativo por HTTP com SIGKILL/restore passou; janela pública de 30 dias, falhas externas e terceiros reais ainda pendentes. SQLite segue single-host. |
 
 Resumo: **0 concluídas para produção, 18 parciais, 3 não iniciadas**.
 O histórico de implementação do MVP permanece no Git.

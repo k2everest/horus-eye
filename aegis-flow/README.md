@@ -13,6 +13,8 @@ Segurança operacional (acesso, segredos, limites, métricas e incidentes):
 exige política de acesso e TLS.
 Infraestrutura single-host, migrações, backup S3 e ensaio de restauração:
 `docs/operations/infrastructure-recovery.md`. SQLite não oferece HA multi-host.
+Campanha prolongada com provas novas, carga de replay e evidências de terceiros:
+`docs/operations/public-testnet.md`. P1 público ainda não foi concluído.
 
 ## QUEER
 

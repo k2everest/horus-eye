@@ -141,3 +141,12 @@ num banco novo. Verificar escrow externo da chave, IAM/KMS, fencing do host anti
 retenção e restauração contra âncora independente. Ensaio local com STARK nativo e
 testes de contrato S3 não validam infraestrutura AWS nem comprovam RPO/RTO real.
 Runbook: `docs/operations/infrastructure-recovery.md`.
+
+## Campanha pública prolongada (P1)
+
+Revisar `services/testnet`, CLI e exportação local de evidência da carteira.
+Relatos ML-DSA e journals encadeados não provam sozinhos independência humana,
+alcance público, relógio ou execução de falhas reais. Revisar cadastro vinculado
+ao signer tag, heads preservados externamente, deduplicação, denominadores de
+disponibilidade e distinção entre replay/fresh. Assessor mantém P1/produção falsos
+até aceitação independente; ensaio local não é janela de 30 dias ou uso por terceiros.

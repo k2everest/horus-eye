@@ -26,6 +26,11 @@ export function createWalletServer({ wallet, token, allowedOrigin = 'http://loca
     touched = Date.now();
     if (req.method === 'GET' && req.url === '/status') { reply(200, wallet.status()); return; }
     if (active) { req.resume(); reply(409, { error: 'WALLET_BUSY' }); return; }
+    const confirmation = req.url?.match(/^\/transfers\/([A-Za-z0-9_-]{1,128})$/);
+    if (req.method === 'GET' && confirmation) {
+      try { const evidence = wallet.confirmationEvidence(confirmation[1]); reply(evidence ? 200 : 404, evidence ?? { error: 'NOT_FINALIZED_OR_NOT_OWN_TRANSFER' }); }
+      catch { reply(400, { error: 'WALLET_LOCKED_OR_BUSY' }); } return;
+    }
     if (req.method === 'GET' && req.url === '/backup') {
       try { reply(200, wallet.backup()); } catch { reply(400, { error: 'BACKUP_UNAVAILABLE' }); } return;
     }

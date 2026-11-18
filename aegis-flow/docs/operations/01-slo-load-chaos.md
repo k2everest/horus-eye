@@ -1,26 +1,22 @@
-# SLO e homologação de carga/caos
+# Carga local e limites da homologação histórica
 
-## Mapeamento da tarefa
+O teste histórico US-021 em `validation-gateway/load-chaos.test.mjs` envia 200
+requisições `/validate` com assinaturas e testa um HTTP 503 injetado. O orçamento
+de conexões/quotas do teste é ampliado explicitamente. Ele não gera STARKs, não
+mede TPS de novas transferências e não demonstra disponibilidade mensal de 99,9%.
+Seu alvo de recuperação em 2 s diz respeito somente à falha de handler local.
 
-Estes testes pertencem à **US-021 — Testes de carga e caos**, conforme o CSV do backlog. A classificação histórica como US-014 foi corrigida: US-014 é validação atômica de transação e estado, ainda pendente.
+Não representa morte de host, disco cheio, partição, perda de WAL, restauração
+externa, uso por terceiros ou testnet pública prolongada. Disponibilidade nominal,
+limites de abuso e carga de stress precisam ser medidos separadamente.
 
-## SLO mínimo
+A campanha vigente e seus critérios estão em [public-testnet.md](public-testnet.md).
+As ferramentas distinguem replay com STARK real, novas provas/finalizações,
+observação prolongada e relatos de terceiros. O teste integrado novo inclui
+SIGKILL real de um processo de gateway isolado e restauração de backup cifrado;
+continua local e não é aceitação pública.
 
-- **Disponibilidade mensal do validation-gateway:** >= 99,9%.
-- **Janela de medição:** 30 dias, excluindo manutenção previamente anunciada.
-- **Indicador:** respostas bem-sucedidas / total de requisições válidas.
-- **RTO do teste de caos:** <= 2 segundos após uma falha transitória injetada.
-- **Critério de recuperação:** a primeira requisição válida após a falha deve retornar HTTP 200.
-
-## Homologação automatizada
-
-O arquivo `services/validation-gateway/load-chaos.test.mjs` executa:
-
-1. carga nominal concorrente de 200 requisições válidas e valida disponibilidade >= 99,9%;
-2. injeção de uma falha HTTP 503;
-3. validação de recuperação automática na requisição seguinte dentro do RTO.
-
-## Limites do MVP
-
-- O teste é local e mede o processo do gateway, não a infraestrutura completa do Cloud Run.
-- Antes da produção, executar o mesmo cenário contra `stage`, incluindo múltiplas réplicas, reinício de instância e indisponibilidade da persistência.
+SQLite permanece single-host: não aplicar a recomendação histórica de múltiplas
+réplicas graváveis em hosts independentes/Cloud Run. Infraestrutura e recuperação:
+[infrastructure-recovery.md](infrastructure-recovery.md). Monitoramento, quotas e
+resposta a incidentes: [security.md](security.md).

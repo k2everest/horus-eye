@@ -1,58 +1,102 @@
-import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CheckCircle2, Copy, FlaskConical, Loader2, RefreshCw, Send, ShieldAlert, WalletCards } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowLeft, Copy, Download, LockKeyhole, RefreshCw, ShieldAlert } from "lucide-react";
 import { Link } from "react-router-dom";
-import { buildDemoEnvelope, createDemoWallet, isTestnetAddress, type QueerWalletAccount, type WalletTransfer } from "@/lib/queer-wallet";
+import { LocalWalletClient, type WalletStatus } from "@/lib/queer-wallet";
 
-const ACCOUNT_KEY = "queer:testnet:wallet:v1";
-const HISTORY_KEY = "queer:testnet:history:v1";
-const INITIAL_BALANCE = 1_000;
-function readSession<T>(key: string, fallback: T): T { try { return JSON.parse(sessionStorage.getItem(key) || "") as T; } catch { return fallback; } }
+const inputClass = "mt-2 w-full rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-sm text-white outline-none focus:border-fuchsia-300";
+const buttonClass = "rounded-xl bg-fuchsia-200 px-5 py-3 text-sm font-semibold text-black disabled:opacity-40";
+const panelClass = "rounded-2xl border border-white/10 bg-white/[.035] p-6";
+const errorText = (error: unknown) => {
+  const messages: Record<string, string> = {
+    VAULT_UNLOCK_FAILED: "Senha incorreta ou cofre adulterado.",
+    PAIRING_REQUIRED: "Confira o token do serviço local e conecte novamente.",
+    LOCAL_ORIGIN_REJECTED: "Esta página não está autorizada a acessar o serviço local. Confira o endereço configurado.",
+    WALLET_LOCKED: "Desbloqueie o cofre para continuar.",
+    WALLET_BUSY: "Aguarde a operação atual terminar.",
+    WALLET_CONFIG_MISMATCH: "Este cofre pertence a outra configuração de rede.",
+    UNTRUSTED_OR_STALE_GATEWAY_HEAD: "O gateway está atrasado ou diverge da rede e do checkpoint confiáveis.",
+    WALLET_CATCH_UP_REQUIRED: "Há mais blocos para verificar. Sincronize novamente antes de enviar.",
+    INSUFFICIENT_VERIFIED_FUNDS_OR_INPUT_LIMIT: "Saldo verificado insuficiente ou quantidade de notes acima do limite deste envio.",
+    PENDING_TRANSFER_MUST_BE_RESOLVED: "Aguarde a finalização do envio pendente ou use o reenvio seguro.",
+    RESTORE_REQUIRES_EMPTY_PROFILE: "Restaure em um perfil local vazio para preservar o cofre existente.",
+    PROOF_GENERATION_FAILED: "Não foi possível gerar a prova local. Confira o prover antes de tentar novamente.",
+    UNLOCK_RATE_LIMITED: "Muitas tentativas de desbloqueio. Aguarde um minuto.",
+    "Token local inválido.": "Token local inválido.",
+  };
+  return error instanceof Error && messages[error.message] ? messages[error.message] : "Não foi possível concluir a operação. Confira o serviço local, a conexão e os dados informados.";
+};
 
 export default function QueerWallet() {
-  const [account, setAccount] = useState<QueerWalletAccount | null>(() => readSession(ACCOUNT_KEY, null));
-  const [history, setHistory] = useState<WalletTransfer[]>(() => readSession(HISTORY_KEY, []));
+  const [client, setClient] = useState<LocalWalletClient>();
+  const [status, setStatus] = useState<WalletStatus>();
+  const [token, setToken] = useState("");
+  const [passphrase, setPassphrase] = useState("");
+  const [confirmation, setConfirmation] = useState("");
   const [recipient, setRecipient] = useState("");
-  const [amount, setAmount] = useState("10");
-  const [gatewayUrl, setGatewayUrl] = useState(import.meta.env.VITE_AEGIS_GATEWAY_URL || "http://localhost:8080");
-  const [message, setMessage] = useState("");
+  const [asset, setAsset] = useState("AEGIS");
+  const [amount, setAmount] = useState("1");
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (account) sessionStorage.setItem(ACCOUNT_KEY, JSON.stringify(account)); }, [account]);
-  useEffect(() => { sessionStorage.setItem(HISTORY_KEY, JSON.stringify(history)); }, [history]);
-  const spent = useMemo(() => history.filter((item) => item.status === "validated").reduce((sum, item) => sum + item.amount, 0), [history]);
-  const balance = Math.max(0, INITIAL_BALANCE - spent);
-
-  const generate = async () => {
-    if (account && !window.confirm("Substituir a carteira de demonstração desta sessão?")) return;
-    setAccount(await createDemoWallet()); setHistory([]); setMessage("Carteira testnet criada somente nesta sessão do navegador.");
+  const [message, setMessage] = useState("");
+  useEffect(() => {
+    sessionStorage.removeItem("queer:testnet:wallet:v1");
+    sessionStorage.removeItem("queer:testnet:history:v1");
+  }, []);
+  useEffect(() => {
+    const lockHidden = () => { if (document.hidden && client) {
+      setPassphrase(""); setConfirmation("");
+      void client.lock().then(setStatus).catch(() => { /* Native idle lock remains active during an operation. */ });
+    } };
+    document.addEventListener("visibilitychange", lockHidden);
+    return () => document.removeEventListener("visibilitychange", lockHidden);
+  }, [client]);
+  const run = async (operation: () => Promise<WalletStatus>, success: string) => {
+    setBusy(true); setMessage("");
+    try { setStatus(await operation()); setMessage(success); }
+    catch (error) { setMessage(errorText(error)); if (client) { try { setStatus(await client.status()); } catch { setStatus(undefined); } } }
+    finally { setBusy(false); setPassphrase(""); setConfirmation(""); }
   };
-  const copyAddress = async () => { if (account) { await navigator.clipboard.writeText(account.address); setMessage("Endereço copiado."); } };
-  const send = async () => {
-    if (!account) return;
-    const numericAmount = Number(amount);
-    if (!isTestnetAddress(recipient)) { setMessage("Informe um endereço QUEER testnet válido."); return; }
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0 || numericAmount > balance) { setMessage("Valor inválido ou saldo testnet insuficiente."); return; }
-    setBusy(true); setMessage("Construindo envelope demonstrativo…");
-    try {
-      const envelope = await buildDemoEnvelope(account, recipient, numericAmount);
-      const response = await fetch(`${gatewayUrl.replace(/\/$/, "")}/validate`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(envelope) });
-      const payload = await response.json();
-      const status = response.ok && payload.valid ? "validated" : "rejected";
-      setHistory((items) => [{ id: envelope.tx_blob.slice(-16), recipient, amount: numericAmount, status, createdAt: new Date().toISOString(), requestId: envelope.request_id }, ...items]);
-      setMessage(status === "validated" ? "Envelope aceito pelo Validation Gateway." : `Gateway rejeitou: ${payload.failed_checks?.join("; ") || response.status}`);
-    } catch { setMessage("Não foi possível acessar o gateway. Inicie o ambiente local e confira a URL."); }
+  const connect = async () => {
+    setBusy(true);
+    try { const local = new LocalWalletClient(token.trim()); setStatus(await local.status()); setClient(local); setToken(""); setMessage("Serviço local pareado."); }
+    catch (error) { setMessage(errorText(error)); }
     finally { setBusy(false); }
   };
-
-  return <main className="min-h-screen bg-[#08080c] text-white selection:bg-fuchsia-300 selection:text-black">
-    <header className="border-b border-white/10 px-5 py-4"><div className="mx-auto flex max-w-6xl items-center justify-between"><Link to="/queer" className="flex items-center gap-2 text-sm text-white/60 hover:text-white"><ArrowLeft className="size-4" /> QUEER</Link><span className="rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-xs text-amber-200">TESTNET DEMO · SEM VALOR REAL</span></div></header>
-    <div className="mx-auto max-w-6xl px-5 py-10">
-      <div className="mb-9 flex flex-col justify-between gap-5 md:flex-row md:items-end"><div><p className="font-mono text-xs uppercase tracking-[.24em] text-fuchsia-300">Public MVP wallet</p><h1 className="mt-3 text-4xl font-black tracking-[-.05em] sm:text-6xl">Carteira QUEER</h1><p className="mt-3 max-w-xl text-white/45">Crie uma identidade testnet, monte um envelope e envie-o ao Validation Gateway. Nenhum ativo ou blockchain real é usado nesta etapa.</p></div><button onClick={generate} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-black hover:bg-fuchsia-200"><RefreshCw className="size-4" /> {account ? "Nova carteira" : "Criar carteira"}</button></div>
-      <div className="mb-7 rounded-2xl border border-amber-300/15 bg-amber-300/[.06] p-4 text-sm leading-6 text-amber-100/75"><ShieldAlert className="mr-2 inline size-4" /><strong>Limite de segurança:</strong> as chaves e assinaturas desta tela são demonstrativas e ficam apenas em <code>sessionStorage</code>. Não deposite dinheiro nem reutilize este endereço. O gateway exige ML-DSA real e rejeita os envelopes fictícios desta carteira; a integração criptográfica no navegador ainda está pendente.</div>
-      {!account ? <section className="grid min-h-80 place-items-center rounded-3xl border border-dashed border-white/15 bg-white/[.02] text-center"><div><WalletCards className="mx-auto size-10 text-white/25" /><h2 className="mt-4 text-xl font-semibold">Nenhuma carteira nesta sessão</h2><p className="mt-2 text-sm text-white/40">Crie uma carteira de laboratório para começar.</p></div></section> : <div className="grid gap-6 lg:grid-cols-[.85fr_1.15fr]">
-        <section className="rounded-3xl border border-white/10 bg-white/[.035] p-6"><p className="text-xs uppercase tracking-[.18em] text-white/35">Saldo faucet simulado</p><p className="mt-3 text-5xl font-black">{balance.toLocaleString("pt-BR")} <span className="text-lg text-fuchsia-300">QER</span></p><div className="mt-7 rounded-2xl bg-black/30 p-4"><p className="text-xs text-white/35">Seu endereço testnet</p><p className="mt-2 break-all font-mono text-sm text-white/75">{account.address}</p><button onClick={copyAddress} className="mt-3 inline-flex items-center gap-2 text-xs text-fuchsia-200"><Copy className="size-3" /> Copiar endereço</button></div><div className="mt-4 flex items-center gap-2 text-xs text-teal-200/70"><FlaskConical className="size-4" /> Saldo local fictício: {INITIAL_BALANCE} QER</div></section>
-        <section className="rounded-3xl border border-white/10 bg-white/[.035] p-6"><h2 className="text-lg font-semibold">Enviar envelope de teste</h2><label className="mt-5 block text-xs text-white/40">Destinatário</label><input value={recipient} onChange={(e) => setRecipient(e.target.value.trim())} placeholder="queer_test1…" className="mt-2 w-full rounded-xl border border-white/10 bg-black/25 px-4 py-3 font-mono text-sm outline-none focus:border-fuchsia-300/50" /><div className="mt-4 grid gap-4 sm:grid-cols-2"><div><label className="block text-xs text-white/40">Quantidade</label><input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" className="mt-2 w-full rounded-xl border border-white/10 bg-black/25 px-4 py-3 outline-none focus:border-fuchsia-300/50" /></div><div><label className="block text-xs text-white/40">Gateway</label><input value={gatewayUrl} onChange={(e) => setGatewayUrl(e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm outline-none focus:border-fuchsia-300/50" /></div></div><button onClick={send} disabled={busy} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-fuchsia-300 py-3.5 font-bold text-black hover:bg-white disabled:opacity-50">{busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />} Validar transação</button>{message && <p role="status" className="mt-4 text-sm text-white/55">{message}</p>}</section>
-      </div>}
-      {account && <section className="mt-6 rounded-3xl border border-white/10 bg-white/[.025] p-6"><h2 className="font-semibold">Atividade desta sessão</h2>{history.length === 0 ? <p className="mt-4 text-sm text-white/35">Nenhuma transação testnet.</p> : <div className="mt-4 space-y-3">{history.map((item) => <div key={item.requestId} className="flex flex-col gap-2 rounded-xl border border-white/5 p-4 text-sm sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-3"><CheckCircle2 className={`size-4 ${item.status === "validated" ? "text-teal-300" : "text-red-300"}`} /><span>{item.amount} QER</span><span className="font-mono text-xs text-white/30">{item.id}</span></div><span className="text-xs uppercase tracking-wider text-white/40">{item.status}</span></div>)}</div>}</section>}
+  const backup = async () => {
+    if (!client) return;
+    setBusy(true);
+    try {
+      const envelope = await client.backup();
+      const url = URL.createObjectURL(new Blob([JSON.stringify(envelope)], { type: "application/json" }));
+      const link = document.createElement("a"); link.href = url; link.download = "aegis-wallet-encrypted.json"; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setMessage("Backup criptografado exportado. Guarde a senha separadamente e teste a restauração em um perfil vazio.");
+    } catch (error) { setMessage(errorText(error)); }
+    finally { setBusy(false); }
+  };
+  const restore = async (file?: File) => {
+    if (!client || !file) return;
+    if (file.size > 8 * 1024 * 1024) { setMessage("Backup excede o tamanho permitido."); return; }
+    if (passphrase.length < 14) { setMessage("Informe a senha do backup, com pelo menos 14 caracteres."); return; }
+    await run(async () => client.restore(JSON.parse(await file.text()), passphrase), "Backup restaurado. Sincronize para verificar o saldo atual.");
+  };
+  const unavailable = busy || status?.busy;
+  return <main className="min-h-screen bg-[#08080c] text-white">
+    <header className="border-b border-white/10 px-5 py-4"><div className="mx-auto flex max-w-5xl items-center justify-between"><Link to="/queer" className="flex items-center gap-2 text-sm text-white/60"><ArrowLeft className="size-4" /> QUEER</Link><span className="text-xs text-amber-200">LABORATÓRIO · SEM DEPÓSITOS REAIS</span></div></header>
+    <div className="mx-auto max-w-5xl space-y-6 px-5 py-10">
+      <div><h1 className="text-4xl font-black">Carteira QUEER</h1><p className="mt-3 text-white/60">Chaves locais protegidas por senha. Saldo conferido por provas e finalização da rede permissionada.</p></div>
+      <div className="rounded-2xl border border-amber-300/20 bg-amber-300/5 p-4 text-sm text-amber-100"><ShieldAlert className="mr-2 inline size-4" />Uso experimental. A segurança pós-quântica de 128 bits e a auditoria independente seguem pendentes. A finalização depende da autoridade da rede.</div>
+      {!client ? <section className={panelClass}><h2 className="font-semibold">Conectar à carteira local</h2><p className="mt-3 text-sm text-white/60">Inicie o serviço local conforme o runbook e informe o token de pareamento. A conexão usa 127.0.0.1:8765; suas chaves privadas ficam no serviço local.</p><label className="mt-4 block text-sm">Token de pareamento<input type="password" autoComplete="off" value={token} onChange={e => setToken(e.target.value)} className={inputClass} /></label><button className={`${buttonClass} mt-4`} disabled={busy} onClick={connect}>Conectar</button></section> : <>
+        <section className={panelClass}><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{status?.locked ? "Cofre bloqueado" : "Cofre local"}</h2><div className="flex gap-3"><button disabled={unavailable} onClick={() => run(() => client.status(), "Estado local atualizado.")} aria-label="Consultar cofre"><RefreshCw className="size-4" /></button>{!status?.locked && <button disabled={unavailable} onClick={() => run(() => client.lock(), "Cofre bloqueado.")} className="flex items-center gap-2 text-sm"><LockKeyhole className="size-4" /> Bloquear</button>}</div></div>
+          {status && <p className="mt-3 break-all font-mono text-xs text-white/45">Rede: {status.network_id} · configuração: {status.config_id}</p>}
+          {status?.locked && <div className="mt-4"><label className="block text-sm">Senha do cofre (mínimo 14 caracteres)<input type="password" autoComplete={status.exists ? "current-password" : "new-password"} value={passphrase} onChange={e => setPassphrase(e.target.value)} className={inputClass} /></label>{!status.exists && <label className="mt-3 block text-sm">Confirmar senha<input type="password" autoComplete="new-password" value={confirmation} onChange={e => setConfirmation(e.target.value)} className={inputClass} /></label>}<button disabled={unavailable || passphrase.length < 14 || (!status.exists && passphrase !== confirmation)} className={`${buttonClass} mt-4`} onClick={() => run(() => status.exists ? client.unlock(passphrase) : client.create(passphrase), "Cofre desbloqueado. Sincronize antes de enviar.")}>{status.exists ? "Desbloquear" : "Criar cofre"}</button>{!status.exists && <label className="mt-5 block text-sm">Ou restaurar backup criptografado com a senha informada<input type="file" accept="application/json,.json" disabled={unavailable} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; void restore(file); }} className="mt-2 block text-xs" /></label>}</div>}
+          {!status?.locked && status && <div className="mt-5 space-y-4"><p className="text-sm text-white/60">As chaves são removidas da sessão ao bloquear. O serviço bloqueia após cinco minutos de inatividade.</p><label className="block text-sm">Endereço de recebimento<textarea readOnly value={status.address || ""} rows={3} className={`${inputClass} font-mono text-xs`} /></label><button className="flex items-center gap-2 text-sm text-fuchsia-200" onClick={async () => { await navigator.clipboard.writeText(status.address || ""); setMessage("Endereço público copiado."); }}><Copy className="size-4" /> Copiar endereço</button><button disabled={unavailable} onClick={backup} className="flex items-center gap-2 text-sm text-fuchsia-200"><Download className="size-4" /> Exportar backup criptografado</button><details><summary className="cursor-pointer text-sm">Alterar senha</summary><label className="mt-3 block text-sm">Nova senha<input type="password" autoComplete="new-password" value={passphrase} onChange={e => setPassphrase(e.target.value)} className={inputClass} /></label><label className="mt-3 block text-sm">Confirmar nova senha<input type="password" autoComplete="new-password" value={confirmation} onChange={e => setConfirmation(e.target.value)} className={inputClass} /></label><button disabled={unavailable || passphrase.length < 14 || passphrase !== confirmation} className={`${buttonClass} mt-3`} onClick={() => run(() => client.changePassphrase(passphrase), "Senha alterada. Exporte um novo backup; os antigos conservam a senha anterior.")}>Salvar senha</button></details></div>}
+        </section>
+        {!status?.locked && status && <>
+          <section className={panelClass}><div className="flex flex-wrap items-center justify-between gap-4"><h2 className="font-semibold">Saldo verificado</h2><button disabled={unavailable} className={buttonClass} onClick={() => run(() => client.sync(), "Sincronização concluída para este lote. Confira se o estado está atualizado.")}>Sincronizar</button></div><p className="mt-3 text-sm text-white/55">Checkpoint local: {status.finalized.height}. {status.synchronized ? "Estado sincronizado com o gateway configurado." : "Sincronização necessária. Saldo disponível oculto até verificar o estado atual."}</p>{status.synchronized && <div className="mt-5 space-y-3">{Object.entries(status.balances || {}).length === 0 ? <p>0 — nenhuma note sua confirmada.</p> : Object.entries(status.balances || {}).map(([name, balance]) => <div key={name}><p className="text-3xl font-bold">{balance.available} <span className="text-lg text-fuchsia-200">{name}</span></p><p className="mt-1 text-xs text-white/50">Unidades inteiras · confirmado: {balance.confirmed} · reservado: {balance.reserved}</p></div>)}</div>}{!!status.pending?.length && <p className="mt-4 text-sm text-amber-200">Envio pendente: fundos reservados até finalização ou invalidação por um checkpoint posterior. <button disabled={unavailable} className="underline" onClick={() => run(() => client.retry(), "Envio pendente reavaliado; sincronize para acompanhar.")}>Reenviar com segurança</button></p>}</section>
+          <section className={panelClass}><h2 className="font-semibold">Enviar com prova local</h2><label className="mt-4 block text-sm">Endereço do destinatário<textarea value={recipient} onChange={e => setRecipient(e.target.value.trim())} rows={3} className={inputClass} placeholder="aegis_receive1_…" /></label><div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-sm">Ativo<input value={asset} onChange={e => setAsset(e.target.value)} className={inputClass} /></label><label className="text-sm">Quantidade em unidades inteiras<input inputMode="numeric" value={amount} onChange={e => setAmount(e.target.value)} className={inputClass} /></label></div><p className="mt-4 text-sm text-white/50">Confira endereço, ativo e quantidade. A prova é gerada no computador e pode levar vários minutos. O saldo não é confirmado pelo envio.</p><button disabled={unavailable || !status.synchronized || !!status.pending?.length || !recipient || !/^[1-9][0-9]*$/.test(amount)} className={`${buttonClass} mt-4`} onClick={() => run(() => client.send(recipient, asset, amount), "Transação enviada. Aguarde finalização e sincronize.")}>{busy ? "Processando…" : "Confirmar e enviar"}</button></section>
+        </>}
+      </>}
+      {message && <p role="status" aria-live="polite" className="break-words rounded-xl border border-white/10 p-4 text-sm text-white/80">{message}</p>}
     </div>
   </main>;
 }

@@ -15,9 +15,11 @@ QUEER é a identidade pública experimental do protocolo. A interface de
 marketing está disponível em `/queer`; o roteiro de testes e as limitações do
 MVP estão documentados em `docs/testing/01-testar-queer.md`.
 
-A carteira pública de laboratório está disponível em `/queer/wallet`. Ela cria
-apenas identidades e saldo testnet demonstrativos; seus envelopes fictícios são
-rejeitados pelo gateway PQC até integrar a carteira com chaves reais; não custodia valor real. O caminho até uma altcoin está em
+A carteira de laboratório está disponível em `/queer/wallet` e usa um serviço
+local com ML-DSA/ML-KEM reais, cofre criptografado, backup/restauração e saldo
+derivado do ledger finalizado e revalidado. Não há saldo inicial fictício nem
+chaves privadas em sessionStorage. Execução: `docs/operations/wallet.md`.
+Continua sem implantação de ativos de valor real. O caminho até uma altcoin está em
 `docs/planning/roadmap-altcoin-queer.md`.
 
 ## Ambiente local com Docker

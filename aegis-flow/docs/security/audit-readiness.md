@@ -110,3 +110,14 @@ de certificados, cadeia de checkpoints, rewind somente do sufixo não finalizado
 e recuperação com âncora externa. Testes internos de concorrência/crash e replay
 com STARK nativo não substituem auditoria, proteção da chave e prevenção
 operacional de split brain. Não existe consenso BFT nem garantia de 128 bits PQ.
+
+## Carteira e cofre local
+
+Incluir `wallet-local/vault.mjs`, `wallet.mjs`, `server.mjs` e a interface
+`QueerWallet` no escopo. Revisar scrypt/AES-GCM, parse/autenticação do backup,
+gravação atômica, bloqueio e limites de limpeza de memória; token/Host/Origin do
+serviço loopback; pinning de configuração/genesis/âncora; revalidação de STARKs e
+certificados; decriptação de notes, seleção de inputs e reserva/retry duráveis.
+Testes internos não certificam segurança de navegador/OS, armazenamento de
+hardware, rotação de identidade ou recuperação social. Essas capacidades não
+foram implementadas nesta etapa. Runbook: `docs/operations/wallet.md`.

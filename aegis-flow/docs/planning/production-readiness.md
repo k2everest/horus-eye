@@ -11,6 +11,10 @@ válidas; em `/validate` não comprova prova ZK ou gasto. `/submit` verifica ass
 STARK e estado SQLite, retornando APPLIED_LOCAL. Settlement permissionado opt-in
 com autoridade ML-DSA, certificados, replay e rewind do sufixo pendente foi
 implementado para laboratório (ADR-0005); não há rede pública ou consenso BFT.
+Carteira browser integrada a serviço local: chaves nativas, cofre criptografado,
+backup/restauração, reservas de envio e saldo revalidado pela cadeia finalizada.
+Runbook: `docs/operations/wallet.md`; keystore de hardware, rotação de identidade,
+auditoria independente e operação de produção continuam pendentes.
 
 ## Etapas e evidências de saída
 
@@ -28,7 +32,8 @@ implementado para laboratório (ADR-0005); não há rede pública ou consenso BF
 P0 iniciou nesta entrega: o build do frontend foi validado e o conflito entre
 Vite 8 e lovable-tagger foi corrigido. O lockfile npm também foi sincronizado
 com as dependências declaradas (incluindo Supabase). O frontend tem CI próprio;
-seu teste unitário atual é apenas um smoke, sem cobertura dos fluxos reais.
+seus testes incluem o smoke e a tela da carteira. A integração lenta da carteira
+exercita envio, troco, recebimento e restauração com STARK nativo verdadeiro.
 Responsáveis individuais e orçamento precisam ser atribuídos antes de assumir
 datas. Estimativas preliminares com equipe dedicada: testnet 3–5 meses;
 produção financeira 6–12+ meses. Rede própria exige reestimativa de consenso,

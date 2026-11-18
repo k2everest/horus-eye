@@ -33,6 +33,11 @@ const files = [
   'aegis-flow/services/ledger-state/finality.mjs',
   'aegis-flow/services/ledger-state/settlement.mjs',
   'aegis-flow/scripts/settlement-admin.mjs',
+  'aegis-flow/services/wallet-local/vault.mjs',
+  'aegis-flow/services/wallet-local/wallet.mjs',
+  'aegis-flow/services/wallet-local/server.mjs',
+  'src/lib/queer-wallet.ts',
+  'src/pages/QueerWallet.tsx',
   'aegis-flow/services/validation-gateway/server.mjs',
   'aegis-flow/services/validation-gateway/runtime-policy.mjs',
 ];

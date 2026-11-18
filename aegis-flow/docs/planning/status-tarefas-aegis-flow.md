@@ -6,11 +6,11 @@ stubs não demonstram segurança criptográfica nem prontidão para produção.
 | Story | Estado | Evidência e trabalho restante |
 |---|---|---|
 | US-001 Threat model | Parcial | Documento MVP; faltam revisão externa e parâmetros finais. |
-| US-002 PQC | Parcial | ML-DSA/ML-KEM nativos reais, HKDF/AEAD e vetores NIST ACVP implementados; faltam revisão externa, key vault e ciclo de vida de chaves. |
+| US-002 PQC | Parcial | ML-DSA/ML-KEM nativos reais, HKDF/AEAD e vetores NIST ACVP implementados; cofre local criptografado implementado; faltam revisão externa, hardware e rotação/revogação de identidades. |
 | US-003 Serialização | Parcial | Determinismo local testado; faltam esquema canônico restrito, limites e vetores entre implementações. |
 | US-004 Commitments | Parcial | Notes V2 usam commitment SHA-256 binário com domínio e randomness, verificado no guest STARK; não é SIS/LWE e exige revisão criptográfica. |
 | US-005 Notes | Parcial | Note V2 com owner derivado do segredo, commitment e nullifier verificados no guest; lifecycle de chaves e auditoria pendentes. |
-| US-006 Builder | Parcial | Transfer V2 com assinatura ML-DSA, notes cifradas e witness local para STARK; carteira browser pendente. |
+| US-006 Builder | Parcial | Transfer V2 com assinatura ML-DSA, notes cifradas e witness local para STARK; interface browser integrada ao serviço local com cofre, backup/restauração e saldo finalizado revalidado. Auditoria e operação de produção pendentes. |
 | US-007 Validação | Parcial | POST /submit verifica assinatura e STARK antes de aplicar SQLite; limites e segurança de produção pendentes. |
 | US-008 Statement | Parcial | Guest executável verifica ownership, inclusão, ranges, nullifiers e conservação; revisão externa da relação e parâmetros pendente. |
 | US-009 Prover | Parcial | RISC Zero 3.1.0 composite STARK real, sem Groth16; geração local e witness privado testados. Parâmetros de release e performance pendentes. |

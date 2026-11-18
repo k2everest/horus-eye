@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import {canonicalSerialize,buildTranscriptHash} from '../../libs/crypto-core/canonical-transcript.mjs';
 import {merkleRoot} from '../../libs/crypto-core/merkle-proof.mjs';
 import {assertNoteV2,noteCommitmentV2} from '../../libs/crypto-core/shielded-note-v2.mjs';
-export const POW_SCHEMA='AEGIS_OPEN_POW_V1';
+export const POW_SCHEMA='AEGIS_OPEN_POW_V2';
 export const MAX_TARGET=(1n<<248n)-1n;
 export const ZERO_HASH='0'.repeat(64);
 const hex=v=>typeof v==='string'&&/^[0-9a-f]{64}$/.test(v);
@@ -20,14 +20,14 @@ export function assertOpenGenesis(config){
   typeof m.max_supply!=='string'||!/^[1-9][0-9]{0,19}$/.test(m.max_supply)||BigInt(m.max_supply)>((1n<<64n)-1n)||BigInt(m.max_supply)<BigInt(m.base_reward))throw new Error('INVALID_POW_MONETARY_RULE');
  return config;
 }
-export function openNetworkId(config){assertOpenGenesis(config);return digest('AEGIS_OPEN_POW_GENESIS_V1',config);}
+export function openNetworkId(config){assertOpenGenesis(config);return digest('AEGIS_OPEN_POW_GENESIS_V2',config);}
 export function genesisTip(config){return{height:0,hash:openNetworkId(config),work:'0',note_root:merkleRoot([]),nullifier_root:EMPTY_NULLIFIERS,commitment_count:0,timestamp_ms:config.genesis_time_ms};}
 export function subsidy(config,height){
  if(!Number.isSafeInteger(height)||height<1)throw new Error('INVALID_POW_HEIGHT');
  const remaining=BigInt(config.monetary.max_supply)-BigInt(height-1)*BigInt(config.monetary.base_reward);
  return remaining<=0n?0:Number(remaining<BigInt(config.monetary.base_reward)?remaining:BigInt(config.monetary.base_reward));
 }
-export function blockHash(header){const first=crypto.createHash('sha256').update('AEGIS_POW_BLOCK_V1\0').update(canonicalSerialize(header)).digest();return crypto.createHash('sha256').update(first).digest('hex');}
+export function blockHash(header){const first=crypto.createHash('sha256').update('AEGIS_POW_BLOCK_V2\0').update(canonicalSerialize(header)).digest();return crypto.createHash('sha256').update(first).digest('hex');}
 export function blockWork(target){return(1n<<256n)/(BigInt('0x'+target)+1n);}
 export function expectedTarget(config,ancestors){
  const height=ancestors.length+1;
@@ -46,7 +46,7 @@ export function medianTime(config,ancestors){const values=ancestors.slice(-11).m
 export function assertBlockHeader(config,block,ancestors,{now=Date.now()}={}){
  if(!exact(block,['header','transaction','proof','reward'])||!exact(block.header,['version','network','height','parent','timestamp_ms','target','nonce','body_hash','note_root','nullifier_root','commitment_count']))throw new Error('INVALID_POW_BLOCK_SHAPE');
  const h=block.header,parent=ancestors.length?blockHash(ancestors.at(-1).header):openNetworkId(config);
- if(h.version!=='AEGIS_POW_HEADER_V1'||h.network!==openNetworkId(config)||h.height!==ancestors.length+1||h.parent!==parent||
+ if(h.version!=='AEGIS_POW_HEADER_V2'||h.network!==openNetworkId(config)||h.height!==ancestors.length+1||h.parent!==parent||
   !Number.isSafeInteger(h.timestamp_ms)||h.timestamp_ms<=medianTime(config,ancestors)||h.timestamp_ms>now+7200000||h.target!==expectedTarget(config,ancestors)||
   ![h.nonce,h.body_hash,h.note_root,h.nullifier_root].every(hex)||!Number.isSafeInteger(h.commitment_count)||h.commitment_count<1||h.commitment_count>1000000||
   h.body_hash!==digest('AEGIS_POW_BODY_V1',{transaction:block.transaction,proof:block.proof,reward:block.reward})||BigInt('0x'+blockHash(h))>BigInt('0x'+h.target))throw new Error('INVALID_POW_HEADER_OR_WORK');

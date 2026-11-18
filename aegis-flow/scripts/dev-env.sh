@@ -101,6 +101,7 @@ case "${command}" in
     node --test "${ROOT_DIR}"/services/recovery/*.test.mjs
     node --test "${ROOT_DIR}"/services/testnet/*.test.mjs
     node --test "${ROOT_DIR}"/services/launch-review/*.test.mjs
+    node --test "${ROOT_DIR}"/../supabase/functions/monero-rpc/*.test.mjs
     ;;
   smoke)
     smoke

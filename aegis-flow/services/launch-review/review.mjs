@@ -14,7 +14,7 @@ export const CURRENT_MONETARY_FACTS=Object.freeze({
  conservation:'sum(inputs)=sum(outputs)+public_amount',public_amount_max:'9007199254740991',
  public_amount_payout_implemented:false,public_mint_endpoint:false,genesis_value_total_proof:false,
  settlement:'legacy-permissioned-and-experimental-open-pow',monetary_value_authorized:false,
- open_pow:{genesis:'empty',asset:'fixed-by-genesis',supply_cap:'fixed-by-genesis-u64',subsidy:'deterministic-capped-per-block',
+ open_pow:{protocol:'AEGIS_OPEN_POW_V2',transaction_network_binding:'full-genesis-config-id',genesis:'empty',asset:'fixed-by-genesis',supply_cap:'fixed-by-genesis-u64',subsidy:'deterministic-capped-per-block',
   monetary_authority:false,participant_country_filter:false,validator_allowlist:false,public_amount_required:0,finality:'probabilistic',wallet_integrated:false},
 });
 const hash=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');

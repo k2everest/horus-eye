@@ -1,4 +1,5 @@
 export type WalletStatus = {
+  notes_deferred?: number;
   exists: boolean; locked: boolean; busy: boolean; synchronized: boolean; network_id: string; config_id: string;
   finalized: { height: number; checkpoint_id: string; root: string }; production_ready: false;
   address?: string; balances?: Record<string, { confirmed: string; reserved: string; available: string }>;

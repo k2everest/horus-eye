@@ -10,7 +10,7 @@ comercial de ticker nem garante exclusividade de nome.
 
 ### Extensão de rede aberta (ADR-0006)
 
-O novo modo `AEGIS_OPEN_POW_V1` tem genesis vazio, ativo fixado na configuração,
+O novo modo `AEGIS_OPEN_POW_V2` tem genesis vazio, ativo fixado na configuração,
 subsídio determinístico por bloco válido e teto explícito de emissão u64.
 O protocolo não tem autoridade monetária, cadastro de validadores ou filtro de
 país. Exige `public_amount=0`, maturidade das recompensas e consenso pelo maior

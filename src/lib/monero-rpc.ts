@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
+if (typeof localStorage !== "undefined") localStorage.removeItem("monero-node-config");
+
 export interface NodeConfig {
   host: string;
   port: string;
@@ -28,40 +30,15 @@ export const defaultConfig: NodeConfig = {
   https: false,
 };
 
+// Remove legacy persisted daemon credentials, including profiles saved by old builds.
 export function loadNodeConfig(): NodeConfig {
-  try {
-    const saved = localStorage.getItem("monero-node-config");
-    return saved ? { ...defaultConfig, ...JSON.parse(saved) } : defaultConfig;
-  } catch {
-    return defaultConfig;
-  }
+  localStorage.removeItem("monero-node-config");
+  return {...defaultConfig};
 }
 
-export async function callMoneroRpc(config: NodeConfig, method: string, params: Record<string, unknown> = {}) {
-  const { data, error } = await supabase.functions.invoke("monero-rpc", {
-    body: {
-      host: config.host,
-      port: config.port,
-      username: config.username || undefined,
-      password: config.password || undefined,
-      https: config.https,
-      method,
-      params,
-    },
-  });
-
-  if (error) throw new Error(error.message);
-  if (data?.status && data.status >= 400) {
-    const code = data?.data?.error?.code;
-    const msg = data?.data?.error?.message || `RPC error ${data.status}`;
-    if (code === "NODE_UNREACHABLE") {
-      throw new Error(
-        `Nó Monero inacessível em ${config.host}:${config.port}. ` +
-        `Edge Functions não conseguem acessar 127.0.0.1 da sua máquina — exponha o daemon publicamente (ngrok/Cloudflare Tunnel/IP público) e atualize Settings.`,
-      );
-    }
-    throw new Error(msg);
-  }
-
+export async function callMoneroRpc(_config: NodeConfig, method: string, params: Record<string, unknown> = {}) {
+  const {data,error}=await supabase.functions.invoke("monero-rpc",{body:{method,params}});
+  if(error)throw new Error(error.message);
+  if(data?.error)throw new Error(data.error);
   return data?.data?.result ?? data?.data;
 }

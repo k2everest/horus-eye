@@ -11,20 +11,9 @@ import { Server, Wifi, WifiOff, ArrowUpRight, ArrowDownLeft, CheckCircle2, Alert
 import { toast } from "sonner";
 import { callMoneroRpc, defaultConfig, type NodeConfig, type NodeInfo } from "@/lib/monero-rpc";
 
-const NODE_PRESETS: { label: string; host: string; port: string; https: boolean }[] = [
-  { label: "Cake Wallet", host: "xmr-node.cakewallet.com", port: "18081", https: false },
-  { label: "Seth For Privacy", host: "node.sethforprivacy.com", port: "18089", https: false },
-  { label: "Monero World", host: "node.moneroworld.com", port: "18089", https: false },
-  { label: "Localhost", host: "127.0.0.1", port: "18081", https: false },
-];
-
 function loadConfig(): NodeConfig {
-  try {
-    const saved = localStorage.getItem("monero-node-config");
-    return saved ? { ...defaultConfig, ...JSON.parse(saved) } : defaultConfig;
-  } catch {
-    return defaultConfig;
-  }
+  localStorage.removeItem("monero-node-config");
+  return {...defaultConfig};
 }
 
 const statusIcon: Record<string, React.ReactNode> = {
@@ -39,7 +28,7 @@ function formatCurrency(amount: number, currency: string) {
 }
 
 const SettingsPage = () => {
-  const [config, setConfig] = useState<NodeConfig>(loadConfig);
+  const [config] = useState<NodeConfig>(loadConfig);
   const [nodeStatus, setNodeStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
   const [nodeInfo, setNodeInfo] = useState<NodeInfo | null>(null);
   const [healingState, setHealingState] = useState<"idle" | "watching" | "armed" | "recovering">("idle");
@@ -47,11 +36,6 @@ const SettingsPage = () => {
   const { transactions, metrics } = useSimulatedWebSocket();
   const stagnantSinceRef = useRef<number | null>(null);
   const lastHeightRef = useRef<number | null>(null);
-
-  const handleSave = () => {
-    localStorage.setItem("monero-node-config", JSON.stringify(config));
-    toast.success("Node configuration saved.");
-  };
 
   const handleConnect = async () => {
     if (!config.host || !config.port) {
@@ -261,90 +245,13 @@ const SettingsPage = () => {
                 </div>
               </div>
               <CardDescription className="text-xs">
-                Connect to your own Monero daemon (monerod) for private transaction verification.
+                Monitor the configured Monero daemon through an authenticated read-only connection.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Presets de nós públicos</Label>
-                <div className="flex flex-wrap gap-2">
-                  {NODE_PRESETS.map((preset) => {
-                    const active = config.host === preset.host && config.port === preset.port;
-                    return (
-                      <Button
-                        key={preset.label}
-                        size="sm"
-                        variant={active ? "default" : "outline"}
-                        className="h-7 text-xs"
-                        onClick={() => {
-                          setConfig((c) => ({ ...c, host: preset.host, port: preset.port, https: preset.https }));
-                          toast.success(`Preset aplicado: ${preset.label}`);
-                        }}
-                      >
-                        {preset.label}
-                        <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">
-                          {preset.host}:{preset.port}
-                        </span>
-                      </Button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Host / IP</Label>
-                  <Input
-                    placeholder="127.0.0.1"
-                    className="font-mono text-xs h-9 bg-secondary/50"
-                    value={config.host}
-                    onChange={(e) => setConfig((c) => ({ ...c, host: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Port</Label>
-                  <Input
-                    placeholder="18081"
-                    className="font-mono text-xs h-9 bg-secondary/50"
-                    value={config.port}
-                    onChange={(e) => setConfig((c) => ({ ...c, port: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Username (optional)</Label>
-                  <Input
-                    placeholder="rpc_user"
-                    className="font-mono text-xs h-9 bg-secondary/50"
-                    value={config.username}
-                    onChange={(e) => setConfig((c) => ({ ...c, username: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Password (optional)</Label>
-                  <Input
-                    type="password"
-                    placeholder="••••••••"
-                    className="font-mono text-xs h-9 bg-secondary/50"
-                    value={config.password}
-                    onChange={(e) => setConfig((c) => ({ ...c, password: e.target.value }))}
-                  />
-                </div>
-              </div>
-
-              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={config.https}
-                  onChange={(e) => setConfig((c) => ({ ...c, https: e.target.checked }))}
-                  className="h-3.5 w-3.5 rounded border-border accent-primary"
-                />
-                Use HTTPS (for remote nodes with TLS)
-              </label>
+              <p className="text-sm text-muted-foreground">A conexão usa o nó HTTPS configurado no servidor. O proxy é somente leitura e exige permissão de monitoramento. Credenciais não são armazenadas no navegador.</p>
 
               <div className="flex items-center gap-2 pt-2">
-                <Button size="sm" variant="outline" onClick={handleSave}>
-                  Save
-                </Button>
                 {nodeStatus === "connected" ? (
                   <Button size="sm" variant="destructive" onClick={handleDisconnect}>
                     Disconnect

@@ -69,3 +69,34 @@ O segundo teste gera uma STARK nova (vários minutos; reserve ao menos 6 GiB RAM
 gasta uma recompensa madura, propaga o bloco e revalida após reinício.
 Não há simulação criptográfica no caminho de transferência desse teste.
 Leia a [ADR-0006](../adr/ADR-0006-open-proof-of-work.md) antes de expor um nó.
+
+## PoW V2 e recursos locais
+
+PoW V2 vincula assinatura, journal STARK e contexto dos envelopes ao config_id
+completo de 64 caracteres. O network_id textual do genesis passa a ser somente
+um rótulo. O circuito fixado já verifica strings de até 64 caracteres; não há
+novo programa ou nova alegação de segurança criptográfica. Genesis/blocos V1 são
+rejeitados: crie uma nova rede de laboratório e não reinterprete saldo/provas V1.
+
+Leitura por altura usa índice canônico e consulta somente o bloco pedido. Corpos
+ficam em SQLite; metadados/caches de snapshots verificados ficam em memória. No
+restart os dados persistidos são revalidados, sem confiar em flags de validação.
+Filhos do tip usam o snapshot do pai e verificam apenas a transição nova.
+
+Limites padrão por processo: 50.000 blocos retidos, 512 MiB de corpos, bloco de
+até 12 MiB, 4.096 blocos de forks, 1.024 transições por reconstrução e 256 MiB de
+snapshots em cache. Forks não canônicos de menor trabalho são podados pelas
+folhas, preservando a cadeia canônica e os ancestrais do candidato. Corpos podados
+podem ser obtidos novamente de peers. Limites são política **local**, não regras
+monetárias/consenso: esgotamento retorna indisponibilidade, não certifica que o
+bloco seja inválido. Um nó com orçamento insuficiente pode parar de acompanhar
+uma cadeia válida até ampliar recursos/sincronizar; ele nunca troca a cadeia
+canônica por uma mais fraca para caber no limite. O limite de histórico do guest
+continua sendo um bloqueador distinto de lançamento.
+
+Servidor e CLI aceitam AEGIS_POW_LIMITS como objeto JSON com as chaves acima
+(maxBlocks, maxBytes, maxBlockBytes, maxForkBlocks, maxReplayBlocks, maxCacheBytes).
+Planeje quota real de filesystem/WAL, memória de trabalho além do cache, limpeza
+e recuperação: esses limites de retenção não constituem garantia de HA nem de
+resistência completa a DoS. Snapshots em disco/poda de histórico canônico e
+análise de complexidade permanecem necessários para uma mainnet de longa duração.

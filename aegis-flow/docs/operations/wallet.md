@@ -162,3 +162,19 @@ A integração lenta cria uma prova STARK verdadeira para envio com troco, final
 pela autoridade, confere saldos de remetente/destinatário e restaura backup antigo.
 Os testes rápidos isolam regras de carteira com doubles explícitos de prova;
 não há fallback fictício no serviço de carteira.
+
+## Histórico de notes e janela de envio
+
+O cofre contém até 4096 aberturas ativas por vez, em vez de acumular notes gastas
+por toda a vida da carteira. O scan é incremental quando não há notes adiadas;
+quando a janela está cheia, mantém o cursor anterior à primeira note adiada para
+recuperá-la depois. Notes gastas verificadas são removidas da janela. Nenhuma
+abertura privada é enviada ao gateway.
+
+Notes excedentes continuam nos ciphertexts do histórico finalizado verificado.
+O saldo confirmado inclui seu valor agregado; disponível mostra apenas a janela
+carregada e a interface informa notes_deferred. Gastar/sincronizar abre espaço;
+backup/restauração do cofre e revalidação do histórico recuperam as demais notes.
+A janela evita que a note 4097 bloqueie permanentemente sync/envio. Isso ainda se
+aplica ao settlement permissionado; integração de carteira com reorg PoW é outro
+trabalho e não está concluída por essa correção.

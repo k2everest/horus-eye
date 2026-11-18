@@ -10,7 +10,7 @@ import {OpenNode} from './node.mjs';
 import {syncPeer,miningCandidate} from './network.mjs';
 import {spendOwner,noteCommitmentV2} from '../../libs/crypto-core/shielded-note-v2.mjs';
 const backend={programId:'42'.repeat(32),verify:async()=>{throw new Error('NO_TRANSACTION_EXPECTED');}};
-function setup(t){const directory=mkdtempSync(join(tmpdir(),'aegis-pow-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));const config={schema:'AEGIS_OPEN_POW_V1',network_id:'open-pow-unit',program_id:backend.programId,genesis_time_ms:Date.now()-1000000,pow_limit:'00'+'ff'.repeat(31),target_spacing_ms:1000,retarget_interval:4,confirmations:2,coinbase_maturity:2,anchor_window:64,monetary:{asset_id:'AEGIS',base_reward:7,max_supply:'700'}};return{directory,config};}
+function setup(t){const directory=mkdtempSync(join(tmpdir(),'aegis-pow-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));const config={schema:'AEGIS_OPEN_POW_V2',network_id:'open-pow-unit',program_id:backend.programId,genesis_time_ms:Date.now()-1000000,pow_limit:'00'+'ff'.repeat(31),target_spacing_ms:1000,retarget_interval:4,confirmations:2,coinbase_maturity:2,anchor_window:64,monetary:{asset_id:'AEGIS',base_reward:7,max_supply:'700'}};return{directory,config};}
 test('open genesis has no authority/country registry and subsidy is deterministic/capped',t=>{
  const{config}=setup(t);assert.equal(assertOpenGenesis(config),config);assert.equal(subsidy(config,1),7);assert.equal(subsidy({...config,monetary:{...config.monetary,max_supply:'10'}},2),3);assert.equal(subsidy(config,101),0);
  assert.throws(()=>assertOpenGenesis({...config,authority_public_key:'not-allowed'}),/INVALID_OPEN_GENESIS/);assert.throws(()=>assertOpenGenesis({...config,country:'BR'}),/INVALID_OPEN_GENESIS/);
@@ -79,4 +79,37 @@ test('bounded synchronization advances along a side branch before it has enough 
  for(let h=1;h<=22;h++)await remote.chain.mine({ownerTag:spendOwner('07'.repeat(32)),timestamp:config.genesis_time_ms+h*1000});
  const first=await syncPeer(local,remote.origin);assert.equal(first.imported,16);assert.equal(local.tip.height,20);
  const second=await syncPeer(local,remote.origin);assert.equal(second.imported,6);assert.equal(local.tip.hash,remote.chain.tip.hash);
+});
+test('single-block reads never use the full-chain export and cannot mutate stored bodies',async t=>{
+ const{directory,config}=setup(t);const chain=await OpenChain.open({directory,config,backend});t.after(()=>chain.close());
+ for(let i=0;i<3;i++)await chain.mine({ownerTag:spendOwner('09'.repeat(32))});
+ chain.blocks=()=>{throw Error('FULL_CHAIN_EXPORT_FORBIDDEN');};const first=chain.blockAt(1);first.reward.value=999;
+ assert.equal(chain.blockAt(1).reward.value,7);assert.equal(chain.hashAt(3),chain.tip.hash);
+});
+test('storage/cache limits are observable and checked before retaining oversized blocks',async t=>{
+ const{directory,config}=setup(t);const chain=await OpenChain.open({directory,config,backend,limits:{maxBlockBytes:100}});t.after(()=>chain.close());
+ await assert.rejects(chain.mine({ownerTag:spendOwner('10'.repeat(32))}),/BLOCK_SIZE_CAPACITY/);assert.equal(chain.tip.height,0);assert.equal(chain.status().resources.stored_blocks,0);
+ await assert.rejects(OpenChain.open({directory:join(directory,'bad'),config,backend,limits:{unexpected:1}}),/INVALID_POW_RESOURCE_LIMIT/);
+});
+test('a partial failed synchronization still refreshes state-dependent mempool data',async t=>{
+ const http=await import('node:http'),{once}=await import('node:events');const{directory,config}=setup(t);
+ const source=await OpenChain.open({directory:join(directory,'source'),config,backend});t.after(()=>source.close());await source.mine({ownerTag:spendOwner('11'.repeat(32))});
+ const peer=http.createServer((req,res)=>{res.setHeader('content-type','application/json');
+  if(req.url==='/chain/status')res.end(JSON.stringify({...source.status(),tip:{...source.tip,height:2}}));
+  else if(req.url==='/chain/hash/1')res.end(JSON.stringify({hash:source.tip.hash}));
+  else if(req.url==='/chain/blocks/1')res.end(JSON.stringify(source.blockAt(1)));
+  else{res.statusCode=404;res.end('{}');}});peer.listen(0,'127.0.0.1');await once(peer,'listening');t.after(()=>new Promise(r=>peer.close(r)));
+ const local=await OpenChain.open({directory:join(directory,'local'),config,backend});let refreshed=0;const original=local.orphanedBundles.bind(local);local.orphanedBundles=hash=>{refreshed++;return original(hash);};
+ const node=new OpenNode({chain:local,peers:[`http://127.0.0.1:${peer.address().port}`]});await node.listen();t.after(()=>node.close());await node.sync();
+ assert.equal(local.tip.height,1);assert.equal(refreshed,1);
+});
+test('low-work orphan leaves are pruned without deleting the canonical chain',async t=>{
+ const{directory,config}=setup(t);config.retarget_interval=64;
+ const a=await OpenChain.open({directory:join(directory,'a'),config,backend,limits:{maxForkBlocks:2}});t.after(()=>a.close());
+ for(let h=0;h<4;h++)await a.mine({ownerTag:spendOwner('12'.repeat(32))});const best=a.tip.hash;
+ for(let i=0;i<5;i++){
+  const b=await OpenChain.open({directory:join(directory,'b'+i),config,backend});
+  try{const block=await b.mine({ownerTag:spendOwner((i+20).toString(16).repeat(32))});await a.addBlock(block);}finally{b.close();}
+ }
+ assert.equal(a.tip.hash,best);assert.ok(a.status().resources.stored_blocks<=6);assert.equal(a.blockAt(1).header.height,1);
 });

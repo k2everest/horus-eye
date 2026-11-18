@@ -1,3 +1,4 @@
+import {noteWindow} from './note-window.mjs';
 import crypto from 'node:crypto';
 import { readBearerSecret } from '../operational-security/access.mjs';
 import { existsSync } from 'node:fs';
@@ -31,7 +32,7 @@ export function parseReceiveAddress(address, config) {
   return value;
 }
 export class LocalWallet {
-  #config; #ledger; #vaultPath; #session; #payload; #backend; #gateway; #fetch; #synced = false; #busy = false; #trustedAnchor; #gatewayTokenFile; #closed = false;
+  #config; #ledger; #vaultPath; #session; #payload; #backend; #gateway; #fetch; #synced = false; #busy = false; #trustedAnchor; #gatewayTokenFile; #closed = false; #scanHeight = 0; #deferred = new Map();
   constructor({ directory, config, genesisCommitments, gatewayUrl, backend = defaultStarkBackend(), fetchImpl = fetch, trustedAnchor, gatewayTokenFile }) {
     assertSettlementConfig(config);
     if (!Array.isArray(genesisCommitments) || genesisCommitments.length !== config.genesis_count || merkleRoot(genesisCommitments) !== config.genesis_root) throw new Error('WALLET_GENESIS_MISMATCH');
@@ -83,14 +84,14 @@ export class LocalWallet {
         // it can satisfy this encrypted backup's watermark.
         if (known && known.checkpoint_id !== anchor.checkpoint_id) throw new Error('WALLET_FINALITY_CONFLICT');
         opened.payload.pending = opened.payload.pending.filter(p => p.phase !== 'PREPARING');
-        this.#payload = opened.payload; this.#session = opened.session; this.#synced = false;
+        this.#payload = opened.payload; this.#session = opened.session; this.#synced = false; this.#scanHeight = 0; this.#deferred.clear();
       } catch (error) { opened.session.key.fill(0); throw error; }
       return this.status();
     });
   }
   lock() {
     if (this.#busy) throw new Error('WALLET_BUSY');
-    this.#session?.key.fill(0); this.#session = undefined; this.#payload = undefined; this.#synced = false;
+    this.#session?.key.fill(0); this.#session = undefined; this.#payload = undefined; this.#synced = false; this.#scanHeight = 0; this.#deferred.clear();
     return this.status();
   }
   backup() { if (this.#busy) throw new Error('WALLET_BUSY'); return readVault(this.#vaultPath); }
@@ -104,7 +105,7 @@ export class LocalWallet {
         // Restore freshly encrypts with a new nonce; status stays unsynchronized.
         atomicWriteVault(this.#vaultPath, sealPayload(opened.payload, opened.session));
         opened.payload.pending = opened.payload.pending.filter(p => p.phase !== 'PREPARING');
-        this.#payload = opened.payload; this.#session = opened.session; this.#synced = false;
+        this.#payload = opened.payload; this.#session = opened.session; this.#synced = false; this.#scanHeight = 0; this.#deferred.clear();
       } catch (error) { opened.session.key.fill(0); throw error; }
       return this.status();
     });
@@ -133,14 +134,17 @@ export class LocalWallet {
       config_id: settlementConfigId(this.#config), finalized: this.#ledger.settlementStatus().finalized, synchronized: this.#synced,
       production_ready: false, settlement_scope: 'aegis-permissioned-authority' };
     if (!this.#payload) return base;
-    const balances = {};
+    const balances = Object.create(null);
     for (const owned of this.#owned()) {
       if (!owned.included || owned.spent) continue;
       const entry = balances[owned.note.asset_id] ??= { confirmed: 0n, reserved: 0n, available: 0n };
       entry.confirmed += BigInt(owned.note.value);
       entry[owned.reserved ? 'reserved' : 'available'] += BigInt(owned.note.value);
     }
-    return { ...base, signer_tag: walletPublicIdentity(this.#payload.secrets).signer_tag, address: receiveAddress({ config: this.#config, identity: walletPublicIdentity(this.#payload.secrets) }),
+    for (const [asset,deferred] of this.#deferred) {
+      const entry=balances[asset]??={confirmed:0n,reserved:0n,available:0n};entry.confirmed+=deferred.value;entry.deferred=deferred.value;
+    }
+    return { ...base, notes_deferred:[...this.#deferred.values()].reduce((n,d)=>n+d.count,0), signer_tag: walletPublicIdentity(this.#payload.secrets).signer_tag, address: receiveAddress({ config: this.#config, identity: walletPublicIdentity(this.#payload.secrets) }),
       balances: Object.fromEntries(Object.entries(balances).map(([asset, amounts]) => [asset, Object.fromEntries(Object.entries(amounts).map(([key, value]) => [key, value.toString()]))])),
       pending: this.#payload.pending.map(({ request_id, transaction_id }) => ({ request_id, transaction_id })) };
   }
@@ -160,19 +164,20 @@ export class LocalWallet {
     const secrets = this.#payload.secrets;
     const identity = walletPublicIdentity(secrets);
     const key = crypto.createPrivateKey(secrets.kem_private_key);
-    const notes = new Map(this.#payload.notes.map(note => [noteCommitmentV2(note), note]));
+    const window = noteWindow({existing:this.#payload.notes,spendSecret:secrets.spend_secret,isSpent:n=>this.#ledger.hasNullifier(n)});
     const head = this.#ledger.settlementStatus().finalized.height;
-    for (let height = 1; height <= head; height++) {
+    for (let height = this.#scanHeight+1; height <= head; height++) {
       const { transaction } = this.#ledger.finalizedBlock(height);
       for (const [index, output] of transaction.encrypted_outputs.entries()) {
         if (output.recipient_tag !== identity.kem_tag) continue;
         try {
           const opened = openTransferOutputV2({ transaction, index, recipientPrivateKey: key, spendSecret: secrets.spend_secret });
-          notes.set(opened.commitment, opened.note);
+          window.add(opened.note,height);
         } catch { /* Signed ciphertext can contain an invalid note: never credit it. */ }
       }
     }
-    this.#payload.notes = [...notes.values()];
+    this.#payload.notes = [...window.notes.values()];
+    this.#deferred=window.deferred;this.#scanHeight=window.firstDeferred===undefined?head:Math.max(0,window.firstDeferred-1);
     this.#payload.pending = this.#payload.pending.filter(p => !this.#ledger.publicTransaction(p.transaction_id) &&
       !(p.phase === 'BROADCASTING' && p.bundle.transaction.anchor_state_root !== this.#ledger.latest().root));
   }
@@ -214,7 +219,10 @@ export class LocalWallet {
     if (this.#busy) throw new Error('WALLET_BUSY'); this.#unlocked();
     note = structuredClone(note); assertNoteV2(note);
     if (note.owner_tag !== walletPublicIdentity(this.#payload.secrets).owner_tag || !this.#ledger.snapshot(0).commitments.includes(noteCommitmentV2(note))) throw new Error('UNOWNED_OR_NON_GENESIS_NOTE');
-    if (!this.#payload.notes.some(n => noteCommitmentV2(n) === noteCommitmentV2(note))) this.#payload.notes.push(note);
+    if (!this.#payload.notes.some(n => noteCommitmentV2(n) === noteCommitmentV2(note))) {
+      if(this.#payload.notes.length>=4096)throw new Error("WALLET_SPEND_WINDOW_FULL");
+      this.#payload.notes.push(note);
+    }
     this.#save(); return this.status();
   }
   send({ recipient, assetId, amount }) {

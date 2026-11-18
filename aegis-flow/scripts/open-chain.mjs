@@ -11,14 +11,14 @@ const {positionals,values}=parseArgs({allowPositionals:true,options:{genesis:{ty
 const [command]=positionals;
 if(command==='lab-genesis'){
  if(!values.output)throw new Error('--output required (will not overwrite)');
- const config=assertOpenGenesis({schema:'AEGIS_OPEN_POW_V1',network_id:'aegis-open-lab',program_id:defaultStarkBackend().programId,
+ const config=assertOpenGenesis({schema:'AEGIS_OPEN_POW_V2',network_id:'aegis-open-lab',program_id:defaultStarkBackend().programId,
   genesis_time_ms:Date.now(),pow_limit:'00'+'ff'.repeat(31),target_spacing_ms:60000,retarget_interval:64,confirmations:6,coinbase_maturity:6,anchor_window:128,
   monetary:{asset_id:'AEGIS_LAB',base_reward:7,max_supply:'700000'}});
  writeFileSync(values.output,JSON.stringify(config,null,2)+'\n',{flag:'wx',mode:0o600});
  console.log(JSON.stringify({config_id:openNetworkId(config),test_units_only:true,production_ready:false}));
 }else if(['status','sync','mine'].includes(command)){
  if(!values.genesis||!values.directory)throw new Error('--genesis and --directory required');
- const chain=await OpenChain.open({config:JSON.parse(readFileSync(values.genesis,'utf8')),directory:values.directory});
+ const chain=await OpenChain.open({config:JSON.parse(readFileSync(values.genesis,'utf8')),directory:values.directory,limits:process.env.AEGIS_POW_LIMITS?JSON.parse(process.env.AEGIS_POW_LIMITS):{}});
  try{
   if(values.peer){peerOrigin(values.peer);let result;do{result=await syncPeer(chain,values.peer);}while(result.imported===16);}
   if(command==='sync'&&!values.peer)throw new Error('--peer required');

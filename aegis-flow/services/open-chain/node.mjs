@@ -37,7 +37,7 @@ export class OpenNode {
     try{
      if(req.url==='/p2p/block'){
       if(!body||Object.keys(body).join(',')!=='block')throw new Error('BLOCK_REQUIRED');
-      const before=chain.blocks();const result=await chain.addBlock(body.block);if(result.best_changed)await this.#refresh(before);
+      const before=chain.tip.hash;const result=await chain.addBlock(body.block);if(result.best_changed)await this.#refresh(before);
       reply(200,result);if(!result.replayed)void this.#gossip('/p2p/block',body);
      }else{
       if(!body||Object.keys(body).sort().join(',')!=='proof,transaction')throw new Error('TRANSACTION_AND_PROOF_REQUIRED');
@@ -45,7 +45,7 @@ export class OpenNode {
      }
     }finally{this.#working=false;}
    }catch(error){try{sink(JSON.stringify({event:'open_pow_rejection',code:/^[A-Z0-9_]+$/.test(error.message)?error.message:'INVALID_REQUEST'}));}catch{}
-    reply(400,{error:/^[A-Z0-9_]+$/.test(error.message)?error.message:'INVALID_REQUEST'});
+    reply(/CAPACITY|BUDGET|BUSY/.test(error.message)?503:400,{error:/^[A-Z0-9_]+$/.test(error.message)?error.message:'INVALID_REQUEST'});
    }
   });
   this.#server.maxConnections=128;this.#server.maxRequestsPerSocket=100;this.#server.requestTimeout=15000;this.#server.headersTimeout=10000;this.#server.timeout=15000;this.#server.keepAliveTimeout=5000;
@@ -62,17 +62,21 @@ export class OpenNode {
   return{accepted:true,replayed:false,status:'MEMPOOL',transaction_id:id,settled:false,production_ready:false};
  }
  async #refresh(previous){
-  const current=this.#chain.blocks(),present=new Set(current.map(b=>b.transaction?.tx_id).filter(Boolean));
-  const candidates=[...this.#pool.values()].map(v=>v.body);
-  for(const b of previous)if(b.transaction&&!present.has(b.transaction.tx_id))candidates.push({transaction:b.transaction,proof:b.proof});
+  const candidates=[...this.#pool.values()].map(v=>v.body).concat(this.#chain.orphanedBundles(previous));
   this.#pool.clear();this.#poolBytes=0;
-  for(const body of candidates){if(present.has(body.transaction.tx_id))continue;try{await this.#admit(body);}catch{/* Orphaned/stale spends are not silently accepted. */}}
+  for(const body of candidates){const receipt=this.#chain.transactionReceipt(body.transaction.request_id);if(receipt?.transaction_id===body.transaction.tx_id)continue;
+   try{await this.#admit(body);}catch{/* Revalidate orphaned/stale spends. */}}
  }
  async #gossip(path,body){await Promise.allSettled(this.#peers.map(peer=>publicRequest(peer,path,body,{timeoutMs:5000})));}
- async sync(){if(this.#working)return;this.#working=true;try{for(const peer of this.#peers){const before=this.#chain.blocks(),beforeHash=this.#chain.tip.hash;try{await syncPeer(this.#chain,peer);if(this.#chain.tip.hash!==beforeHash)await this.#refresh(before);}catch{/* A peer cannot override local validation. */}}}finally{this.#working=false;}}
+ async sync(){if(this.#working)return;this.#working=true;
+  try{for(const peer of this.#peers){const before=this.#chain.tip.hash;
+   try{await syncPeer(this.#chain,peer);}catch{/* A failed batch may have applied a valid prefix. */}
+   finally{if(this.#chain.tip.hash!==before)await this.#refresh(before);}
+  }}finally{this.#working=false;}
+ }
  async mine(ownerTag,options={}){
   if(this.#working)throw new Error('POW_VALIDATOR_BUSY');this.#working=true;
-  try{const before=this.#chain.blocks(),candidate=this.#pool.values().next().value?.body??{};
+  try{const before=this.#chain.tip.hash,candidate=this.#pool.values().next().value?.body??{};
    const block=await this.#chain.mine({ownerTag,...candidate,...options});await this.#refresh(before);await this.#gossip('/p2p/block',{block});return block;
   }finally{this.#working=false;}
  }
@@ -86,7 +90,7 @@ export class OpenNode {
 }
 export async function startOpenNode(env=process.env){
  assertDemoRuntime(env);if(!env.AEGIS_POW_GENESIS)throw new Error('POW_GENESIS_FILE_REQUIRED');
- const config=JSON.parse(readFileSync(env.AEGIS_POW_GENESIS,'utf8'));const chain=await OpenChain.open({directory:env.AEGIS_POW_DIR??'work/open-pow-node',config});
+ const config=JSON.parse(readFileSync(env.AEGIS_POW_GENESIS,'utf8'));const chain=await OpenChain.open({directory:env.AEGIS_POW_DIR??'work/open-pow-node',config,limits:env.AEGIS_POW_LIMITS?JSON.parse(env.AEGIS_POW_LIMITS):{}});
  const peers=env.AEGIS_POW_PEERS?JSON.parse(env.AEGIS_POW_PEERS):[];let node;
  try{node=new OpenNode({chain,peers,sink:console.log});await node.listen(Number(env.PORT??8090),env.AEGIS_BIND_HOST??'127.0.0.1');}catch(error){chain.close();throw error;}
  for(const signal of ['SIGTERM','SIGINT'])process.once(signal,()=>{void node.close();});console.log(JSON.stringify({event:'open_pow_node_started',network:chain.status().config_id,port:Number(env.PORT??8090),monetary_authority:null,production_ready:false}));return node;

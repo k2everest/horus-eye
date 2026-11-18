@@ -101,3 +101,12 @@ O requisito de 128 bits pós-quânticos permanece **não atendido**. Consulte
 `services/proof-engine/security-profile.json` e o comando de liberação
 `node aegis-flow/scripts/review-stark-security.mjs --require-production`.
 O comando falha enquanto faltar evidência; não representa auditoria independente.
+
+## Settlement permissionado
+
+A ADR-0005 define finalidade por autoridade única ML-DSA-65. Incluir na revisão
+`ledger-state/finality.mjs`, `settlement.mjs`, migração SQLite v2, emissão/importação
+de certificados, cadeia de checkpoints, rewind somente do sufixo não finalizado
+e recuperação com âncora externa. Testes internos de concorrência/crash e replay
+com STARK nativo não substituem auditoria, proteção da chave e prevenção
+operacional de split brain. Não existe consenso BFT nem garantia de 128 bits PQ.

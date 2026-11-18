@@ -8,7 +8,9 @@ financeira autorizada por esta preparação. O gateway falha ao iniciar em
 é explicitamente demonstrativa; mudar variáveis para `development` não elimina
 os bloqueadores. `valid: true` significa assinatura ML-DSA real e estrutura
 válidas; em `/validate` não comprova prova ZK ou gasto. `/submit` verifica assinatura,
-STARK e estado SQLite, retornando APPLIED_LOCAL; não existe settlement em rede.
+STARK e estado SQLite, retornando APPLIED_LOCAL. Settlement permissionado opt-in
+com autoridade ML-DSA, certificados, replay e rewind do sufixo pendente foi
+implementado para laboratório (ADR-0005); não há rede pública ou consenso BFT.
 
 ## Etapas e evidências de saída
 

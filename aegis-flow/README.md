@@ -3,6 +3,10 @@
 Esta base é demonstrativa. O gateway bloqueia `NODE_ENV=production` e modos
 diferentes de `demo`; `/validate` comprova assinatura e estrutura. `/submit` verifica STARK e aplica
 estado local; APPLIED_LOCAL não significa mainnet ou settlement em rede.
+Há um modelo opt-in de settlement permissionado com autoridade ML-DSA,
+certificados de finalização e recuperação; exige confiança nessa autoridade.
+Decisão: `docs/adr/ADR-0005-permissioned-settlement.md`.
+Operação: `docs/operations/settlement.md`.
 Plano de preparação: `docs/planning/production-readiness.md`.
 
 ## QUEER

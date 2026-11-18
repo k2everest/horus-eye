@@ -16,7 +16,7 @@ stubs não demonstram segurança criptográfica nem prontidão para produção.
 | US-009 Prover | Parcial | RISC Zero 3.1.0 composite STARK real, sem Groth16; geração local e witness privado testados. Parâmetros de release e performance pendentes. |
 | US-010 Verifier | Parcial | Receipt STARK nativo, image ID fixado, journal vinculado ao statement e Fake/Groth16 rejeitados; auditoria pendente. |
 | US-011 Adversarial | Parcial | Forgery legada, receipt adulterado, journal/binding, ownership incorreto e inflação testados com motor real; fuzzing/auditoria pendentes. |
-| US-012 Ledger | Parcial | SQLite WAL persiste commitments, roots, transações públicas, provas e recibos; reopen e backup/restore testados. Consenso/settlement pendentes. |
+| US-012 Ledger | Parcial | SQLite WAL persiste commitments, roots, transações públicas, provas e recibos. Settlement permissionado opt-in com certificados ML-DSA, recuperação ancorada e reorganização do sufixo pendente implementados (ADR-0005). Consenso BFT e operação de produção pendentes. |
 | US-013 Nullifiers | Parcial | Constraints SQLite, BEGIN IMMEDIATE e concorrência entre processos no mesmo host testados; multi-host não suportado. |
 | US-014 Validação atômica tx+estado | Parcial | Assinatura e STARK validados; root/inputs/nullifiers/outputs/recibo aplicados em uma transação SQLite. Produção e consenso ainda pendentes. |
 | US-015 Relay | Parcial | Padding e batching locais; faltam transporte cifrado, integração e entrega/retries. |

@@ -5,6 +5,8 @@ import { canonicalSerialize, buildTranscriptHash } from '../../libs/crypto-core/
 import { merkleRoot, createInclusionProof } from '../../libs/crypto-core/merkle-proof.mjs';
 import { validateShieldedTxV1 } from '../../libs/crypto-core/validate-shielded-tx.mjs';
 import { verifyTransferSignature } from '../../libs/crypto-core/transfer-v2.mjs';
+import { assertSettlementConfig, settlementConfigId, genesisFinality, checkpointFor, checkpointId,
+  signFinalityCheckpoint, verifyFinalityCertificate } from './finality.mjs';
 
 const HEX = /^[0-9a-f]{64}$/;
 function digest(value, name) {
@@ -29,7 +31,7 @@ export class PersistentLedger {
   #faultInjector;
   #closed = false;
 
-  constructor({ filename, networkId = 'aegis-lab-v1', faultInjector = () => {} }) {
+  constructor({ filename, networkId = 'aegis-lab-v1', faultInjector = () => {}, trustedFinalizedCheckpoint }) {
     if (typeof filename !== 'string' || !filename || filename === ':memory:') throw new TypeError('persistent filename required');
     if (typeof networkId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(networkId)) throw new TypeError('invalid networkId');
     this.#filename = resolve(filename);
@@ -44,7 +46,7 @@ export class PersistentLedger {
       if (this.#db.prepare('PRAGMA journal_mode').get().journal_mode !== 'wal') throw new Error('WAL_REQUIRED');
       this.#atomic(() => {
         const version = this.#db.prepare('PRAGMA user_version').get().user_version;
-        if (version > 1) throw new Error('UNSUPPORTED_LEDGER_SCHEMA');
+        if (version > 2) throw new Error('UNSUPPORTED_LEDGER_SCHEMA');
         this.#db.exec(`
           CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;
           CREATE TABLE IF NOT EXISTS verifications (
@@ -73,17 +75,32 @@ export class PersistentLedger {
             commitment TEXT PRIMARY KEY REFERENCES commitments(commitment),
             tx_id TEXT NOT NULL REFERENCES requests(tx_id)
           ) STRICT;
+          CREATE TABLE IF NOT EXISTS finality_certificates (
+            height INTEGER PRIMARY KEY REFERENCES blocks(height), checkpoint_id TEXT NOT NULL UNIQUE, certificate_json TEXT NOT NULL
+          ) STRICT;
+          CREATE TABLE IF NOT EXISTS orphaned_requests (
+            id INTEGER PRIMARY KEY, request_id TEXT NOT NULL, tx_id TEXT NOT NULL, receipt_json TEXT NOT NULL
+          ) STRICT;
         `);
         const existing = this.#db.prepare("SELECT value FROM metadata WHERE key='network_id'").get();
         if (existing && existing.value !== networkId) throw new Error('LEDGER_NETWORK_MISMATCH');
         this.#db.prepare("INSERT OR IGNORE INTO metadata(key,value) VALUES('network_id',?)").run(networkId);
         this.#db.prepare('INSERT OR IGNORE INTO blocks(height,root,commitment_count) VALUES(0,?,0)').run(merkleRoot([]));
-        this.#db.exec('PRAGMA user_version=1');
+        this.#db.exec('PRAGMA user_version=2');
       });
       if (this.#db.prepare('PRAGMA quick_check').get().quick_check !== 'ok') throw new Error('LEDGER_INTEGRITY_FAILED');
-      const tip = this.latest();
-      const commitments = this.#commitments(tip.height);
-      if (tip.commitment_count !== commitments.length || tip.root !== merkleRoot(commitments)) throw new Error('LEDGER_ROOT_MISMATCH');
+      this.#atomic(() => {
+        const tip = this.latest();
+        const commitments = this.#commitments(tip.height);
+        if (tip.commitment_count !== commitments.length || tip.root !== merkleRoot(commitments)) throw new Error('LEDGER_ROOT_MISMATCH');
+        this.#recoverFinality();
+        if (trustedFinalizedCheckpoint) {
+          const trusted = trustedFinalizedCheckpoint;
+          if (!Number.isSafeInteger(trusted.height) || trusted.height < 0 || !HEX.test(trusted.checkpoint_id)) throw new Error('INVALID_TRUSTED_CHECKPOINT');
+          const known = trusted.height === 0 ? this.settlementStatus()?.genesis : this.finalityCertificate(trusted.height);
+          if (!known || known.checkpoint_id !== trusted.checkpoint_id) throw new Error('RECOVERY_BELOW_OR_CONFLICTING_WITH_TRUSTED_FINALITY');
+        }
+      });
     } catch (error) {
       this.#db.close();
       throw error;
@@ -135,7 +152,165 @@ export class PersistentLedger {
 
   receipt(requestId) {
     const row = this.#db.prepare('SELECT receipt_json FROM requests WHERE request_id=?').get(requestId);
+    if (!row) {
+      const orphan = this.#db.prepare('SELECT receipt_json FROM orphaned_requests WHERE request_id=? ORDER BY id DESC LIMIT 1').get(requestId);
+      return orphan ? JSON.parse(orphan.receipt_json) : undefined;
+    }
+    const receipt = JSON.parse(row.receipt_json);
+    const settlement = this.settlementStatus();
+    if (!settlement) return receipt;
+    const certificate = this.finalityCertificate(receipt.height);
+    return { ...receipt, status: certificate ? 'FINALIZED_PERMISSIONED' : receipt.status,
+      inclusion_status: 'INCLUDED', finality_status: certificate ? 'FINALIZED' : 'PENDING', settled: Boolean(certificate),
+      settlement_scope: 'aegis-permissioned-authority', config_id: settlement.config_id,
+      ...(certificate ? { checkpoint_id: certificate.checkpoint_id } : {}) };
+  }
+
+  settlementConfig() {
+    const row = this.#db.prepare("SELECT value FROM metadata WHERE key='settlement_config'").get();
+    return row ? JSON.parse(row.value) : undefined;
+  }
+
+  configureSettlement(config) {
+    config = structuredClone(config);
+    assertSettlementConfig(config);
+    return this.#atomic(() => {
+      const existing = this.settlementConfig();
+      if (existing) {
+        if (settlementConfigId(existing) !== settlementConfigId(config)) throw new LedgerConflict('SETTLEMENT_CONFIG_IMMUTABLE');
+        return this.settlementStatus();
+      }
+      const genesis = this.snapshot(0);
+      if (this.latest().height !== 0 || config.network_id !== this.#networkId || config.genesis_root !== genesis.root ||
+        config.genesis_count !== genesis.commitment_count) throw new Error('SETTLEMENT_GENESIS_MISMATCH');
+      this.#db.prepare("INSERT INTO metadata VALUES('settlement_config',?)").run(canonicalSerialize(config));
+      // Configuration freezes genesis even when the caller used a preseeded DB.
+      this.#db.prepare("INSERT OR IGNORE INTO metadata VALUES('genesis_initialized','1')").run();
+      return this.settlementStatus();
+    });
+  }
+
+  finalityCertificate(height) {
+    if (!Number.isSafeInteger(height) || height < 1) return undefined;
+    const row = this.#db.prepare('SELECT certificate_json FROM finality_certificates WHERE height=?').get(height);
+    return row ? JSON.parse(row.certificate_json) : undefined;
+  }
+
+  finalizedBlock(height) {
+    const certificate = this.finalityCertificate(height);
+    if (!certificate) return undefined;
+    const stored = this.publicTransaction(certificate.checkpoint.transaction_id);
+    if (!stored) throw new Error('FINALIZED_TRANSACTION_MISSING');
+    return { ...stored, certificate };
+  }
+
+  finalizedInclusionProof(commitment) {
+    const state = this.settlementStatus();
+    if (!state) throw new Error('SETTLEMENT_NOT_CONFIGURED');
+    return { ...this.inclusionProof({ commitment, height: state.finalized.height }), config_id: state.config_id,
+      checkpoint_id: state.finalized.checkpoint_id, certificate: this.finalityCertificate(state.finalized.height) ?? null,
+      settlement_scope: 'aegis-permissioned-authority', production_ready: false };
+  }
+
+  settlementStatus() {
+    const config = this.settlementConfig();
+    if (!config) return undefined;
+    const genesis = genesisFinality(config);
+    const row = this.#db.prepare('SELECT height,checkpoint_id,certificate_json FROM finality_certificates ORDER BY height DESC LIMIT 1').get();
+    const checkpoint = row ? JSON.parse(row.certificate_json).checkpoint : genesis;
+    return { model: 'permissioned-single-authority', config_id: settlementConfigId(config), network_id: this.#networkId,
+      authority_tag: config.authority_tag, genesis,
+      finalized: { height: checkpoint.height, checkpoint_id: row?.checkpoint_id ?? genesis.checkpoint_id,
+        root: checkpoint.root, commitment_count: checkpoint.commitment_count }, production_ready: false };
+  }
+
+  #rawReceiptAt(height) {
+    const row = this.#db.prepare('SELECT r.receipt_json FROM requests r JOIN blocks b ON b.tx_id=r.tx_id WHERE b.height=?').get(height);
     return row ? JSON.parse(row.receipt_json) : undefined;
+  }
+
+  nextFinalityCheckpoint() {
+    const config = this.settlementConfig();
+    const state = this.settlementStatus();
+    if (!config) throw new Error('SETTLEMENT_NOT_CONFIGURED');
+    return checkpointFor({ config, receipt: this.#rawReceiptAt(state.finalized.height + 1), parent: state.finalized });
+  }
+
+  #acceptFinality(certificate) {
+    const existing = this.finalityCertificate(certificate?.checkpoint?.height);
+    if (existing) {
+      if (existing.checkpoint_id !== certificate.checkpoint_id || !verifyFinalityCertificate({ config: this.settlementConfig(), certificate, expectedCheckpoint: existing.checkpoint })) {
+        throw new LedgerConflict('FINALITY_CONFLICT');
+      }
+      return existing;
+    }
+    const expected = this.nextFinalityCheckpoint();
+    if (!verifyFinalityCertificate({ config: this.settlementConfig(), certificate, expectedCheckpoint: expected })) throw new Error('INVALID_FINALITY_CERTIFICATE');
+    this.#db.prepare('INSERT INTO finality_certificates VALUES(?,?,?)').run(expected.height, certificate.checkpoint_id, canonicalSerialize(certificate));
+    this.#faultInjector('after_finality_certificate');
+    return certificate;
+  }
+
+  // Public-key-only import. No HTTP operation can sign or roll back state.
+  acceptFinality(certificate) {
+    certificate = structuredClone(certificate);
+    return this.#atomic(() => this.#acceptFinality(certificate));
+  }
+
+  // Trusted authority API: use notarizeNextTransfer to reverify the STARK first.
+  // Certificate is never returned before durable COMMIT, preventing crash-driven
+  // double signing while this DB and its finalized history remain intact.
+  notarize({ privateKey, expectedCheckpointId }) {
+    return this.#atomic(() => {
+      const checkpoint = this.nextFinalityCheckpoint();
+      if (checkpointId(checkpoint) !== expectedCheckpointId) throw new LedgerConflict('FINALITY_CANDIDATE_CHANGED');
+      return this.#acceptFinality(signFinalityCheckpoint({ config: this.settlementConfig(), checkpoint, privateKey }));
+    });
+  }
+
+  #recoverFinality() {
+    const config = this.settlementConfig();
+    if (!config) {
+      if (this.#db.prepare('SELECT 1 FROM finality_certificates LIMIT 1').get()) throw new Error('FINALITY_CONFIG_MISSING');
+      return;
+    }
+    assertSettlementConfig(config);
+    const genesis = this.snapshot(0);
+    if (config.network_id !== this.#networkId || genesis.root !== config.genesis_root || genesis.commitment_count !== config.genesis_count) throw new Error('SETTLEMENT_GENESIS_MISMATCH');
+    let parent = genesisFinality(config);
+    for (const row of this.#db.prepare('SELECT * FROM finality_certificates ORDER BY height').all()) {
+      const receipt = this.#rawReceiptAt(row.height);
+      const expected = checkpointFor({ config, receipt, parent });
+      const certificate = JSON.parse(row.certificate_json);
+      const snapshot = this.snapshot(row.height);
+      if (!snapshot || snapshot.root !== expected.root || snapshot.previous_root !== expected.previous_root || snapshot.commitment_count !== expected.commitment_count ||
+        merkleRoot(snapshot.commitments) !== expected.root || row.checkpoint_id !== certificate.checkpoint_id ||
+        !verifyFinalityCertificate({ config, certificate, expectedCheckpoint: expected })) throw new Error('FINALITY_RECOVERY_FAILED');
+      parent = { ...expected, checkpoint_id: certificate.checkpoint_id };
+    }
+  }
+
+  // Offline trusted reorganization: discard only the entire unfinalized suffix.
+  // Replacements must pass submitProvenTransfer again; finalized blocks cannot move.
+  rewindToFinalized({ expectedFinalizedCheckpointId }) {
+    return this.#atomic(() => {
+      const state = this.settlementStatus();
+      if (!state || state.finalized.checkpoint_id !== expectedFinalizedCheckpointId) throw new LedgerConflict('FINALITY_ANCHOR_MISMATCH');
+      const height = state.finalized.height;
+      const rows = this.#db.prepare('SELECT r.* FROM requests r JOIN blocks b ON b.tx_id=r.tx_id WHERE b.height>? ORDER BY b.height DESC').all(height);
+      for (const row of rows) {
+        const receipt = { ...JSON.parse(row.receipt_json), status: 'ORPHANED', inclusion_status: 'ORPHANED', finality_status: 'NOT_FINALIZED', settled: false };
+        this.#db.prepare('INSERT INTO orphaned_requests(request_id,tx_id,receipt_json) VALUES(?,?,?)').run(row.request_id, row.tx_id, canonicalSerialize(receipt));
+        this.#db.prepare('DELETE FROM nullifiers WHERE tx_id=?').run(row.tx_id);
+        this.#db.prepare('DELETE FROM spent_inputs WHERE tx_id=?').run(row.tx_id);
+        this.#db.prepare('DELETE FROM public_transactions WHERE tx_id=?').run(row.tx_id);
+      }
+      this.#db.prepare('DELETE FROM commitments WHERE created_height>?').run(height);
+      this.#db.prepare('DELETE FROM blocks WHERE height>?').run(height);
+      for (const row of rows) this.#db.prepare('DELETE FROM requests WHERE tx_id=?').run(row.tx_id);
+      this.#faultInjector('after_rewind');
+      return { removed: rows.length, finalized: state.finalized, tip: this.latest(), production_ready: false };
+    });
   }
 
   verificationReceipt(requestId) {

@@ -30,6 +30,9 @@ const files = [
   'aegis-flow/libs/crypto-core/merkle-proof.mjs',
   'aegis-flow/services/ledger-state/store.mjs',
   'aegis-flow/services/ledger-state/submit-transfer.mjs',
+  'aegis-flow/services/ledger-state/finality.mjs',
+  'aegis-flow/services/ledger-state/settlement.mjs',
+  'aegis-flow/scripts/settlement-admin.mjs',
   'aegis-flow/services/validation-gateway/server.mjs',
   'aegis-flow/services/validation-gateway/runtime-policy.mjs',
 ];

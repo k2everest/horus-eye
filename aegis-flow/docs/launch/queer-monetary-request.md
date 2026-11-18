@@ -6,7 +6,9 @@
   equivalentes a 2.100.000.000.000.000 AEGIS.
 - Aumento de custo pretendido: aumento direto da dificuldade de Proof of Work,
   não apenas redução da recompensa.
-- Decisão anterior preservada: remuneração por taxas após o fim da emissão.
+- Dificuldade crescente global: aplica-se a todos os blocos, inclusive transferências.
+- Remuneração por taxas após emissão foi solicitada anteriormente; sua utilização
+  depende de continuar sendo possível minerar blocos sob a dificuldade global.
 
 O módulo `services/open-chain/queer-units.mjs` implementa a conversão exata,
 sem ponto flutuante. O total cabe nos limites inteiros atuais do guest e do
@@ -28,12 +30,17 @@ e a coleta de taxas também podem se tornar inviáveis. “Infinito” literal n
 um target representável num hash finito. Aumento de dificuldade mede tentativas
 de hash esperadas; não garante preço, gasto elétrico ou custo monetário futuro.
 
-Proposta para conciliar os requisitos: dificuldade adicional para emitir novas
-moedas, dependente do total efetivamente emitido, separada do trabalho necessário
-para confirmar blocos com transferências/taxas. Essa proposta ainda não foi
-aprovada como regra de consenso. Exige definir curva, dificuldade inicial,
-quantidade emitida por evento e regra exata no limite atômico, além de nova
-contabilidade de emissão e testes/auditoria.
+O responsável confirmou que a dificuldade crescente deve afetar todos os
+blocos, inclusive transferências. Não se presume uma dificuldade separada para
+emissão. Portanto, a viabilidade de pagamentos perto do teto também depende da
+curva global, da capacidade de hash e dos incentivos dos mineradores.
+
+Ainda é necessário definir curva exata, alvo inicial, quantidade/ritmo emitido,
+comportamento quando restar um AEGIS e o alvo final após atingir o teto.
+Um alvo finito permite apenas uma dificuldade esperada finita; proibir todos
+os hashes para representar infinito impediria qualquer confirmação posterior.
+Não é possível prometer simultaneamente dificuldade literalmente infinita e
+transferências continuando a confirmar por taxas nesse mesmo consenso.
 
 Nenhuma curva ou ritmo comercial foi escolhido automaticamente. As redes
 existentes não foram alteradas e a produção permanece bloqueada. A implementação

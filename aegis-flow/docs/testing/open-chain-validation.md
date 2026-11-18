@@ -43,3 +43,25 @@ irreversível. O bloqueio de produção permanece ativo.
 
 Protocolo e próximos gates: [ADR-0006](../adr/ADR-0006-open-proof-of-work.md).
 Reprodução: [operação da rede aberta](../operations/open-chain.md).
+
+## Carteira e operação PoW — integração posterior
+
+A carteira local/gráfica agora seleciona PoW V2 pelo genesis fixado e usa uma
+réplica verificadora própria. AEGIS_POW_WALLET_INTEGRATION=1 com
+services/open-chain/wallet.integration.test.mjs gerou STARK nova e passou em
+225 s: gasto de recompensa madura, recebimento/decriptação, confirmação,
+reorganização de pagamento confirmado, retirada das saídas órfãs do saldo,
+reserva de inputs do pagamento órfão, restauração do cofre e snapshot/restauração
+cifrada do nó com revalidação de branches. Não foi simulado o verificador financeiro.
+
+Regressão final dessa entrega: 152 testes de backend aprovados, 7 integrações
+opt-in puladas no runner rápido; 5 testes de interface, TypeScript, build e lint
+aprovados (lint mantém oito avisos de Fast Refresh). A integração nativa acima
+foi executada separadamente. Testes de S3 usam um transporte em memória, não um
+bucket real. Locks do kernel foram exercitados com concorrência, liberação e
+SIGKILL do dono; o serviço pareado PoW iniciou sem arquivos da autoridade antiga.
+A composição open-pow foi validada com docker compose config, sem construir ou
+implantar imagem nova. Runbook: ../operations/pow-wallet-recovery.md.
+
+Esta evidência não remove o gate criptográfico/operacional de produção; critérios
+atuais: ../planning/production-exit-criteria.md.

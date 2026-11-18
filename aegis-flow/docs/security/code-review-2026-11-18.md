@@ -30,6 +30,16 @@ Validação das correções: 145 testes de backend e 4 de interface aprovados,
 STARK nova com rejeição cruzada entre genesis e reinício aprovada em 224 s,
 checagem TypeScript, build e lint (zero erros, 8 avisos de Fast Refresh).
 
+## Integração posterior de carteira e recuperação PoW
+
+A entrega `1653e4c` acrescentou carteira/gráfica PoW V2, reversão de saldo e
+reservas de órfãos, watermark de trabalho, backup cifrado/revalidação de branches,
+contrato S3, readiness/métricas e locks do kernel com recuperação após crash.
+Uma STARK nova exercitou o fluxo completo em 225 segundos. A revisão original
+abaixo descreve o estado anterior dessa integração; os critérios ainda abertos
+estão em docs/planning/production-exit-criteria.md. Isso não é auditoria
+independente, teste público prolongado ou liberação de produção.
+
 ## Registro original
 
 Conclusão: **não liberar para produção**. Os testes atuais passam, mas há

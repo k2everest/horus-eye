@@ -15,6 +15,7 @@ import TerminalPage from "@/pages/TerminalPage";
 import NotFound from "@/pages/NotFound";
 import SettingsPage from "@/pages/SettingsPage";
 import AuthPage from "@/pages/AuthPage";
+import RegisterPage from "@/pages/RegisterPage";
 import AdminPage from "@/pages/AdminPage";
 import QueerLanding from "@/pages/QueerLanding";
 import QueerWallet from "@/pages/QueerWallet";
@@ -33,6 +34,7 @@ const App = () => (
               <Route path="/queer" element={<QueerLanding />} />
               <Route path="/queer/wallet" element={<QueerWallet />} />
               <Route path="/auth" element={<AuthPage />} />
+              <Route path="/register" element={<RegisterPage />} />
               <Route
                 element={
                   <ProtectedRoute>

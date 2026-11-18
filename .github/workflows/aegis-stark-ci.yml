@@ -76,3 +76,7 @@ jobs:
         env:
           AEGIS_POW_WALLET_INTEGRATION: '1'
         run: node --test aegis-flow/services/open-chain/wallet.integration.test.mjs
+      - name: Verify QUEER fixed-cap supply-dependent PoW with fresh native proof and fee-only blocks
+        env:
+          AEGIS_QUEER_POW_INTEGRATION: '1'
+        run: node --test aegis-flow/services/open-chain/queer-pow.integration.test.mjs

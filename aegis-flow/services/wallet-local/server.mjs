@@ -1,4 +1,5 @@
 import {acquireProfileLock} from '../operational-security/profile-lock.mjs';
+import {POW_SCHEMA,QUEER_POW_SCHEMA} from '../open-chain/consensus.mjs';
 import {PowWallet} from '../open-chain/wallet.mjs';
 import http from 'node:http';
 import crypto from 'node:crypto';
@@ -81,7 +82,7 @@ export async function startLocalWallet(env = process.env) {
   const directory = env.AEGIS_WALLET_DIR || 'work/local-wallet';
   if (!env.AEGIS_WALLET_CONFIG) throw new Error('PINNED_WALLET_CONFIG_REQUIRED');
   const config = JSON.parse(readFileSync(env.AEGIS_WALLET_CONFIG, 'utf8'));
-  const pow = config.schema === 'AEGIS_OPEN_POW_V2';
+  const pow = [POW_SCHEMA,QUEER_POW_SCHEMA].includes(config.schema);
   if (!pow && (!env.AEGIS_WALLET_GENESIS || !env.AEGIS_WALLET_ANCHOR)) throw new Error('PINNED_WALLET_CONFIG_GENESIS_AND_ANCHOR_REQUIRED');
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const lockfile = join(directory, 'process.lock');

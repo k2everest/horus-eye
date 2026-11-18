@@ -19,30 +19,65 @@ finita em QUEER. O parser recusa frações inferiores a um AEGIS em vez de
 arredondar débitos, e o formatter exato pode exibir `1 QUEER + 1 AEGIS`.
 O app deve conservar valores em AEGIS; preço em moeda fiduciária é outra grandeza.
 
-## Decisão de consenso ainda necessária
+## Consenso implementado: AEGIS_OPEN_POW_V3
 
-O protocolo atual retargeta a dificuldade para manter o intervalo dos blocos e
-emite subsídio limitado por altura. Não implementa a nova curva de dificuldade
-solicitada, nem um genesis comercial com estes valores.
+O perfil V3 exige `asset_id: QUEER`, teto exato de 2.100.000.000.000.000 AEGIS
+e taxas `miner-fees-v1`. Teto diferente, outro ativo ou ausência dessa política
+são rejeitados no genesis. O subsídio é limitado ao saldo de emissão restante;
+o último pode ser parcial, e depois do teto a emissão é zero. Taxas transferem
+valor existente e não entram no contador de novas emissões.
 
-Se o trabalho para qualquer bloco tender ao infinito, a confirmação de pagamentos
-e a coleta de taxas também podem se tornar inviáveis. “Infinito” literal não é
-um target representável num hash finito. Aumento de dificuldade mede tentativas
-de hash esperadas; não garante preço, gasto elétrico ou custo monetário futuro.
+O perfil V2 permanece compatível com suas regras anteriores. O schema V3,
+configuração completa e domínios de genesis/bloco próprios mudam a identidade da
+rede. Um banco/cofre anterior não é migrado ou reinterpretado silenciosamente.
+O programa de transferências STARK continua o mesmo: seu journal já vincula
+rede, ativo, valores, commitments e taxas.
 
-O responsável confirmou que a dificuldade crescente deve afetar todos os
-blocos, inclusive transferências. Não se presume uma dificuldade separada para
-emissão. Portanto, a viabilidade de pagamentos perto do teto também depende da
-curva global, da capacidade de hash e dos incentivos dos mineradores.
+### Dificuldade global quadrática
 
-Ainda é necessário definir curva exata, alvo inicial, quantidade/ritmo emitido,
-comportamento quando restar um AEGIS e o alvo final após atingir o teto.
-Um alvo finito permite apenas uma dificuldade esperada finita; proibir todos
-os hashes para representar infinito impediria qualquer confirmação posterior.
-Não é possível prometer simultaneamente dificuldade literalmente infinita e
-transferências continuando a confirmar por taxas nesse mesmo consenso.
+A regra `difficulty.policy: supply-quadratic-v1` é aplicada a todos os blocos,
+inclusive os que contêm transferências ou somente taxas. Para altura h:
 
-Nenhuma curva ou ritmo comercial foi escolhido automaticamente. As redes
-existentes não foram alteradas e a produção permanece bloqueada. A implementação
-da unidade e o registro do teto não constituem ativação ou enforcement desta
-política em uma mainnet.
+```text
+C = 2.100.000.000.000.000 AEGIS
+emitido_antes = min((h - 1) × base_reward, C)
+restante = C - emitido_antes
+alvo(h) = max(minimum_target, floor(pow_limit × restante² / C²))
+```
+
+Quanto menor o alvo, maior o trabalho esperado. O cálculo usa BigInt, sem
+aproximação em ponto flutuante. A dificuldade não diminui com o tempo ou com a
+saída de mineradores. Os campos de tempo/retarget mantêm compatibilidade de
+configuração, mas não relaxam o alvo nesse perfil. O intervalo real dos blocos
+pode aumentar; não há promessa de prazo de confirmação.
+
+A curva tende a trabalho ilimitado no modelo contínuo sem piso; hashes e unidades
+atômicas são finitos. Por isso o genesis exige `minimum_target` hexadecimal de
+64 dígitos, positivo e estritamente menor que `pow_limit`. Esse alvo final mantém
+uma dificuldade **finita**, inclusive após o teto, permitindo matematicamente
+blocos por taxas. Não garante viabilidade prática: escolher um alvo final muito
+baixo pode tornar todas as confirmações impraticáveis.
+
+A curva quadrática com piso é a implementação preparada pelo assistente para
+os requisitos, não uma aprovação econômica independente nem uma mainnet já ativa.
+`base_reward`, alvo inicial e alvo final precisam ser escolhidos e revisados
+explicitamente pelos responsáveis; nenhum ritmo comercial foi ativado.
+
+### Criar uma configuração
+
+```bash
+node aegis-flow/scripts/open-chain.mjs queer-genesis \
+  --output NOVO_ARQUIVO_GENESIS.json \
+  --network-id NOME_DA_REDE \
+  --base-reward RECOMPENSA_POR_BLOCO_EM_AEGIS \
+  --minimum-target ALVO_FINAL_HEXADECIMAL_DE_64_DIGITOS
+```
+
+`--pow-limit` permite escolher o alvo inicial; omitido, usa o alvo experimental
+anterior. A taxa mínima desse gerador é 1 AEGIS. O comando exige recompensa e
+alvo final e não sobrescreve arquivos. O modo continua experimental. Uma rede
+existente não deve receber um genesis novo como se fosse atualização de dados.
+
+O teto e a regra PoW são verificados durante admissão, sincronização, restart,
+restauração e recuperação por peers. A implementação não fecha os limites do
+histórico, a análise STARK de 128 bits pós-quânticos, auditoria ou testnet pública.

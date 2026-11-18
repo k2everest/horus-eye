@@ -18,7 +18,10 @@
     "settlement": "legacy-permissioned-and-experimental-open-pow",
     "monetary_value_authorized": false,
     "open_pow": {
-      "protocol": "AEGIS_OPEN_POW_V2",
+      "protocol": [
+        "AEGIS_OPEN_POW_V2",
+        "AEGIS_OPEN_POW_V3"
+      ],
       "transaction_network_binding": "full-genesis-config-id",
       "genesis": "empty",
       "asset": "fixed-by-genesis",
@@ -33,7 +36,14 @@
       "node_backup": "encrypted-verified-pow-branches",
       "wallet_reorg": "canonical-balance-and-orphan-reservations",
       "miner_fee_payout": true,
-      "post_cap_emission": false
+      "post_cap_emission": false,
+      "queer_v3": {
+        "asset": "QUEER",
+        "atomic_units_per_queer": "105000000",
+        "max_supply_atomic": "2100000000000000",
+        "difficulty": "supply-quadratic-v1-global-with-explicit-floor",
+        "mainnet_activated": false
+      }
     }
   },
   "source_sha256": {
@@ -48,8 +58,8 @@
     "aegis-flow/services/wallet-local/wallet.mjs": "301077978d8f8b01d53b993da7c8442f161449be591c451b959ccdc3878d8654",
     "aegis-flow/services/validation-gateway/server.mjs": "8077942eb71d3a948113b8edff82601ab1a956e8ddc2f1306f11ec84abb9c7ac",
     "aegis-flow/services/validation-gateway/runtime-policy.mjs": "295f8823987e4d91bb564a361265f64addf792f6112de17757a44d96b24264d7",
-    "aegis-flow/services/open-chain/chain.mjs": "a7821c50e54f74b794ba982caa92be4e0df943d414bdb971e9c6ea7f941257a4",
-    "aegis-flow/services/open-chain/consensus.mjs": "f0114f9cd7a0c57c5337d5f04a820f12543235b7f9b00457a074c0fe13c79b98",
+    "aegis-flow/services/open-chain/chain.mjs": "c7db2ab8686383c61a84e9234232f12c420ff91ac44823f3cf5ee02d4fa49edb",
+    "aegis-flow/services/open-chain/consensus.mjs": "73a4a1cd487d644993efba88549a1208fa46b4525eff2781634a03dd0a34c725",
     "aegis-flow/services/open-chain/network.mjs": "5ba82f19a9c282fa52b24a80b476f44c386e2a9f58635d29f1a3fd98e381a871",
     "aegis-flow/services/open-chain/node.mjs": "9d1c9b17a26b1cd4bb4c4e545cd0700e745ce6a73383bc11822146e984107be5",
     "aegis-flow/services/open-chain/state.mjs": "64f6887cf3f29cfd455e89cae5bccde3aaeaa5722683aa2de1ba7c0579af3fb3",
@@ -59,11 +69,11 @@
     "aegis-flow/services/open-chain/address.mjs": "1a07318b4f64764e816c3dcc48b28677d5640837c03730ea712088dc64ea112c",
     "aegis-flow/services/open-chain/recovery.mjs": "34a9c187bf3aaf6840d90c87a1fd0b27505b1852e47899d28e37f7e48b5450ff",
     "aegis-flow/services/open-chain/wallet.mjs": "25c9a300e482a408cd0e49405639ee44abc0e91c6c5dc4943147019ae643499e",
-    "aegis-flow/services/wallet-local/server.mjs": "bc078e8bf091e898a4eacb8371073395eafb549ff9b1bdfc7f327e23a1489b66",
+    "aegis-flow/services/wallet-local/server.mjs": "a2e21ae68f4bf413a765cbee28d3131f9fff607b4c590e2a6371e3356d20d28a",
     "aegis-flow/services/operational-security/profile-lock.mjs": "b840072480fffb624f6dd32c6fc55d7052b32abf2a305607c9ebc110a869423b",
     "aegis-flow/scripts/pow-recovery.mjs": "2ff2ac32a0871627e0f26bb6a4c3fd8ad9a7f6cd350196a7e075a2607c03a332",
     "aegis-flow/scripts/scheduled-backup.mjs": "55d08939790fd8be6f94395b4cdd79a6cd6eb4a2146cd5f16d45f8b52ccd9119",
-    "aegis-flow/scripts/open-chain.mjs": "379fd1cdbcb1135b942c081f19b09a97a13744d77fe34ffbbce8ff7d7017c2eb",
+    "aegis-flow/scripts/open-chain.mjs": "f37bfd200af3719710859f8e58d536ffc7260f74f75808524cf267d42435d4e8",
     "aegis-flow/services/recovery/backup.mjs": "57d1b8a8ca6c70adbd32feda149e71f1fba3beba562ddeaff9d18fe6379273c0",
     "aegis-flow/services/recovery/s3.mjs": "d5e1898ba8eca97a164829f4d6d98c0071e7b7e74f0fa1e605b0ce229fdbbc9d",
     "aegis-flow/services/recovery/disk-space.mjs": "a7504608ca2d23717f77b2b416916b696f0d47cdee6fa3c323512144a666780d",

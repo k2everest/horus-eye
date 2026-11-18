@@ -3,20 +3,24 @@ import {mkdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {parseArgs} from 'node:util';
 import {readFileSync,writeFileSync} from 'node:fs';
+import {MAX_AEGIS} from '../services/open-chain/queer-units.mjs';
 import {OpenChain} from '../services/open-chain/chain.mjs';
-import {assertOpenGenesis,openNetworkId} from '../services/open-chain/consensus.mjs';
+import {assertOpenGenesis,openNetworkId,QUEER_POW_SCHEMA} from '../services/open-chain/consensus.mjs';
 import {syncPeer,publicRequest,peerOrigin,miningCandidate} from '../services/open-chain/network.mjs';
 import {defaultStarkBackend} from '../services/proof-engine/backend.mjs';
 import {assertDemoRuntime} from '../services/validation-gateway/runtime-policy.mjs';
 
 assertDemoRuntime();
-const {positionals,values}=parseArgs({allowPositionals:true,options:{genesis:{type:'string'},directory:{type:'string'},peer:{type:'string'},owner:{type:'string'},count:{type:'string',default:'1'},output:{type:'string'}}});
+const {positionals,values}=parseArgs({allowPositionals:true,options:{genesis:{type:'string'},directory:{type:'string'},peer:{type:'string'},owner:{type:'string'},count:{type:'string',default:'1'},output:{type:'string'},'base-reward':{type:'string'},'minimum-target':{type:'string'},'pow-limit':{type:'string'},'network-id':{type:'string'}}});
 const [command]=positionals;
-if(command==='lab-genesis'){
+if(['lab-genesis','queer-genesis'].includes(command)){
+ const queer=command==='queer-genesis';
+ if(queer&&(!values['base-reward']||!/^[1-9][0-9]{0,15}$/.test(values['base-reward'])||!values['minimum-target']))throw Error('QUEER_REWARD_AND_MINIMUM_TARGET_REQUIRED');
  if(!values.output)throw new Error('--output required (will not overwrite)');
- const config=assertOpenGenesis({schema:'AEGIS_OPEN_POW_V2',network_id:'aegis-open-lab',program_id:defaultStarkBackend().programId,
-  genesis_time_ms:Date.now(),pow_limit:'00'+'ff'.repeat(31),target_spacing_ms:60000,retarget_interval:64,confirmations:6,coinbase_maturity:6,anchor_window:128,
-  monetary:{asset_id:'AEGIS_LAB',base_reward:7,max_supply:'700000',fee_policy:'miner-fees-v1',minimum_fee:1}});
+ const config=assertOpenGenesis({schema:queer?QUEER_POW_SCHEMA:'AEGIS_OPEN_POW_V2',network_id:values['network-id']??(queer?'queer-pow-lab':'aegis-open-lab'),program_id:defaultStarkBackend().programId,
+  genesis_time_ms:Date.now(),pow_limit:values['pow-limit']??('00'+'ff'.repeat(31)),target_spacing_ms:60000,retarget_interval:64,confirmations:6,coinbase_maturity:6,anchor_window:128,
+  ...(queer?{difficulty:{policy:'supply-quadratic-v1',minimum_target:values['minimum-target']}}:{}),
+  monetary:{asset_id:queer?'QUEER':'AEGIS_LAB',base_reward:queer?Number(values['base-reward']):7,max_supply:queer?MAX_AEGIS.toString():'700000',fee_policy:'miner-fees-v1',minimum_fee:1}});
  writeFileSync(values.output,JSON.stringify(config,null,2)+'\n',{flag:'wx',mode:0o600});
  console.log(JSON.stringify({config_id:openNetworkId(config),test_units_only:true,production_ready:false}));
 }else if(['status','sync','mine'].includes(command)){
@@ -37,4 +41,4 @@ if(command==='lab-genesis'){
    }
   }else console.log(JSON.stringify(chain.status(),null,2));
  }finally{chain?.close();await release();}
-}else throw new Error('Usage: open-chain.mjs lab-genesis --output FILE | status|sync|mine --genesis FILE --directory DIR [--peer ORIGIN] [--owner PUBLIC_OWNER_TAG --count N]');
+}else throw new Error('Usage: open-chain.mjs lab-genesis --output FILE | queer-genesis --output FILE --base-reward ATOMIC_UNITS --minimum-target HEX_TARGET | status|sync|mine --genesis FILE --directory DIR [--peer ORIGIN] [--owner PUBLIC_OWNER_TAG --count N]');

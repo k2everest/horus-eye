@@ -14,8 +14,8 @@ export const CURRENT_MONETARY_FACTS=Object.freeze({
  conservation:'sum(inputs)=sum(outputs)+public_amount',public_amount_max:'9007199254740991',
  public_amount_payout_implemented:false,public_mint_endpoint:false,genesis_value_total_proof:false,
  settlement:'legacy-permissioned-and-experimental-open-pow',monetary_value_authorized:false,
- open_pow:{protocol:'AEGIS_OPEN_POW_V2',transaction_network_binding:'full-genesis-config-id',genesis:'empty',asset:'fixed-by-genesis',supply_cap:'fixed-by-genesis-u64',subsidy:'deterministic-capped-per-block',
-  monetary_authority:false,participant_country_filter:false,validator_allowlist:false,public_amount_required:'legacy-zero-or-genesis-minimum-fee',miner_fee_payout:true,post_cap_emission:false,finality:'probabilistic',wallet_integrated:true,node_backup:'encrypted-verified-pow-branches',wallet_reorg:'canonical-balance-and-orphan-reservations'},
+ open_pow:{protocol:['AEGIS_OPEN_POW_V2','AEGIS_OPEN_POW_V3'],transaction_network_binding:'full-genesis-config-id',genesis:'empty',asset:'fixed-by-genesis',supply_cap:'fixed-by-genesis-u64',subsidy:'deterministic-capped-per-block',
+  monetary_authority:false,participant_country_filter:false,validator_allowlist:false,public_amount_required:'legacy-zero-or-genesis-minimum-fee',miner_fee_payout:true,post_cap_emission:false,finality:'probabilistic',wallet_integrated:true,node_backup:'encrypted-verified-pow-branches',wallet_reorg:'canonical-balance-and-orphan-reservations',queer_v3:{asset:'QUEER',atomic_units_per_queer:'105000000',max_supply_atomic:'2100000000000000',difficulty:'supply-quadratic-v1-global-with-explicit-floor',mainnet_activated:false}},
 });
 const hash=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 const hex=value=>typeof value==='string'&&/^[0-9a-f]{64}$/.test(value);

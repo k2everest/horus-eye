@@ -1,8 +1,12 @@
 import crypto from 'node:crypto';
+import {MAX_AEGIS} from './queer-units.mjs';
 import {canonicalSerialize,buildTranscriptHash} from '../../libs/crypto-core/canonical-transcript.mjs';
 import {merkleRoot} from '../../libs/crypto-core/merkle-proof.mjs';
 import {assertNoteV2,noteCommitmentV2} from '../../libs/crypto-core/shielded-note-v2.mjs';
 export const POW_SCHEMA='AEGIS_OPEN_POW_V2';
+export const QUEER_POW_SCHEMA='AEGIS_OPEN_POW_V3';
+export const isQueerPow=config=>config?.schema===QUEER_POW_SCHEMA;
+export const powHeaderVersion=config=>isQueerPow(config)?'AEGIS_POW_HEADER_V3':'AEGIS_POW_HEADER_V2';
 export const MAX_TARGET=(1n<<248n)-1n;
 export const ZERO_HASH='0'.repeat(64);
 const hex=v=>typeof v==='string'&&/^[0-9a-f]{64}$/.test(v);
@@ -10,7 +14,7 @@ const exact=(v,keys)=>v&&typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).
 export const digest=(domain,payload)=>buildTranscriptHash({domainTag:domain,payload});
 export const EMPTY_NULLIFIERS=digest('AEGIS_POW_NULLIFIERS_V1',[]);
 export function assertOpenGenesis(config){
- if(!exact(config,['schema','network_id','program_id','genesis_time_ms','pow_limit','target_spacing_ms','retarget_interval','confirmations','coinbase_maturity','anchor_window','monetary'])||config.schema!==POW_SCHEMA||
+ if(!exact(config,['schema','network_id','program_id','genesis_time_ms','pow_limit','target_spacing_ms','retarget_interval','confirmations','coinbase_maturity','anchor_window','monetary',...(isQueerPow(config)?['difficulty']:[])])||![POW_SCHEMA,QUEER_POW_SCHEMA].includes(config.schema)||
   typeof config.network_id!=='string'||!/^[A-Za-z0-9_-]{1,64}$/.test(config.network_id)||!hex(config.program_id)||!hex(config.pow_limit)||BigInt('0x'+config.pow_limit)<1n||BigInt('0x'+config.pow_limit)>MAX_TARGET||
   !Number.isSafeInteger(config.genesis_time_ms)||config.genesis_time_ms<0)throw new Error('INVALID_OPEN_GENESIS');
  for(const [key,min,max]of [['target_spacing_ms',1000,3600000],['retarget_interval',4,4096],['confirmations',2,100],['coinbase_maturity',2,100],['anchor_window',16,4096]])
@@ -19,10 +23,27 @@ export function assertOpenGenesis(config){
  if(!(exact(m,['asset_id','base_reward','max_supply'])||exact(m,['asset_id','base_reward','max_supply','fee_policy','minimum_fee']))||typeof m.asset_id!=='string'||!/^[A-Za-z0-9_-]{1,64}$/.test(m.asset_id)||!Number.isSafeInteger(m.base_reward)||m.base_reward<1||
   typeof m.max_supply!=='string'||!/^[1-9][0-9]{0,19}$/.test(m.max_supply)||BigInt(m.max_supply)>((1n<<64n)-1n)||BigInt(m.max_supply)<BigInt(m.base_reward))throw new Error('INVALID_POW_MONETARY_RULE');
  if(Object.hasOwn(m,'fee_policy')&&(m.fee_policy!=='miner-fees-v1'||!Number.isSafeInteger(m.minimum_fee)||m.minimum_fee<1||BigInt(m.minimum_fee)+BigInt(m.base_reward)>BigInt(Number.MAX_SAFE_INTEGER)))throw new Error('INVALID_POW_FEE_POLICY');
+ if(isQueerPow(config)){
+  if(m.asset_id!=='QUEER'||m.max_supply!==MAX_AEGIS.toString()||m.fee_policy!=='miner-fees-v1')throw Error('INVALID_QUEER_FIXED_MONETARY_POLICY');
+  if(!exact(config.difficulty,['policy','minimum_target'])||config.difficulty.policy!=='supply-quadratic-v1'||!hex(config.difficulty.minimum_target)||BigInt('0x'+config.difficulty.minimum_target)<1n||BigInt('0x'+config.difficulty.minimum_target)>=BigInt('0x'+config.pow_limit))throw Error('INVALID_QUEER_DIFFICULTY_POLICY');
+ }
  return config;
 }
-export function openNetworkId(config){assertOpenGenesis(config);return digest('AEGIS_OPEN_POW_GENESIS_V2',config);}
+export function openNetworkId(config){assertOpenGenesis(config);return digest(isQueerPow(config)?'AEGIS_OPEN_POW_GENESIS_V3':'AEGIS_OPEN_POW_GENESIS_V2',config);}
 export function genesisTip(config){return{height:0,hash:openNetworkId(config),work:'0',note_root:merkleRoot([]),nullifier_root:EMPTY_NULLIFIERS,commitment_count:0,timestamp_ms:config.genesis_time_ms};}
+export function protocolMintedSupply(config,height){
+ if(!Number.isSafeInteger(height)||height<0)throw Error('INVALID_POW_HEIGHT');
+ const minted=BigInt(height)*BigInt(config.monetary.base_reward),cap=BigInt(config.monetary.max_supply);
+ return minted>cap?cap:minted;
+}
+export function supplyTarget(config,height){
+ if(!isQueerPow(config))throw Error('QUEER_DIFFICULTY_PROFILE_REQUIRED');
+ if(!Number.isSafeInteger(height)||height<1)throw Error('INVALID_POW_HEIGHT');
+ const cap=MAX_AEGIS,remaining=cap-protocolMintedSupply(config,height-1);
+ const calculated=BigInt('0x'+config.pow_limit)*remaining*remaining/(cap*cap);
+ const floor=BigInt('0x'+config.difficulty.minimum_target);
+ return (calculated<floor?floor:calculated).toString(16).padStart(64,'0');
+}
 export function subsidy(config,height){
  if(!Number.isSafeInteger(height)||height<1)throw new Error('INVALID_POW_HEIGHT');
  const remaining=BigInt(config.monetary.max_supply)-BigInt(height-1)*BigInt(config.monetary.base_reward);
@@ -40,10 +61,11 @@ export function minerReward(config,height,transaction=null){
  if(reward>BigInt(Number.MAX_SAFE_INTEGER))throw Error('POW_MINER_REWARD_OVERFLOW');
  return Number(reward);
 }
-export function blockHash(header){const first=crypto.createHash('sha256').update('AEGIS_POW_BLOCK_V2\0').update(canonicalSerialize(header)).digest();return crypto.createHash('sha256').update(first).digest('hex');}
+export function blockHash(header){const first=crypto.createHash('sha256').update(header.version==='AEGIS_POW_HEADER_V3'?'AEGIS_POW_BLOCK_V3\0':'AEGIS_POW_BLOCK_V2\0').update(canonicalSerialize(header)).digest();return crypto.createHash('sha256').update(first).digest('hex');}
 export function blockWork(target){return(1n<<256n)/(BigInt('0x'+target)+1n);}
 export function expectedTarget(config,ancestors){
  const height=ancestors.length?ancestors.at(-1).header.height+1:1;
+ if(isQueerPow(config))return supplyTarget(config,height);
  if(height===1)return config.pow_limit;
  const previous=ancestors.at(-1).header;
  if((height-1)%config.retarget_interval!==0)return previous.target;
@@ -59,7 +81,7 @@ export function medianTime(config,ancestors){const values=ancestors.slice(-11).m
 export function assertBlockHeader(config,block,ancestors,{now=Date.now()}={}){
  if(!exact(block,['header','transaction','proof','reward'])||!exact(block.header,['version','network','height','parent','timestamp_ms','target','nonce','body_hash','note_root','nullifier_root','commitment_count']))throw new Error('INVALID_POW_BLOCK_SHAPE');
  const h=block.header,parent=ancestors.length?blockHash(ancestors.at(-1).header):openNetworkId(config);
- if(h.version!=='AEGIS_POW_HEADER_V2'||h.network!==openNetworkId(config)||h.height!==(ancestors.length?ancestors.at(-1).header.height+1:1)||h.parent!==parent||
+ if(h.version!==powHeaderVersion(config)||h.network!==openNetworkId(config)||h.height!==(ancestors.length?ancestors.at(-1).header.height+1:1)||h.parent!==parent||
   !Number.isSafeInteger(h.timestamp_ms)||h.timestamp_ms<=medianTime(config,ancestors)||h.timestamp_ms>now+7200000||h.target!==expectedTarget(config,ancestors)||
   ![h.nonce,h.body_hash,h.note_root,h.nullifier_root].every(hex)||!Number.isSafeInteger(h.commitment_count)||h.commitment_count<1||h.commitment_count>1000000||
   h.body_hash!==digest('AEGIS_POW_BODY_V1',{transaction:block.transaction,proof:block.proof,reward:block.reward})||BigInt('0x'+blockHash(h))>BigInt('0x'+h.target))throw new Error('INVALID_POW_HEADER_OR_WORK');

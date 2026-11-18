@@ -5,7 +5,7 @@ import {join} from 'node:path';
 import {canonicalSerialize} from '../../libs/crypto-core/canonical-transcript.mjs';
 import {createPrivateNote} from '../../libs/crypto-core/shielded-note-v2.mjs';
 import {defaultStarkBackend} from '../proof-engine/backend.mjs';
-import {assertOpenGenesis,openNetworkId,genesisTip,blockHash,assertBlockHeader,expectedTarget,medianTime,subsidy,minerReward,minimumTransactionFee,digest,mineHeader} from './consensus.mjs';
+import {assertOpenGenesis,openNetworkId,genesisTip,powHeaderVersion,protocolMintedSupply,blockHash,assertBlockHeader,expectedTarget,medianTime,subsidy,minerReward,minimumTransactionFee,digest,mineHeader} from './consensus.mjs';
 import {BranchState} from './state.mjs';
 export class OpenChain {
  #db;#config;#nodes=new Map();#best;#backend;#busy=false;#closed=false;#canonical=[];#snapshots=new Map();#cacheBytes=0;#storedBytes=0;#limits;
@@ -38,7 +38,7 @@ export class OpenChain {
  status(){const confirmed=this.confirmedHeight;const b=confirmed?this.#nodes.get(this.#canonical[confirmed-1]).block.header:undefined;
   return{model:'open-proof-of-work',config_id:openNetworkId(this.#config),network_id:this.#config.network_id,tip:this.tip,resources:{stored_blocks:this.#nodes.size,stored_body_bytes:this.#storedBytes,cached_state_bytes:this.#cacheBytes,limits:{...this.#limits}},
    confirmed:{height:confirmed,checkpoint_id:confirmed?blockHash(b):openNetworkId(this.#config),root:b?.note_root??genesisTip(this.#config).note_root},
-   minimum_transaction_fee:minimumTransactionFee(this.#config),fee_policy:this.#config.monetary.fee_policy??'legacy-zero',confirmations_required:this.#config.confirmations,finality:'probabilistic',monetary_authority:null,protocol_minted_supply:(BigInt(this.#best.height)*BigInt(this.#config.monetary.base_reward)>BigInt(this.#config.monetary.max_supply)?BigInt(this.#config.monetary.max_supply):BigInt(this.#best.height)*BigInt(this.#config.monetary.base_reward)).toString(),production_ready:false};
+   difficulty_policy:this.#config.difficulty?.policy??'time-retarget-v2',minimum_pow_target:this.#config.difficulty?.minimum_target??null,minimum_transaction_fee:minimumTransactionFee(this.#config),fee_policy:this.#config.monetary.fee_policy??'legacy-zero',confirmations_required:this.#config.confirmations,finality:'probabilistic',monetary_authority:null,protocol_minted_supply:protocolMintedSupply(this.#config,this.#best.height).toString(),production_ready:false};
  }
  readiness(){
   const verifier=Boolean(this.#backend.availableForVerification?.());
@@ -117,7 +117,7 @@ export class OpenChain {
   const body={transaction:structuredClone(transaction),proof:structuredClone(proof),reward};
   const state=await this.#stateAt(parent);
   let header;
-  try{await state.applyBody(body,height);header={version:'AEGIS_POW_HEADER_V2',network:openNetworkId(this.#config),height,parent,timestamp_ms:Math.max(timestamp,medianTime(this.#config,parents)+1),
+  try{await state.applyBody(body,height);header={version:powHeaderVersion(this.#config),network:openNetworkId(this.#config),height,parent,timestamp_ms:Math.max(timestamp,medianTime(this.#config,parents)+1),
     target:expectedTarget(this.#config,parents),nonce:'0'.repeat(64),body_hash:digest('AEGIS_POW_BODY_V1',body),note_root:state.noteRoot,nullifier_root:state.nullifierRoot,commitment_count:state.count};
   }finally{state.close();}
   const block={header:await mineHeader(header,{maxIterations}),...body};await this.addBlock(block);return block;

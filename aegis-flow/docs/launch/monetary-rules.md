@@ -10,9 +10,9 @@ comercial de ticker nem garante exclusividade de nome.
 
 O responsável definiu 1 QUEER = 105.000.000 AEGIS e teto de 20.000.000 QUEER
 (2.100.000.000.000.000 AEGIS), com custo crescente por dificuldade PoW.
-O registro e as decisões de consenso ainda necessárias estão em
-[requisitos monetários QUEER](queer-monetary-request.md). A conversão exata foi
-implementada separadamente; estes valores ainda não foram ativados em genesis.
+A implementação do perfil de consenso V3 está descrita em
+[requisitos monetários QUEER](queer-monetary-request.md). Conversão, teto fixo e PoW global quadrático com alvo final explícito estão
+implementados para redes V3; não há mainnet comercial ativada.
 
 ## Regras implementadas
 

@@ -15,6 +15,9 @@ Carteira browser integrada a serviço local: chaves nativas, cofre criptografado
 backup/restauração, reservas de envio e saldo revalidado pela cadeia finalizada.
 Runbook: `docs/operations/wallet.md`; keystore de hardware, rotação de identidade,
 auditoria independente e operação de produção continuam pendentes.
+Controles locais de RBAC/TLS, revogação, quotas, métricas protegidas e modos
+de incidente foram adicionados; instalação do monitoramento, distribuição de
+segredos e exercício de incidentes no ambiente real continuam necessários.
 
 ## Etapas e evidências de saída
 

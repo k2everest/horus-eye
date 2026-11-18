@@ -8,6 +8,9 @@ certificados de finalização e recuperação; exige confiança nessa autoridade
 Decisão: `docs/adr/ADR-0005-permissioned-settlement.md`.
 Operação: `docs/operations/settlement.md`.
 Plano de preparação: `docs/planning/production-readiness.md`.
+Segurança operacional (acesso, segredos, limites, métricas e incidentes):
+`docs/operations/security.md`. O gateway inicia em loopback; exposição remota
+exige política de acesso e TLS.
 
 ## QUEER
 

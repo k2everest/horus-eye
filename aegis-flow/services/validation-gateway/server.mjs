@@ -1,4 +1,8 @@
 import http from 'node:http';
+import https from 'node:https';
+import crypto from 'node:crypto';
+import { AccessPolicy, RequestLimits, classifyRoute, readRestrictedFile } from '../operational-security/access.mjs';
+import { Telemetry } from '../operational-security/telemetry.mjs';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 
@@ -14,14 +18,15 @@ function sendJson(res, statusCode, payload) {
   res.writeHead(statusCode, {
     'content-type': 'application/json; charset=utf-8',
     'access-control-allow-origin': process.env.CORS_ORIGIN || 'http://localhost:8080',
-    'access-control-allow-headers': 'content-type,x-request-id',
+    'access-control-allow-headers': 'content-type,x-request-id,authorization',
+    'cache-control': 'no-store', 'x-content-type-options': 'nosniff',
     'access-control-allow-methods': 'GET,POST,OPTIONS',
   });
   res.end(JSON.stringify(payload));
 }
 
 export function createValidationServer({ sink = console.log, faultInjector = () => false, maxBodyBytes = 65536, maxSubmitBytes = 12 * 1024 * 1024, maxInFlightBodies = 8,
-  ledgerPath, networkId = process.env.AEGIS_NETWORK_ID || 'aegis-lab-v1', starkBackend = defaultStarkBackend(), settlementConfig, trustedFinalizedCheckpoint } = {}) {
+  ledgerPath, networkId = process.env.AEGIS_NETWORK_ID || 'aegis-lab-v1', starkBackend = defaultStarkBackend(), settlementConfig, trustedFinalizedCheckpoint, accessPolicyPath, rateLimits, maxConnections = 128, tlsOptions } = {}) {
   assertDemoRuntime();
   assertPqcRuntime();
   if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes < 1 || maxBodyBytes > 1048576) {
@@ -29,6 +34,11 @@ export function createValidationServer({ sink = console.log, faultInjector = () 
   }
   if (!Number.isSafeInteger(maxSubmitBytes) || maxSubmitBytes < 1 || maxSubmitBytes > 12 * 1024 * 1024) throw new RangeError('invalid submit size limit');
   if (!Number.isSafeInteger(maxInFlightBodies) || maxInFlightBodies < 1 || maxInFlightBodies > 64) throw new RangeError('invalid body admission limit');
+  if (!Number.isSafeInteger(maxConnections) || maxConnections < 1 || maxConnections > 4096) throw new Error('INVALID_CONNECTION_LIMIT');
+  const access = new AccessPolicy({ filename: accessPolicyPath });
+  access.load(); // Invalid startup policy fails closed. Reload on every request.
+  const limits = new RequestLimits(rateLimits);
+  const telemetry = new Telemetry();
   const ledger = ledgerPath ? new PersistentLedger({ filename: ledgerPath, networkId, trustedFinalizedCheckpoint }) : undefined;
   try {
     if (settlementConfig) {
@@ -38,7 +48,38 @@ export function createValidationServer({ sink = console.log, faultInjector = () 
   } catch (error) { ledger?.close(); throw error; }
   let verifying = false;
   let inFlightBodies = 0;
-  const server = http.createServer((req, res) => {
+  const createServer = tlsOptions ? handler => https.createServer({ ...tlsOptions, minVersion: 'TLSv1.3', maxHeaderSize: 16384 }, handler) : handler => http.createServer({ maxHeaderSize: 16384 }, handler);
+  const server = createServer((req, res) => {
+    const route = classifyRoute(req.method, req.url);
+    const started = performance.now(); const requestId = crypto.randomUUID();
+    let principal = 'anonymous'; let reason; let recorded = false;
+    const record = aborted => {
+      if (recorded) return; recorded = true;
+      const status = aborted ? 499 : res.statusCode;
+      const latency = Math.max(0, performance.now() - started);
+      telemetry.record(route.name, status, latency);
+      try { sink(JSON.stringify({ event: 'http_request', service: 'validation-gateway', timestamp: new Date().toISOString(),
+        request_id: requestId, route: route.name, principal, status, latency_ms: Math.round(latency), ...(reason ? { reason } : {}) })); } catch { /* Logging failure must not expose request contents. */ }
+    };
+    res.once('finish', () => record(false)); res.once('close', () => record(!res.writableFinished));
+    const reject = (status, code) => { reason = code; req.resume(); if (status === 429) res.setHeader('retry-after', '60'); sendJson(res, status, { status_code: code }); };
+    if (!limits.connection(req.socket.remoteAddress)) { reject(429, 'RATE_LIMITED'); return; }
+    let policy;
+    try { policy = route.name === 'health' ? { incident_mode: 'normal' } : access.load(); }
+    catch { reject(503, 'ACCESS_POLICY_UNAVAILABLE'); return; }
+    if (req.method !== 'OPTIONS') {
+      const authorized = access.authorize(req, route, policy);
+      if (!authorized.allowed) { reject(authorized.status, authorized.code); return; }
+      principal = authorized.principal;
+      if (route.name !== 'health' && !limits.principal(principal, req.method === 'POST')) { reject(429, 'RATE_LIMITED'); return; }
+      if (!['health', 'ready', 'metrics'].includes(route.name) && (policy.incident_mode === 'halt' || (policy.incident_mode === 'read-only' && req.method === 'POST'))) { reject(503, 'INCIDENT_RESTRICTION'); return; }
+    }
+    const ready = () => { try { return Boolean(ledger?.latest() && starkBackend?.availableForVerification() && policy.incident_mode === 'normal'); } catch { return false; } };
+    if (req.method === 'GET' && req.url === '/readyz') { sendJson(res, ready() ? 200 : 503, { ready: ready(), production_ready: false }); return; }
+    if (req.method === 'GET' && req.url === '/metrics') {
+      res.writeHead(200, { 'content-type': 'text/plain; version=0.0.4', 'cache-control': 'no-store' });
+      res.end(telemetry.render({ bodies: inFlightBodies, verifying, ready: ready() })); return;
+    }
     if (req.method === 'OPTIONS') {
       sendJson(res, 204, {});
       return;
@@ -198,7 +239,7 @@ export function createValidationServer({ sink = console.log, faultInjector = () 
             } finally { verifying = false; }
             return;
           }
-          const response = validateShieldedTx(parsed, sink);
+          const response = validateShieldedTx(parsed, access.configured ? () => {} : sink);
           if (response.valid && ledger) response.receipt = ledger.recordVerification(parsed);
           sendJson(res, response.valid ? 200 : 400, response);
         } catch (error) {
@@ -212,6 +253,9 @@ export function createValidationServer({ sink = console.log, faultInjector = () 
 
     sendJson(res, 404, { error: 'not_found' });
   });
+  server.maxConnections = maxConnections;
+  server.maxRequestsPerSocket = 100;
+  server.keepAliveTimeout = 5000;
   server.requestTimeout = 15_000;
   server.headersTimeout = 10_000;
   server.timeout = 15_000;
@@ -223,8 +267,14 @@ export function createValidationServer({ sink = console.log, faultInjector = () 
 export function startValidationServer({ port = Number(process.env.PORT || 8080), sink = console.log, ledgerPath = process.env.AEGIS_LEDGER_PATH || 'work/aegis-ledger.sqlite', ...options } = {}) {
   const settlementConfig = process.env.AEGIS_SETTLEMENT_CONFIG_PATH ? JSON.parse(readFileSync(process.env.AEGIS_SETTLEMENT_CONFIG_PATH, 'utf8')) : undefined;
   const trustedFinalizedCheckpoint = process.env.AEGIS_FINALITY_ANCHOR_PATH ? JSON.parse(readFileSync(process.env.AEGIS_FINALITY_ANCHOR_PATH, 'utf8')) : undefined;
-  const server = createValidationServer({ sink, ledgerPath, settlementConfig, trustedFinalizedCheckpoint, ...options });
-  server.listen(port, () => {
+  const host = process.env.AEGIS_BIND_HOST || '127.0.0.1';
+  const accessPolicyPath = process.env.AEGIS_ACCESS_POLICY_PATH;
+  const tlsOptions = process.env.AEGIS_TLS_KEY_FILE && process.env.AEGIS_TLS_CERT_FILE ? {
+    key: readRestrictedFile(process.env.AEGIS_TLS_KEY_FILE), cert: readFileSync(process.env.AEGIS_TLS_CERT_FILE, 'utf8'),
+  } : undefined;
+  if (!['127.0.0.1', '::1', 'localhost'].includes(host) && (!accessPolicyPath || !tlsOptions)) throw new Error('REMOTE_BIND_REQUIRES_ACCESS_POLICY_AND_TLS');
+  const server = createValidationServer({ sink, ledgerPath, settlementConfig, trustedFinalizedCheckpoint, accessPolicyPath, tlsOptions, ...options });
+  server.listen(port, host, () => {
     sink(JSON.stringify({ level: 'info', service: 'validation-gateway', message: `listening on :${port}` }));
   });
   return server;

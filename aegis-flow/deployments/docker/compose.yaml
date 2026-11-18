@@ -8,25 +8,35 @@ services:
     image: aegis-flow/validation-gateway:dev
     environment:
       NODE_ENV: development
-      PORT: 8080
+      AEGIS_BIND_HOST: 127.0.0.1
+      PORT: ${AEGIS_GATEWAY_PORT:-8080}
       LOG_LEVEL: ${AEGIS_LOG_LEVEL:-info}
       CORS_ORIGIN: ${AEGIS_CORS_ORIGIN:-http://localhost:8080}
       AEGIS_LEDGER_PATH: /data/ledger.sqlite
     volumes:
       - aegis-ledger:/data
-    ports:
-      - "${AEGIS_GATEWAY_PORT:-8080}:8080"
+    # Loopback-only default: run local services directly, or use the explicit
+    # authenticated TLS overlay before exposing a container port.
+    network_mode: host
     healthcheck:
       test:
         - CMD
         - node
         - -e
-        - fetch('http://127.0.0.1:8080/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+        - fetch('http://127.0.0.1:'+process.env.PORT+'/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
       interval: 5s
       timeout: 3s
       retries: 10
       start_period: 5s
     init: true
+    cap_drop: [ALL]
+    pids_limit: 128
+    mem_limit: 1g
+    cpus: 2
+    ulimits:
+      nofile:
+        soft: 1024
+        hard: 1024
     read_only: true
     tmpfs:
       - /tmp:size=16m,mode=1777

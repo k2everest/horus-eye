@@ -23,7 +23,7 @@ stubs não demonstram segurança criptográfica nem prontidão para produção.
 | US-016 Delays/cover traffic | Não iniciada | Política de agendamento e avaliação pendentes. |
 | US-017 Linkabilidade | Não iniciada | Métricas e experimentos pendentes. |
 | US-018 gRPC | Parcial | Contratos proto documentados; servidor gRPC e testes de interoperabilidade pendentes. |
-| US-019 Autenticação | Não iniciada | mTLS, identidade e autorização entre serviços pendentes. |
+| US-019 Autenticação | Parcial | Bearer de alta entropia, RBAC, expiração/revogação, arquivos restritos e TLS 1.3 no gateway; quotas, métricas protegidas e modos de incidente implementados. mTLS, gestor de segredos externo, monitoramento implantado e revisão de produção pendentes. |
 | US-020 Observabilidade | Parcial | Hash do payload testado; faltam política completa de metadados, alertas e retenção. |
 | US-021 Carga/caos | Parcial | Testes HTTP com assinatura real, STARK + estado, crash SIGKILL, backup e concorrência de processos; carga STARK prolongada e infraestrutura distribuída pendentes. |
 

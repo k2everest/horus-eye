@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { LocalWallet, receiveAddress } from './wallet.mjs';
@@ -33,8 +33,11 @@ async function setup(t) {
   const config = { schema: 'AEGIS_PERMISSIONED_SETTLEMENT_V1', network_id: ledger.networkId, genesis_root: genesis.root, genesis_count: 1,
     program_id: programId, authority_public_key: exportPublicKey(authority.publicKey), authority_tag: signerTag(authority.publicKey), signature_algorithm: 'ML-DSA-65' };
   ledger.configureSettlement(config);
+  let gatewayToken = '09'.repeat(32); const gatewayTokenFile = join(directory, 'gateway.token');
+  writeFileSync(gatewayTokenFile, gatewayToken, { mode: 0o600 });
   let failTransport = false; let badHead = false; let badCertificate = false; const requests = [];
   const fetchImpl = async (url, options) => {
+    assert.equal(options.headers.authorization, `Bearer ${gatewayToken}`);
     const path = new URL(url).pathname;
     requests.push({ path, body: options.body });
     if (path === '/settlement/status') return Response.json(badHead ? { ...ledger.settlementStatus(), config_id: '00'.repeat(32) } : ledger.settlementStatus());
@@ -47,7 +50,7 @@ async function setup(t) {
     throw new Error('UNEXPECTED_TEST_REQUEST');
   };
   const createWallet = async (name, privateSecrets = secrets, backup) => {
-    const wallet = new LocalWallet({ directory: join(directory, name), config, genesisCommitments: [noteCommitmentV2(note)], gatewayUrl: 'http://127.0.0.1:8081', backend, fetchImpl });
+    const wallet = new LocalWallet({ directory: join(directory, name), config, genesisCommitments: [noteCommitmentV2(note)], gatewayUrl: 'http://127.0.0.1:8081', backend, fetchImpl, gatewayTokenFile });
     t.after(() => wallet.close());
     if (backup) await wallet.restore({ envelope: backup, passphrase });
     else {
@@ -60,6 +63,7 @@ async function setup(t) {
   const wallet = await createWallet('sender');
   return { directory, wallet, note, ledger, config, secrets, createWallet, requests,
     badCertificate: value => { badCertificate = value; },
+    rotateGatewayToken: () => { gatewayToken = '10'.repeat(32); writeFileSync(gatewayTokenFile, gatewayToken); },
     failTransport: value => { failTransport = value; }, badHead: value => { badHead = value; },
     finalize: () => notarizeNextTransfer({ ledger, privateKey: authority.privateKey, backend }) };
 }
@@ -67,6 +71,7 @@ async function setup(t) {
 test('no fabricated balance; only owned, included notes count and lock hides all wallet data', async t => {
   const f = await setup(t);
   assert.deepEqual((await f.wallet.sync()).balances, {});
+  f.rotateGatewayToken(); await f.wallet.sync();
   assert.throws(() => f.wallet.importGenesisNote({ ...f.note, value: 99 }), /UNOWNED_OR_NON_GENESIS/);
   f.wallet.importGenesisNote(f.note);
   assert.equal(f.wallet.status().balances.AEGIS.available, '7');

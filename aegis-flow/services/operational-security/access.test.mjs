@@ -1,0 +1,34 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import { mkdtempSync, writeFileSync, chmodSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { AccessPolicy, RequestLimits, readBearerSecret } from './access.mjs';
+const token = 'ab'.repeat(32);
+const principal = { id: 'wallet', roles: ['reader', 'submitter'], token_sha256: crypto.createHash('sha256').update(token).digest('hex'), expires_at: 2000 };
+const request = (header = `Bearer ${token}`) => ({ socket: { remoteAddress: '127.0.0.1' }, headers: { authorization: header } });
+test('roles, expiry, live revocation and secret file permissions fail closed', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'aegis-access-')); t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const filename = join(directory, 'policy.json');
+  const save = principals => writeFileSync(filename, JSON.stringify({ schema: 'AEGIS_ACCESS_POLICY_V1', principals, incident_mode: 'normal' }), { mode: 0o600 });
+  save([principal]); const access = new AccessPolicy({ filename, now: () => 1000 });
+  assert.equal(access.authorize(request(), { role: 'submitter' }, access.load()).allowed, true);
+  assert.equal(access.authorize(request(), { role: 'finalizer' }, access.load()).status, 403);
+  assert.equal(access.authorize(request('Bearer '+ 'ÿ'.repeat(64)), { role: 'reader' }, access.load()).status, 401);
+  save([{ ...principal, expires_at: 999 }]); assert.equal(access.authorize(request(), { role: 'reader' }, access.load()).status, 401);
+  save([]); assert.equal(access.authorize(request(), { role: 'reader' }, access.load()).status, 401);
+  chmodSync(filename, 0o644); assert.throws(() => access.load(), /ACCESS_POLICY_UNAVAILABLE/);
+  chmodSync(filename, 0o600); writeFileSync(filename, `invalid-json-${token}`);
+  assert.throws(() => access.load(), error => error.message === 'ACCESS_POLICY_UNAVAILABLE' && !error.message.includes(token));
+  const secret = join(directory, 'token'); writeFileSync(secret, token, { mode: 0o600 });
+  assert.equal(readBearerSecret(secret), token);
+  const symlink = join(directory, 'link'); symlinkSync(secret, symlink); assert.throws(() => readBearerSecret(symlink));
+});
+test('rate buckets expire and cannot exceed configured cardinality', () => {
+  let now = 0;
+  const limits = new RequestLimits({ clock: () => now, perIp: 2, maxKeys: 3, windowMs: 100 });
+  assert.equal(limits.connection('a'), true); assert.equal(limits.connection('a'), true); assert.equal(limits.connection('a'), false);
+  assert.equal(limits.connection('b'), true); assert.equal(limits.connection('c'), false);
+  now = 101; assert.equal(limits.connection('c'), true);
+});

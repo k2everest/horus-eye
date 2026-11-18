@@ -96,6 +96,7 @@ case "${command}" in
     node --test "${ROOT_DIR}"/services/ledger-state/*.test.mjs
     node --test "${ROOT_DIR}"/services/proof-engine/*.test.mjs
     node --test "${ROOT_DIR}"/services/wallet-local/*.test.mjs
+    node --test "${ROOT_DIR}"/services/operational-security/*.test.mjs
     ;;
   smoke)
     smoke

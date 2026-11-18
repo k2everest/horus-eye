@@ -26,7 +26,7 @@ async function closeServer(server) {
 }
 
 test('US-021: carga nominal atende SLO mínimo de disponibilidade', async (t) => {
-  const { server, baseUrl } = await startServer();
+  const { server, baseUrl } = await startServer({ maxConnections: 512, rateLimits: { perIp: 1000, perPrincipal: 1000, writePerPrincipal: 1000, global: 2000 } });
   t.after(() => closeServer(server));
 
   const total = 200;

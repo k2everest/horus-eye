@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { readBearerSecret } from '../operational-security/access.mjs';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { PersistentLedger } from '../ledger-state/store.mjs';
@@ -30,8 +31,8 @@ export function parseReceiveAddress(address, config) {
   return value;
 }
 export class LocalWallet {
-  #config; #ledger; #vaultPath; #session; #payload; #backend; #gateway; #fetch; #synced = false; #busy = false; #trustedAnchor; #closed = false;
-  constructor({ directory, config, genesisCommitments, gatewayUrl, backend = defaultStarkBackend(), fetchImpl = fetch, trustedAnchor }) {
+  #config; #ledger; #vaultPath; #session; #payload; #backend; #gateway; #fetch; #synced = false; #busy = false; #trustedAnchor; #gatewayTokenFile; #closed = false;
+  constructor({ directory, config, genesisCommitments, gatewayUrl, backend = defaultStarkBackend(), fetchImpl = fetch, trustedAnchor, gatewayTokenFile }) {
     assertSettlementConfig(config);
     if (!Array.isArray(genesisCommitments) || genesisCommitments.length !== config.genesis_count || merkleRoot(genesisCommitments) !== config.genesis_root) throw new Error('WALLET_GENESIS_MISMATCH');
     const gateway = new URL(gatewayUrl);
@@ -39,6 +40,7 @@ export class LocalWallet {
       (gateway.protocol !== 'https:' && !(gateway.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(gateway.hostname)))) throw new Error('WALLET_GATEWAY_REQUIRES_HTTPS_OR_LOOPBACK');
     this.#trustedAnchor = trustedAnchor ? structuredClone(trustedAnchor) : undefined;
     if (trustedAnchor && (!Number.isSafeInteger(trustedAnchor.height) || trustedAnchor.height < 0 || !/^[0-9a-f]{64}$/.test(trustedAnchor.checkpoint_id))) throw new Error('INVALID_WALLET_TRUSTED_ANCHOR');
+    this.#gatewayTokenFile = gatewayTokenFile;
     this.#config = structuredClone(config); this.#backend = backend; this.#gateway = gateway.origin; this.#fetch = fetchImpl;
     this.#vaultPath = join(directory, 'wallet.vault.json');
     this.#ledger = new PersistentLedger({ filename: join(directory, 'verified-ledger.sqlite'), networkId: config.network_id });
@@ -143,7 +145,7 @@ export class LocalWallet {
       pending: this.#payload.pending.map(({ request_id, transaction_id }) => ({ request_id, transaction_id })) };
   }
   async #request(path, body) {
-    const response = await this.#fetch(`${this.#gateway}${path}`, { method: body ? 'POST' : 'GET', headers: body ? { 'content-type': 'application/json' } : {},
+    const response = await this.#fetch(`${this.#gateway}${path}`, { method: body ? 'POST' : 'GET', headers: { ...(body ? { 'content-type': 'application/json' } : {}), ...(this.#gatewayTokenFile ? { authorization: `Bearer ${readBearerSecret(this.#gatewayTokenFile)}` } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {}), redirect: 'error', signal: AbortSignal.timeout(30_000) });
     if (!response.ok) throw new Error(`GATEWAY_HTTP_${response.status}`);
     // Bound an untrusted gateway before JSON allocation, even without Content-Length.

@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync, mkdirSync, openSync, closeSync, unlinkSync
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LocalWallet } from './wallet.mjs';
+import { readBearerSecret } from '../operational-security/access.mjs';
 import { assertDemoRuntime } from '../validation-gateway/runtime-policy.mjs';
 
 export function createWalletServer({ wallet, token, allowedOrigin = 'http://localhost:8080', port = 8765, idleMs = 300_000, onDisposed = () => {} }) {
@@ -80,10 +81,10 @@ export function startLocalWallet(env = process.env) {
     const tokenPath = join(directory, 'pairing-token');
     if (!existsSync(tokenPath)) writeFileSync(tokenPath, crypto.randomBytes(32).toString('hex'), { mode: 0o600, flag: 'wx' });
     if ((statSync(tokenPath).mode & 0o077) !== 0) throw new Error('PAIRING_FILE_REQUIRES_MODE_0600');
-    const token = readFileSync(tokenPath, 'utf8').trim();
+    const token = readBearerSecret(tokenPath);
     const config = JSON.parse(readFileSync(env.AEGIS_WALLET_CONFIG, 'utf8'));
     const genesisCommitments = JSON.parse(readFileSync(env.AEGIS_WALLET_GENESIS, 'utf8'));
-    wallet = new LocalWallet({ directory, config, genesisCommitments, gatewayUrl: env.AEGIS_GATEWAY_URL || 'http://127.0.0.1:8081', trustedAnchor: JSON.parse(readFileSync(env.AEGIS_WALLET_ANCHOR, 'utf8')) });
+    wallet = new LocalWallet({ directory, config, genesisCommitments, gatewayUrl: env.AEGIS_GATEWAY_URL || 'http://127.0.0.1:8081', gatewayTokenFile: env.AEGIS_GATEWAY_TOKEN_FILE, trustedAnchor: JSON.parse(readFileSync(env.AEGIS_WALLET_ANCHOR, 'utf8')) });
     const server = createWalletServer({ wallet, token, allowedOrigin: env.AEGIS_WALLET_ORIGIN || 'http://localhost:8080',
       onDisposed: () => { if (existsSync(lockfile)) unlinkSync(lockfile); } });
     server.once('error', () => { if (!server.listening) server.close(); });

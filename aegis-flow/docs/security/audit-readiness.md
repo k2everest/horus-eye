@@ -121,3 +121,14 @@ certificados; decriptação de notes, seleção de inputs e reserva/retry duráv
 Testes internos não certificam segurança de navegador/OS, armazenamento de
 hardware, rotação de identidade ou recuperação social. Essas capacidades não
 foram implementadas nesta etapa. Runbook: `docs/operations/wallet.md`.
+
+## Segurança operacional
+
+Incluir `operational-security/access.mjs`, `telemetry.mjs`, `ops-access.mjs`,
+integração do gateway/carteira e Compose no escopo. Revisar RBAC, TTL/revogação,
+recarga atômica, permissões de arquivos, TLS, controles de admissão e quotas,
+cardinalidade das métricas e privacidade dos logs. Modos read-only/halt não
+cancelam operações já admitidas. Testes de TLS/RBAC/incidente e exemplos de
+alertas não constituem pentest, SOC ou exercício operacional independente.
+Integração com gestor externo de segredos e execução dos alertas continuam
+pendentes. Runbook: `docs/operations/security.md`.

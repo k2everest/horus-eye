@@ -28,7 +28,8 @@ jobs:
         run: |
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
             mkdir -p work
-            node aegis-flow/scripts/open-chain.mjs lab-genesis --output work/pow-lab-genesis.json
+            LAB_FINAL_TARGET=$(node --input-type=module -e 'import {MAX_TARGET} from "./aegis-flow/services/open-chain/consensus.mjs";console.log((MAX_TARGET/16n).toString(16).padStart(64,"0"));')
+            node aegis-flow/scripts/open-chain.mjs queer-genesis --output work/pow-lab-genesis.json --network-id queer-pr-lab --base-reward 105000000 --minimum-target "$LAB_FINAL_TARGET"
             export GENESIS_PATH=work/pow-lab-genesis.json
           else
             export GENESIS_PATH="$REQUESTED_GENESIS"

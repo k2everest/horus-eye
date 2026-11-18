@@ -81,3 +81,17 @@ existente não deve receber um genesis novo como se fosse atualização de dados
 O teto e a regra PoW são verificados durante admissão, sincronização, restart,
 restauração e recuperação por peers. A implementação não fecha os limites do
 histórico, a análise STARK de 128 bits pós-quânticos, auditoria ou testnet pública.
+
+## Evidência de implementação
+
+A integração V3 gerou uma STARK nova e passou em cerca de 213 segundos. O
+cenário de laboratório emite o teto em três recompensas grandes para exercitar
+rapidamente o limite: emissão exata, taxa sem emissão após o teto, rejeição de
+recompensa excessiva, vinculação da prova à configuração, reorg e recuperação
+cifrada/por peers. Os números de recompensa e o piso 16× desse teste não são
+parâmetros comerciais aprovados. O CI inclui essa integração nativa.
+
+O artefato de PR usa o perfil V3 com recompensa experimental de 1 QUEER por
+bloco e alvo final `pow_limit / 16`, para demonstração. Genesis de PR muda entre
+builds: não o regenere no meio de uma campanha existente. Esses exemplos não
+substituem definição/auditoria dos parâmetros de lançamento.

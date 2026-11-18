@@ -30,7 +30,8 @@ TPS, tempo de prova, throughput de nó ou capacidade de uma rede em produção.
 - O circuito e as regras de consenso continuam limitados a 1 milhão de folhas.
   Aumentar somente uma constante JavaScript criaria divergência com o circuito.
 - Clonagem de commitments/sets nos estados, criação dos caminhos de inclusão,
-  raiz de nullifiers e acesso aos ancestrais ainda crescem com o histórico.
+  raiz de nullifiers ainda crescem com o histórico. A validação de dificuldade
+  agora usa uma janela limitada de ancestrais; reorgs ainda percorrem branches.
 - O banco ainda retém corpos canônicos; os limites locais padrão continuam em
   50 mil blocos e 512 MiB. A poda de forks não aumenta a capacidade canônica.
 - Não há snapshot persistente autenticado que permita descartar o histórico

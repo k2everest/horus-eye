@@ -21,7 +21,7 @@ export async function recoverFromPeers({destinationDirectory,config,peers,minimu
  const deadline=AbortSignal.timeout(timeoutMs);
  const report={schema:'AEGIS_POW_PEER_RECOVERY_V1',config_id:configId,started_at:Date.now(),minimum_work:minimumWork,
   native_stark_backend:backend instanceof StarkBackend,peer_operator_independence_verified:false,peer_attempts:[],imported_blocks:0,
-  state_source:'locally-verified-public-blocks',wallet_keys_recovered:false,external_storage_required:false,production_ready:false};
+  recovery_target:'minimum-work-floor',state_source:'locally-verified-public-blocks',wallet_keys_recovered:false,external_storage_required:false,production_ready:false};
  let chain,created=false,linked=false,success=false;
  try {
   chain=await OpenChain.open({directory:staging,config,backend,limits});
@@ -47,6 +47,7 @@ export async function recoverFromPeers({destinationDirectory,config,peers,minimu
    if(BigInt(chain.tip.work)>=BigInt(minimumWork))break;
    if(!progress||report.imported_blocks>=maxBlocks)break;
   }
+  if(deadline.aborted)throw Error('PEER_RECOVERY_TIMEOUT');
   report.tip=chain.tip;report.resources=chain.status().resources;
   if(BigInt(chain.tip.work)<BigInt(minimumWork))throw Error('POW_RECOVERY_BELOW_VERIFIED_WORK');
   chain.close();chain=undefined;

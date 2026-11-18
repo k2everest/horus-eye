@@ -78,6 +78,9 @@ test('external reports require enrollment, native ML-DSA signatures and review r
  const signed=signTestnetReport(payload,key.privateKey);assert.deepEqual(verifyEnrolledReport(signed,f.campaign,[entry]),payload);
  assert.equal(verifyEnrolledReport({...signed,payload:{...payload,observer_id:'other'}},f.campaign,[entry]),undefined);
  assert.equal(verifyEnrolledReport(signed,f.campaign,[{...entry,independence_reviewed:false}]),undefined);
+ const drill={kind:'infrastructure_drill',campaign_id:f.campaign.campaign_id,config_id:f.campaign.config_id,observer_id:entry.observer_id,scenario:'host-recovery',artifact_sha256:'78'.repeat(32),measured_recovery_ms:1000,recovered:true,external_environment:true};
+ assert.deepEqual(verifyEnrolledReport(signTestnetReport(drill,key.privateKey),f.campaign,[{...entry,role:'operator'}]),drill);
+
 });
 test('signed declarations do not turn local drills into external infrastructure acceptance',async t=>{
  const f=setup(t),key=generateSigningKeyPair();f.journal.close();

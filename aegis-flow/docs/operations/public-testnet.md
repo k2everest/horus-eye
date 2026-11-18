@@ -179,7 +179,7 @@ firewall ou kill em máquinas de produção/usuários deste workspace.
 | SIGKILL do gateway | Reiniciar mesma imagem/dados; nenhuma inclusão parcial, replay idempotente, mesmo checkpoint finalizado |
 | Partição de rede | Falhas/timeouts observáveis, reserva de inputs preservada, reconexão sem crédito/gasto duplicado |
 | Disco cheio | Usar filesystem/volume descartável ou quota; rollback de SQLite, sem recibo de sucesso parcial; recuperar espaço e repetir com segurança |
-| Perda de host | Cercar host/autoridade antiga; buscar versões S3, recuperar chave por escrow e restaurar com âncora independente antes de assinar |
+| Perda de host | Cercar host/autoridade antiga; recuperar cópia cifrada por transporte escolhido e chave por escrow, ou reconstruir estado público por peers quando suportado; validar com âncora independente antes de assinar |
 
 Registre commit/imagem, config ID, checkpoints antes/depois, início/fim, métricas,
 logs redigidos e hashes dos artefatos. Um HTTP 503 injetado não equivale a perda de

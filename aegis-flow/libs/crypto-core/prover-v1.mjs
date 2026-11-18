@@ -1,53 +1,16 @@
-import crypto from 'node:crypto';
+import { defaultStarkBackend } from '../../services/proof-engine/backend.mjs';
+import { starkStatementDigest } from './stark-statement.mjs';
 
-import { buildStatementDigest, validateTxStatementShape } from './zk-statement.mjs';
-
-function h(input) {
-  return crypto.createHash('sha256').update(input).digest('hex');
-}
-
-export function proveTxV1({ statement, witness, provingKeyId = 'pk-aegis-v1' }) {
-  const startedAt = Date.now();
-
-  const shape = validateTxStatementShape(statement);
-  if (!shape.valid) {
-    return {
-      ok: false,
-      error: `invalid statement: ${shape.errors.join(', ')}`,
-      prove_time_ms: Date.now() - startedAt,
-    };
+// Local proving only: private witnesses never belong in a gateway request.
+export async function proveTxV1({ statement, witness, backend = defaultStarkBackend() } = {}) {
+  if (!backend?.availableForProving()) return { ok: false, error: 'ZK_BACKEND_NOT_CONFIGURED', proof_status: 'BACKEND_NOT_CONFIGURED' };
+  const start = Date.now();
+  try {
+    const proof = await backend.prove({ statement, witness });
+    return { ok: true, proof, statement_digest: starkStatementDigest(statement),
+      prove_time_ms: Date.now() - start, proof_size_bytes: Buffer.from(proof.receipt, 'base64').length,
+      proving_key_id: backend.programId };
+  } catch {
+    return { ok: false, error: 'PROOF_GENERATION_FAILED', prove_time_ms: Date.now() - start };
   }
-
-  if (!witness || !witness.spend_secret_ref) {
-    return {
-      ok: false,
-      error: 'invalid witness: spend_secret_ref ausente',
-      prove_time_ms: Date.now() - startedAt,
-    };
-  }
-
-  const statementDigest = buildStatementDigest(statement);
-
-  const proofPayload = {
-    scheme: 'LATTICE-ZK-MVP',
-    proving_key_id: provingKeyId,
-    statement_digest: statementDigest,
-    ownership: true,
-    balance: true,
-    range: true,
-    nullifier_uniqueness: true,
-    witness_commitment: h(`${witness.spend_secret_ref}|${(witness.note_paths || []).length}|${(witness.openings || []).length}`),
-    created_at: new Date(startedAt).toISOString(),
-  };
-
-  const proof = Buffer.from(JSON.stringify(proofPayload)).toString('base64');
-
-  return {
-    ok: true,
-    proof,
-    statement_digest: statementDigest,
-    prove_time_ms: Date.now() - startedAt,
-    proof_size_bytes: Buffer.byteLength(proof, 'utf8'),
-    proving_key_id: provingKeyId,
-  };
 }

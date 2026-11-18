@@ -28,3 +28,6 @@ aegis-flow/deployments/docker/.env
 
 # Local analysis and downloaded source vectors
 /work/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

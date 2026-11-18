@@ -23,7 +23,7 @@
 
 ## Ameaças e mitigação (MVP)
 
-- **Replay básico**: mitigado parcialmente por `request_id` e trilha de logs.
+- **Replay/gasto duplo local V2**: request_id/tx_id idempotentes, input consumido e nullifier únicos em transação SQLite, com prova vinculada à rede e transação. Isso não substitui consenso multi-host.
 - **Exposição de dados em observabilidade**: mitigado por hash SHA-256 (`tx_id_hash`) e ausência de `tx_blob` no log.
 - **Downgrade criptográfico**: mitigado por allowlists exatas ML-DSA/ML-KEM, com verificação nativa do algoritmo das chaves.
 - **Payload malformado**: mitigado por validação estrutural e retorno `INVALID_ARGUMENT`/`FAILED_PRECONDITION`.
@@ -32,7 +32,7 @@
 ## Limitações conhecidas
 
 - ML-DSA/ML-KEM e cifragem autenticada das notes agora usam primitivas nativas reais (Node.js >=24.8), com casos NIST ACVP. A integração não é certificação FIPS nem auditoria independente.
-- Provas ZK e commitments continuam como stubs. O gateway verifica assinatura e estrutura; não comprova saldo, ownership dos inputs, roots ou gasto duplo. `production_ready` permanece false.
+- Transfer V2 verifica STARK real de abertura/ownership/range/balance/inclusão e aplica nullifiers/inputs atomicamente em SQLite. O SDK usa parâmetros conjecturados (~98 bits), ainda sem auditoria desta integração; `production_ready` permanece false. V1 /validate verifica somente assinatura/estrutura.
 - Metadados públicos (amount, asset e fingerprints) e a construção KEM/AEAD precisam de revisão. A carteira browser antiga ainda gera envelopes fictícios, rejeitados pelo gateway.
-- Não há proteção formal anti-replay em estado persistente.
+- V2 tem proteção persistente contra replay/gasto duplo no host local; consenso/âncora externa e auditoria formal continuam pendentes.
 - mTLS e AuthN/AuthZ entre serviços ainda pendentes.

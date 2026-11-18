@@ -1,0 +1,33 @@
+name: Aegis STARK and persistent state
+
+on:
+  pull_request:
+    paths: ['aegis-flow/**', '.github/workflows/aegis-stark-ci.yml']
+  push:
+    branches: [main]
+    paths: ['aegis-flow/**', '.github/workflows/aegis-stark-ci.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  real-stark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@1.100.0
+      - name: Build pinned guest and verifier
+        run: python3 aegis-flow/scripts/setup-stark.py
+      - name: Prove and verify a real composite STARK, then apply durable state
+        env:
+          AEGIS_STARK_INTEGRATION: '1'
+        run: node --test aegis-flow/services/proof-engine/integration.test.mjs
+      - name: Check SQLite crash recovery, backup and process concurrency
+        run: node --test aegis-flow/services/ledger-state/*.test.mjs

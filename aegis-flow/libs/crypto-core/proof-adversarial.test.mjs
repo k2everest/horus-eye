@@ -1,71 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-
-import { proveTxV1 } from './prover-v1.mjs';
-import { buildTxStatement } from './zk-statement.mjs';
 import { verifyTxProofV1 } from './verifier-v1.mjs';
+import { buildTxStatement, buildStatementDigest } from './zk-statement.mjs';
 
-function fixture() {
+test('rejects the historical forgery with all boolean clauses and matching public digest', async () => {
   const statement = buildTxStatement({
-    anchorStateRoot: 'root-adversarial-1',
-    inputCommitments: ['in-1'],
-    outputCommitments: ['out-1'],
-    nullifiers: ['nf-1'],
+    anchorStateRoot: 'root', inputCommitments: ['input'], outputCommitments: ['output'], nullifiers: ['nullifier'],
   });
-  const witness = {
-    spend_secret_ref: 'kms://spend-adversarial-1',
-    note_paths: ['path-1'],
-    openings: ['open-1'],
+  const forged = {
+    scheme: 'LATTICE-ZK-MVP', statement_digest: buildStatementDigest(statement),
+    proving_key_id: 'pk-aegis-v1', ownership: true, balance: true,
+    range: true, nullifier_uniqueness: true, witness_commitment: 'not-a-proof',
   };
-  return { statement, proof: proveTxV1({ statement, witness }).proof };
-}
-
-function tamperProof(proof, mutate) {
-  const payload = JSON.parse(Buffer.from(proof, 'base64').toString('utf8'));
-  mutate(payload);
-  return Buffer.from(JSON.stringify(payload)).toString('base64');
-}
-
-test('US-011: rejeita proof com scheme adulterado', () => {
-  const { statement, proof } = fixture();
-  const tampered = tamperProof(proof, (payload) => {
-    payload.scheme = 'LEGACY-ZK';
-  });
-
-  const verified = verifyTxProofV1({ statement, proof: tampered });
-
-  assert.equal(verified.valid, false);
-  assert.ok(verified.failed_checks.some((x) => x.includes('scheme')));
-});
-
-test('US-011: rejeita proof com digest adulterado', () => {
-  const { statement, proof } = fixture();
-  const tampered = tamperProof(proof, (payload) => {
-    payload.statement_digest = '0'.repeat(64);
-  });
-
-  const verified = verifyTxProofV1({ statement, proof: tampered });
-
-  assert.equal(verified.valid, false);
-  assert.ok(verified.failed_checks.some((x) => x.includes('statement_digest')));
-});
-
-test('US-011: rejeita proof malformada', () => {
-  const { statement } = fixture();
-  const verified = verifyTxProofV1({ statement, proof: '%%%not-json%%%' });
-
-  assert.equal(verified.valid, false);
-  assert.ok(verified.failed_checks.some((x) => x.includes('proof inválida')));
-});
-
-test('US-011: rejeita replay da mesma proof quando cache é fornecido', () => {
-  const { statement, proof } = fixture();
   const seenProofDigests = new Set();
-
-  const first = verifyTxProofV1({ statement, proof, seenProofDigests });
-  const second = verifyTxProofV1({ statement, proof, seenProofDigests });
-
-  assert.equal(first.valid, true);
-  assert.equal(second.valid, false);
-  assert.ok(second.failed_checks.some((x) => x.includes('replay')));
+  const result = await verifyTxProofV1({ statement, proof: Buffer.from(JSON.stringify(forged)).toString('base64'), seenProofDigests });
+  assert.equal(result.valid, false);
+  assert.equal(seenProofDigests.size, 0);
 });

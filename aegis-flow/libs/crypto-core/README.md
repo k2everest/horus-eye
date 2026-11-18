@@ -91,12 +91,13 @@ públicos, nunca credenciais. Os testes nativos de vetores de assinatura usam a
 interface FIPS pura/contexto do Node diretamente; o framing Aegis tem testes
 próprios. O subconjunto não substitui certificação ou a suíte ACVP completa.
 
-**Ainda não é um protocolo financeiro de produção:** commitments continuam
-sendo o hash MVP; prover/verifier ZK continuam simulados; ledger/nullifiers
-não persistem. Amount, asset e fingerprints continuam públicos, portanto o
+**Ainda não é um protocolo financeiro de produção.** Transfer V2 agora usa
+commitments SHA-256 binários com randomness, composite STARK e SQLite WAL.
+Este README descreve a API PQC e o builder V1; os formatos V2, guest, limites de
+segurança e relação provada estão em `../../services/proof-engine/README.md`. Amount, asset e fingerprints continuam públicos, portanto o
 formato ainda não entrega privacidade transacional completa. O transcript usa
 SHA-256: aumentar o parâmetro ML-DSA não eleva automaticamente a segurança do
 protocolo inteiro. A construção KEM/AEAD, parâmetros e serialização precisam de
-revisão independente. Key vault, backup/rotação e integração com a carteira
-browser permanecem pendentes. O gateway mantém `production_ready: false` e
+revisão independente. Key vault, backup/rotação de chaves e integração com a carteira
+browser permanecem pendentes. Backup consistente do ledger já está implementado. O gateway mantém `production_ready: false` e
 bloqueio de `NODE_ENV=production`.

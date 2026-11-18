@@ -11,6 +11,9 @@ services:
       PORT: 8080
       LOG_LEVEL: ${AEGIS_LOG_LEVEL:-info}
       CORS_ORIGIN: ${AEGIS_CORS_ORIGIN:-http://localhost:8080}
+      AEGIS_LEDGER_PATH: /data/ledger.sqlite
+    volumes:
+      - aegis-ledger:/data
     ports:
       - "${AEGIS_GATEWAY_PORT:-8080}:8080"
     healthcheck:
@@ -35,4 +38,7 @@ services:
       options:
         max-size: 10m
         max-file: "3"
+
+volumes:
+  aegis-ledger:
 

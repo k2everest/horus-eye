@@ -46,10 +46,9 @@ test('US-008: createZkStatementEnvelope inclui cláusulas formais', () => {
 
   const env = createZkStatementEnvelope({ statement: st });
   assert.equal(env.constraints_version, 'ZK-STMT-V1');
-  assert.equal(env.clauses.ownership, true);
-  assert.equal(env.clauses.balance, true);
-  assert.equal(env.clauses.range, true);
-  assert.equal(env.clauses.nullifier_uniqueness, true);
+  assert.deepEqual(env.required_constraints, ['ownership', 'balance', 'range', 'nullifier_uniqueness']);
+  assert.equal(env.proof_status, 'NOT_PROVEN');
+  assert.equal(env.clauses, undefined);
   assert.equal(typeof env.statement_digest, 'string');
   assert.equal(env.statement_digest.length, 64);
 });

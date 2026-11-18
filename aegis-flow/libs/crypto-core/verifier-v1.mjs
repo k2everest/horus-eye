@@ -1,75 +1,23 @@
-import crypto from 'node:crypto';
+import { defaultStarkBackend } from '../../services/proof-engine/backend.mjs';
+import { starkStatementDigest } from './stark-statement.mjs';
 
-import { buildStatementDigest, validateTxStatementShape } from './zk-statement.mjs';
-
-function decodeProof(proof) {
-  if (!proof || typeof proof !== 'string') {
-    return { ok: false, error: 'proof ausente' };
-  }
-
-  try {
-    const decoded = Buffer.from(proof, 'base64').toString('utf8');
-    const payload = JSON.parse(decoded);
-    return { ok: true, payload };
-  } catch {
-    return { ok: false, error: 'proof inválida: base64/json malformado' };
-  }
-}
-
-export function verifyTxProofV1({ statement, proof, verifyingKeyId = 'vk-aegis-v1', seenProofDigests }) {
-  const startedAt = Date.now();
-  const failedChecks = [];
-
-  const shape = validateTxStatementShape(statement);
-  if (!shape.valid) {
-    return {
-      valid: false,
-      failed_checks: shape.errors.map((x) => `INVALID_ARGUMENT: ${x}`),
-      verify_time_ms: Date.now() - startedAt,
-      verifying_key_id: verifyingKeyId,
-    };
-  }
-
-  const decoded = decodeProof(proof);
-  if (!decoded.ok) {
-    return {
-      valid: false,
-      failed_checks: [`INVALID_ARGUMENT: ${decoded.error}`],
-      verify_time_ms: Date.now() - startedAt,
-      verifying_key_id: verifyingKeyId,
-    };
-  }
-
-  const statementDigest = buildStatementDigest(statement);
-  const proofDigest = crypto.createHash('sha256').update(proof).digest('hex');
-  const payload = decoded.payload;
-
-  if (seenProofDigests?.has(proofDigest)) {
-    failedChecks.push('FAILED_PRECONDITION: proof replay detectado');
-  }
-
-  if (payload.scheme !== 'LATTICE-ZK-MVP') {
-    failedChecks.push('FAILED_PRECONDITION: proof scheme inválido');
-  }
-  if (payload.statement_digest !== statementDigest) {
-    failedChecks.push('FAILED_PRECONDITION: statement_digest divergente');
-  }
-  if (!payload.ownership) failedChecks.push('FAILED_PRECONDITION: cláusula ownership ausente');
-  if (!payload.balance) failedChecks.push('FAILED_PRECONDITION: cláusula balance ausente');
-  if (!payload.range) failedChecks.push('FAILED_PRECONDITION: cláusula range ausente');
-  if (!payload.nullifier_uniqueness) failedChecks.push('FAILED_PRECONDITION: cláusula nullifier_uniqueness ausente');
-  if (!payload.witness_commitment) failedChecks.push('FAILED_PRECONDITION: witness_commitment ausente');
-
-  const valid = failedChecks.length === 0;
-  if (valid) seenProofDigests?.add(proofDigest);
-
-  return {
-    valid,
-    failed_checks: failedChecks,
-    statement_digest: statementDigest,
-    proof_digest: proofDigest,
-    verify_time_ms: Date.now() - startedAt,
-    verifying_key_id: verifyingKeyId,
-    proof_size_bytes: Buffer.byteLength(proof, 'utf8'),
+export async function verifyTxProofV1({ statement, proof, backend = defaultStarkBackend(), seenProofDigests } = {}) {
+  if (!backend?.availableForVerification()) return {
+    valid: false, status_code: 'UNAVAILABLE', proof_status: 'BACKEND_NOT_CONFIGURED',
+    failed_checks: ['ZK_BACKEND_NOT_CONFIGURED'], production_ready: false,
   };
+  const start = Date.now();
+  try {
+    statement = structuredClone(statement); proof = structuredClone(proof);
+    const result = await backend.verify({ statement, proof });
+    const replayed = result.valid && seenProofDigests?.has(result.proof_digest);
+    const valid = result.valid && !replayed;
+    if (valid) seenProofDigests?.add(result.proof_digest);
+    return { ...result, valid, failed_checks: valid ? [] : [replayed ? 'PROOF_REPLAY' : 'STARK_PROOF_INVALID'],
+      status_code: valid ? 'OK' : 'FAILED_PRECONDITION', proof_status: valid ? 'VERIFIED' : 'REJECTED',
+      statement_digest: starkStatementDigest(statement), verifying_key_id: backend.programId,
+      verify_time_ms: Date.now() - start, production_ready: false };
+  } catch {
+    return { valid: false, status_code: 'FAILED_PRECONDITION', failed_checks: ['STARK_PROOF_INVALID'], proof_status: 'REJECTED', production_ready: false };
+  }
 }

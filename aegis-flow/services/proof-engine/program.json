@@ -1,0 +1,14 @@
+{
+  "schema": "AEGIS_STARK_PROGRAM_V1",
+  "sdk": "3.1.0",
+  "receipt_kind": "composite",
+  "program_id": "c57dad1e424a8049010a037cce9372d74f0a13368d13eeb1a63560915765006e",
+  "source_sha256": "c3feba570b2167d979d271a352d0cb7180fb19b666ec52aae6aa7475517cd116",
+  "source_files": [
+    "guest/Cargo.toml",
+    "guest/Cargo.lock",
+    "guest/src/main.rs"
+  ],
+  "program_binary_sha256": "aa792292aa680db07862cc166e227465ba58f2a825709434342236e7eefdf6d9",
+  "security_note": "RISC Zero default conjectured security is approximately 98 bits; no claim of 128-bit post-quantum security or production readiness."
+}

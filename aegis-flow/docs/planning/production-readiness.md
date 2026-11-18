@@ -7,7 +7,8 @@ financeira autorizada por esta preparação. O gateway falha ao iniciar em
 `NODE_ENV=production` ou com `AEGIS_MODE` diferente de `demo`. A imagem Docker
 é explicitamente demonstrativa; mudar variáveis para `development` não elimina
 os bloqueadores. `valid: true` significa assinatura ML-DSA real e estrutura
-válidas; não comprova prova ZK, saldo, unicidade de nullifier ou settlement.
+válidas; em `/validate` não comprova prova ZK ou gasto. `/submit` verifica assinatura,
+STARK e estado SQLite, retornando APPLIED_LOCAL; não existe settlement em rede.
 
 ## Etapas e evidências de saída
 
@@ -36,13 +37,15 @@ P2P, validadores e auditoria; não cabe automaticamente nesse prazo.
 1. Ampliar a cobertura de autenticação/carteira e revisar o bundle do frontend
    (o build atual alerta sobre chunk maior que 500 KiB).
 2. ADR com alternativas de settlement e requisitos de segurança pós-quântica.
-3. ML-DSA/ML-KEM nativos e HKDF/AEAD já implementados no core e assinatura
-   integrada ao gateway, com vetores NIST. Próximo: revisão independente dos
-   formatos e construção, benchmarks, key vault e integração browser.
-4. Escolha e benchmark do sistema de provas: soundness, privacidade do witness,
-   resistência quântica, tamanho e custo de verificação/settlement.
-5. Persistência e validação atômica de tx+estado (US-014), incluindo concorrência
-   entre processos, expiração de reservas, migrações e restauração.
+3. ML-DSA/ML-KEM, HKDF/AEAD, Note V2 e composite STARK integrados. Próximo:
+   auditoria independente da relação e dos parâmetros (SDK ~98 bits conjecturados),
+   benchmarks, key vault e integração browser.
+4. Motor escolhido: RISC Zero 3.1.0 composite STARK, sem Groth16. Guest,
+   image ID e journal são verificados; falta revisão de soundness, parâmetros
+   para release e custo de operação prolongada.
+5. SQLite WAL e validação atômica tx+estado implementados, com concorrência
+   entre processos, SIGKILL e backup/restore testados. Falta escala/multi-host,
+   âncora externa, política de reservas e migrações de release.
 6. Integração de carteira/gateway/settlement somente após definir esses contratos.
 
 ## Condições para remover o bloqueio de produção
@@ -63,7 +66,10 @@ P2P, validadores e auditoria; não cabe automaticamente nesse prazo.
 ## Validação desta etapa
 
 `bash aegis-flow/scripts/dev-env.sh test` executa crypto-core, gateway/hardening
-e relay sem instalar dependências externas. Os testes dos stubs comprovam
-somente seu comportamento demonstrativo. O CI executa a mesma suíte.
-As primitivas PQC agora exigem Node.js >=24.8; os testes restantes de ZK e
-commitments continuam cobrindo apenas os stubs.
+ledger e relay sem instalar Rust. Há regressões que rejeitam os antigos stubs
+e testes dos formatos V1 remanescentes; eles não autorizam aplicação de estado.
+O CI rápido executa a mesma suíte.
+As primitivas PQC exigem Node.js >=24.8. A integração STARK demorada é opt-in
+via AEGIS_STARK_INTEGRATION=1 e tem workflow próprio que constrói o motor real.
+Formatos V1 ainda servem à verificação de assinatura; somente Transfer V2 pode
+ser aplicado ao ledger via STARK. Veja os READMEs de proof-engine e ledger-state.

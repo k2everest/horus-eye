@@ -7,6 +7,15 @@ na etapa de preparação. Consulte `../planning/production-readiness.md`.
 
 Este guia coloca o `validation-gateway` no ar no Google Cloud usando **Cloud Run** com logs estruturados no **Cloud Logging**.
 
+## Restrição do estado persistente
+
+O gateway agora suporta ledger SQLite e STARK, mas o filesystem de uma instância
+Cloud Run é efêmero. Este guia não provisiona storage durável/locks entre
+réplicas e **não é um deploy suportado do ledger persistente**. Usar somente
+para demonstração sem valor; para estado durável, usar host/volume local único
+ou implementar backend transacional gerenciado adequado antes de escalar.
+O volume Docker Compose local está documentado no README de ledger-state.
+
 ## 1) Pré-requisitos
 
 - Projeto GCP ativo.

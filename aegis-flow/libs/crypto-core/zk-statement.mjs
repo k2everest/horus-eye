@@ -55,11 +55,7 @@ export function createZkStatementEnvelope({ statement, constraintsVersion = 'ZK-
     constraints_version: constraintsVersion,
     statement,
     statement_digest: digest,
-    clauses: {
-      ownership: true,
-      balance: true,
-      range: true,
-      nullifier_uniqueness: true,
-    },
+    required_constraints: ['ownership', 'balance', 'range', 'nullifier_uniqueness'],
+    proof_status: 'NOT_PROVEN',
   };
 }

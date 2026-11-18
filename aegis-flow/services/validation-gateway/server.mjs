@@ -4,8 +4,12 @@ import { fileURLToPath } from 'node:url';
 import { validateShieldedTx } from './index.mjs';
 import { assertDemoRuntime } from './runtime-policy.mjs';
 import { assertPqcRuntime } from '../../libs/crypto-core/pqc-wrapper.mjs';
+import { PersistentLedger, LedgerConflict } from '../ledger-state/store.mjs';
+import { defaultStarkBackend } from '../proof-engine/backend.mjs';
+import { submitProvenTransfer } from '../ledger-state/submit-transfer.mjs';
 
 function sendJson(res, statusCode, payload) {
+  if (res.destroyed || res.writableEnded) return;
   res.writeHead(statusCode, {
     'content-type': 'application/json; charset=utf-8',
     'access-control-allow-origin': process.env.CORS_ORIGIN || 'http://localhost:8080',
@@ -15,23 +19,68 @@ function sendJson(res, statusCode, payload) {
   res.end(JSON.stringify(payload));
 }
 
-export function createValidationServer({ sink = console.log, faultInjector = () => false, maxBodyBytes = 65536 } = {}) {
+export function createValidationServer({ sink = console.log, faultInjector = () => false, maxBodyBytes = 65536, maxSubmitBytes = 12 * 1024 * 1024,
+  ledgerPath, networkId = process.env.AEGIS_NETWORK_ID || 'aegis-lab-v1', starkBackend = defaultStarkBackend() } = {}) {
   assertDemoRuntime();
   assertPqcRuntime();
   if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes < 1 || maxBodyBytes > 1048576) {
     throw new RangeError('maxBodyBytes must be between 1 and 1048576');
   }
+  if (!Number.isSafeInteger(maxSubmitBytes) || maxSubmitBytes < 1 || maxSubmitBytes > 12 * 1024 * 1024) throw new RangeError('invalid submit size limit');
+  const ledger = ledgerPath ? new PersistentLedger({ filename: ledgerPath, networkId }) : undefined;
+  let verifying = false;
   const server = http.createServer((req, res) => {
     if (req.method === 'OPTIONS') {
       sendJson(res, 204, {});
       return;
     }
     if (req.method === 'GET' && req.url === '/healthz') {
-      sendJson(res, 200, { status: 'ok', service: 'validation-gateway', mode: 'demo', production_ready: false });
+      sendJson(res, 200, { status: 'ok', service: 'validation-gateway', mode: 'demo', production_ready: false, state_persistence: Boolean(ledger), stark_verification: Boolean(starkBackend?.availableForVerification()) });
       return;
     }
 
-    if (req.method === 'POST' && req.url === '/validate') {
+    const receiptMatch = req.url?.match(/^\/receipts\/([A-Za-z0-9_-]{1,128})$/);
+    const transactionMatch = req.url?.match(/^\/transactions\/([0-9a-f]{64})$/);
+    if (req.method === 'GET' && transactionMatch) {
+      if (!ledger) { sendJson(res, 503, { status_code: 'STATE_NOT_CONFIGURED' }); return; }
+      try {
+        const transaction = ledger.publicTransaction(transactionMatch[1]);
+        sendJson(res, transaction ? 200 : 404, transaction ?? { status_code: 'NOT_FOUND' });
+      } catch { sendJson(res, 503, { status_code: 'STATE_UNAVAILABLE' }); }
+      return;
+    }
+    if (req.method === 'GET' && receiptMatch) {
+      if (!ledger) { sendJson(res, 503, { status_code: 'STATE_NOT_CONFIGURED' }); return; }
+      try {
+        const receipt = ledger.receipt(receiptMatch[1]) ?? ledger.verificationReceipt(receiptMatch[1]);
+        sendJson(res, receipt ? 200 : 404, receipt ?? { status_code: 'NOT_FOUND' });
+      } catch {
+        sendJson(res, 503, { status_code: 'STATE_UNAVAILABLE' });
+      }
+      return;
+    }
+
+    if (req.method === 'GET' && req.url === '/ledger/root') {
+      if (!ledger) { sendJson(res, 503, { status_code: 'STATE_NOT_CONFIGURED' }); return; }
+      try { sendJson(res, 200, { network_id: ledger.networkId, ...ledger.latest(), production_ready: false }); }
+      catch { sendJson(res, 503, { status_code: 'STATE_UNAVAILABLE' }); }
+      return;
+    }
+    const proofMatch = req.url?.match(/^\/ledger\/proof\/([0-9a-f]{64})$/);
+    if (req.method === 'GET' && proofMatch) {
+      if (!ledger) { sendJson(res, 503, { status_code: 'STATE_NOT_CONFIGURED' }); return; }
+      try { sendJson(res, 200, ledger.inclusionProof({ commitment: proofMatch[1] })); }
+      catch { sendJson(res, 404, { status_code: 'UNKNOWN_COMMITMENT' }); }
+      return;
+    }
+    if (req.method === 'POST' && req.url === '/submit' && (!ledger || !starkBackend?.availableForVerification() || verifying)) {
+      req.resume();
+      sendJson(res, 503, { valid: false, status_code: !ledger ? 'STATE_NOT_CONFIGURED' : verifying ? 'VERIFIER_BUSY' : 'ZK_BACKEND_NOT_CONFIGURED', settled: false });
+      return;
+    }
+
+    if (req.method === 'POST' && (req.url === '/validate' || req.url === '/submit')) {
+      const submitting = req.url === '/submit';
       if (req.headers['content-type']?.split(';')[0].trim().toLowerCase() !== 'application/json') {
         req.resume();
         sendJson(res, 415, { valid: false, status_code: 'UNSUPPORTED_MEDIA_TYPE' });
@@ -44,7 +93,7 @@ export function createValidationServer({ sink = console.log, faultInjector = () 
       req.on('data', (chunk) => {
         if (oversized) return;
         bytes += chunk.length;
-        if (bytes > maxBodyBytes) {
+        if (bytes > (submitting ? maxSubmitBytes : maxBodyBytes)) {
           oversized = true;
           chunks.length = 0;
           sendJson(res, 413, { valid: false, status_code: 'PAYLOAD_TOO_LARGE' });
@@ -54,7 +103,7 @@ export function createValidationServer({ sink = console.log, faultInjector = () 
       });
       req.on('error', () => { if (!res.writableEnded) res.destroy(); });
 
-      req.on('end', () => {
+      req.on('end', async () => {
         if (oversized) return;
         body = Buffer.concat(chunks).toString('utf8');
         if (faultInjector({ method: req.method, url: req.url })) {
@@ -62,18 +111,40 @@ export function createValidationServer({ sink = console.log, faultInjector = () 
           return;
         }
 
+        let parsed;
         try {
-          const parsed = body ? JSON.parse(body) : {};
+          parsed = body ? JSON.parse(body) : {};
           if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid object');
-          const response = validateShieldedTx(parsed, sink);
-
-          sendJson(res, response.valid ? 200 : 400, response);
         } catch {
           sendJson(res, 400, {
             valid: false,
             failed_checks: ['INVALID_ARGUMENT: corpo JSON inválido'],
             request_id: undefined,
             status_code: 'INVALID_ARGUMENT',
+          });
+          return;
+        }
+        try {
+          if (submitting) {
+            if (Object.keys(parsed).sort().join(',') !== 'proof,transaction') {
+              sendJson(res, 400, { valid: false, status_code: 'PUBLIC_TRANSACTION_AND_PROOF_REQUIRED' });
+              return;
+            }
+            if (verifying) { sendJson(res, 503, { status_code: 'VERIFIER_BUSY' }); return; }
+            verifying = true;
+            try {
+              const result = await submitProvenTransfer({ ledger, transaction: parsed.transaction, proof: parsed.proof, backend: starkBackend });
+              const conflict = ['STALE_ROOT', 'INPUT_ALREADY_SPENT', 'NULLIFIER_ALREADY_USED', 'REQUEST_ID_CONFLICT', 'TX_ID_CONFLICT', 'COMMITMENT_ALREADY_EXISTS'];
+              sendJson(res, result.valid ? 200 : conflict.includes(result.status_code) ? 409 : result.status_code === 'ZK_BACKEND_NOT_CONFIGURED' ? 503 : 400, result);
+            } finally { verifying = false; }
+            return;
+          }
+          const response = validateShieldedTx(parsed, sink);
+          if (response.valid && ledger) response.receipt = ledger.recordVerification(parsed);
+          sendJson(res, response.valid ? 200 : 400, response);
+        } catch (error) {
+          sendJson(res, error instanceof LedgerConflict ? 409 : 503, {
+            valid: false, status_code: error instanceof LedgerConflict ? error.code : 'STATE_OR_VERIFIER_UNAVAILABLE',
           });
         }
       });
@@ -85,11 +156,13 @@ export function createValidationServer({ sink = console.log, faultInjector = () 
   server.requestTimeout = 15_000;
   server.headersTimeout = 10_000;
   server.timeout = 15_000;
+  server.once('close', () => ledger?.close());
+  server.on('error', () => { if (!server.listening) ledger?.close(); });
   return server;
 }
 
-export function startValidationServer({ port = Number(process.env.PORT || 8080), sink = console.log, ...options } = {}) {
-  const server = createValidationServer({ sink, ...options });
+export function startValidationServer({ port = Number(process.env.PORT || 8080), sink = console.log, ledgerPath = process.env.AEGIS_LEDGER_PATH || 'work/aegis-ledger.sqlite', ...options } = {}) {
+  const server = createValidationServer({ sink, ledgerPath, ...options });
   server.listen(port, () => {
     sink(JSON.stringify({ level: 'info', service: 'validation-gateway', message: `listening on :${port}` }));
   });

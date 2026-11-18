@@ -1,7 +1,8 @@
 # Aegis Flow
 
 Esta base é demonstrativa. O gateway bloqueia `NODE_ENV=production` e modos
-diferentes de `demo`; `valid: true` comprova assinatura e estrutura, mas não prova ZK ou validade financeira.
+diferentes de `demo`; `/validate` comprova assinatura e estrutura. `/submit` verifica STARK e aplica
+estado local; APPLIED_LOCAL não significa mainnet ou settlement em rede.
 Plano de preparação: `docs/planning/production-readiness.md`.
 
 ## QUEER
@@ -71,3 +72,13 @@ defina `AEGIS_GITHUB_REPOSITORY` e `AEGIS_BASE_BRANCH` antes de executá-lo.
 Node.js >=24.8 é obrigatório. API, formatos, vetores NIST e limites em
 `libs/crypto-core/README.md`. O gateway verifica ML-DSA real; o formato legado
 da carteira demonstrativa não é compatível.
+
+## Provas e estado persistente
+
+- Composite STARK, guest, pins e teste real: `services/proof-engine/README.md`.
+- SQLite WAL, snapshots, nullifiers e backup/restore: `services/ledger-state/README.md`.
+- API V2 e limites: `services/validation-gateway/README.md`.
+
+O witness de prova permanece local. O gateway recebe somente transação pública
+assinada e receipt STARK. O volume Docker preserva estado entre reinícios;
+SQLite em filesystem efêmero ou compartilhado entre hosts não é suportado.

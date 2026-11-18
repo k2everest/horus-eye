@@ -10,10 +10,12 @@ export const APPROVAL_ROLES=Object.freeze(['product','protocol','operations','se
 export const OPERATING_ROLES=Object.freeze(['product','protocol','operations','authority','security','backup_recovery','legal','privacy','support']);
 export const CURRENT_MONETARY_FACTS=Object.freeze({
  unit_model:'integer-atomic-units',max_note_value:'9007199254740991',inputs_max:4,outputs_max:4,
- per_transition_assets:1,merkle_leaf_count_max:1000000,global_asset_allowlist:false,explicit_max_supply_registry:false,supply_model:'trusted-genesis-conserving-transfers',
+ per_transition_assets:1,merkle_leaf_count_max:1000000,global_asset_allowlist:false,explicit_max_supply_registry:false,supply_model:'network-specific-legacy-genesis-or-open-pow-subsidy',
  conservation:'sum(inputs)=sum(outputs)+public_amount',public_amount_max:'9007199254740991',
  public_amount_payout_implemented:false,public_mint_endpoint:false,genesis_value_total_proof:false,
- settlement:'permissioned-single-authority',monetary_value_authorized:false,
+ settlement:'legacy-permissioned-and-experimental-open-pow',monetary_value_authorized:false,
+ open_pow:{genesis:'empty',asset:'fixed-by-genesis',supply_cap:'fixed-by-genesis-u64',subsidy:'deterministic-capped-per-block',
+  monetary_authority:false,participant_country_filter:false,validator_allowlist:false,public_amount_required:0,finality:'probabilistic',wallet_integrated:false},
 });
 const hash=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 const hex=value=>typeof value==='string'&&/^[0-9a-f]{64}$/.test(value);

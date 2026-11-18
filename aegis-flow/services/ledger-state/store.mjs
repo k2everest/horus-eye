@@ -385,6 +385,21 @@ export class PersistentLedger {
     });
   }
 
+  // Internal consensus storage primitive, never exposed by the legacy gateway.
+  // The open PoW engine checks work, deterministic subsidy and the resulting root.
+  appendProtocolReward(commitment) {
+    digest(commitment, 'reward commitment');
+    return this.#atomic(() => {
+      if (this.settlementConfig()) throw new Error('REWARD_FORBIDDEN_ON_LEGACY_SETTLEMENT');
+      if (this.#db.prepare('SELECT 1 FROM commitments WHERE commitment=?').get(commitment)) throw new LedgerConflict('COMMITMENT_ALREADY_EXISTS');
+      const tip = this.latest();
+      const root = merkleRoot([...this.#commitments(tip.height), commitment]);
+      this.#db.prepare('INSERT INTO blocks VALUES(?,?,?,?,NULL)').run(tip.height + 1, root, tip.root, tip.commitment_count + 1);
+      this.#db.prepare('INSERT INTO commitments VALUES(?,?,?)').run(commitment, tip.commitment_count, tip.height + 1);
+      return this.latest();
+    });
+  }
+
   async backupTo(filename) {
     if (typeof filename !== 'string' || !filename || resolve(filename) === this.#filename) throw new TypeError('invalid backup path');
     mkdirSync(dirname(resolve(filename)), { recursive: true, mode: 0o700 });

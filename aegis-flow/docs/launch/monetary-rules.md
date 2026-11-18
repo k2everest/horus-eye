@@ -8,6 +8,26 @@ comercial de ticker nem garante exclusividade de nome.
 
 ## Regras implementadas
 
+### Extensão de rede aberta (ADR-0006)
+
+O novo modo `AEGIS_OPEN_POW_V1` tem genesis vazio, ativo fixado na configuração,
+subsídio determinístico por bloco válido e teto explícito de emissão u64.
+O protocolo não tem autoridade monetária, cadastro de validadores ou filtro de
+país. Exige `public_amount=0`, maturidade das recompensas e consenso pelo maior
+trabalho acumulado; confirmações podem ser reorganizadas. Cada alteração desses
+parâmetros muda a identidade da rede. Não há alocação inicial nem mint administrativo.
+Recompensas são transparentes na emissão. Faltam definição de incentivos após o
+teto e auditoria do consenso, além da integração de carteira/campanha/recuperação.
+Não se presumem valores comerciais a partir do exemplo de laboratório.
+
+O quadro e os comentários abaixo descrevem **o modelo permissionado anterior**,
+que permanece compatível. Não são a política monetária da rede aberta.
+O baseline agora registra explicitamente ambos os modelos e os fontes PoW.
+O registro de responsáveis por uma operação não cria autoridade sobre a rede
+aberta, nem condiciona sua participação a uma entidade ou país.
+
+### Modelo permissionado anterior
+
 | Regra | Comportamento verificável | Limite da conclusão |
 | --- | --- | --- |
 | Unidade | Inteiros; carteira apresenta unidades inteiras e agrega com BigInt | Casas decimais econômicas por ativo não são um registro de protocolo |

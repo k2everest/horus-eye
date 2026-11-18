@@ -2,6 +2,16 @@
 
 ## Estado e escopo
 
+Direção atual: rede aberta experimental por Proof of Work (ADR-0006), sem lista
+de validadores, restrição de país ou autoridade monetária. Full nodes independentes
+verificam emissão limitada por genesis, STARK e cadeia de maior trabalho; forks,
+reorganizações e persistência estão implementados. Isso não é uma rede pública já
+operada por terceiros. Carteira gráfica, campanha e backup/revisão de lançamento
+abaixo ainda pertencem ao modo permissionado anterior e precisam de adaptação.
+Prioridade nova: carteira PoW com rollback de saldo/reservas, revisão adversarial
+de consenso e incentivos, limites de recursos e testnet com mineração independente.
+Runbook: [rede aberta](../operations/open-chain.md).
+
 O produto atual é uma demonstração sem valor monetário. Não há release
 financeira autorizada por esta preparação. O gateway falha ao iniciar em
 `NODE_ENV=production` ou com `AEGIS_MODE` diferente de `demo`. A imagem Docker

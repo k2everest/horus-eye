@@ -3,7 +3,15 @@
 Esta base é demonstrativa. O gateway bloqueia `NODE_ENV=production` e modos
 diferentes de `demo`; `/validate` comprova assinatura e estrutura. `/submit` verifica STARK e aplica
 estado local; APPLIED_LOCAL não significa mainnet ou settlement em rede.
-Há um modelo opt-in de settlement permissionado com autoridade ML-DSA,
+Há um novo modo experimental de **rede aberta com Proof of Work**, sem cadastro
+de validadores, filtro de país ou chave de autoridade monetária. Cada nó verifica
+os blocos em banco próprio; emissão limitada por genesis e reorganizações pela
+cadeia de maior trabalho. Não foi implantada uma rede pública. Carteira gráfica
+e ferramentas permissionadas ainda precisam de adaptação a este modo.
+Decisão: [ADR-0006](docs/adr/ADR-0006-open-proof-of-work.md).
+Execução: [rede aberta](docs/operations/open-chain.md).
+
+O modelo anterior opt-in de settlement permissionado usa autoridade ML-DSA,
 certificados de finalização e recuperação; exige confiança nessa autoridade.
 Decisão: `docs/adr/ADR-0005-permissioned-settlement.md`.
 Operação: `docs/operations/settlement.md`.

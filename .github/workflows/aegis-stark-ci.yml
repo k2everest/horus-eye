@@ -44,3 +44,7 @@ jobs:
         env:
           AEGIS_TESTNET_INTEGRATION: '1'
         run: node --test aegis-flow/services/testnet/campaign.integration.test.mjs
+      - name: Spend a mined reward with a fresh native STARK on independent PoW nodes
+        env:
+          AEGIS_OPEN_POW_INTEGRATION: '1'
+        run: node --test aegis-flow/services/open-chain/native.integration.test.mjs

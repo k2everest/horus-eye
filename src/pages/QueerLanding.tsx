@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 const pillars = [
   { icon: EyeOff, title: "Notes cifradas", text: "Notes ficam cifradas. Commitments, nullifiers, tags e outros dados da transação são públicos." },
   { icon: ShieldCheck, title: "Criptografia em avaliação", text: "ML-KEM e ML-DSA reais; a segurança STARK de 128 bits pós-quânticos ainda não foi demonstrada." },
-  { icon: Network, title: "Finalização permissionada", text: "Certificados de uma autoridade identificada; não há consenso descentralizado nesta etapa." },
+  { icon: Network, title: "Rede aberta experimental", text: "Novo consenso por Proof of Work, sem autoridade monetária ou cadastro por país. Confirmações podem sofrer reorganizações; a carteira atual ainda usa a rede anterior." },
 ];
 
 const stages = ["Estrutura do envelope", "Etapa de assinatura", "Etapa de prova", "Etapa de inclusão"];

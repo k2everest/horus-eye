@@ -6,6 +6,11 @@ FRI de referência executável em [fri/](fri/README.md). Não entrega um novo
 STARK financeiro, verificador de transações ou migração. Não é importado pela
 admissão de blocos; o perfil de produção continua bloqueado.
 
+A [relação financeira experimental](financial/README.md) acrescenta notes,
+inclusão, R1CS de valores e mascaramento privado. As operações de hash ainda
+não são constraints e o checker local recebe o witness; isso não é um novo
+verificador de transações privadas ou demonstração PQ128.
+
 ## Componentes executáveis
 
 `bindings.mjs` usa SHA-512 completo para commitments genéricos, folhas/nós Merkle,
@@ -109,6 +114,7 @@ Node.js >=24.8 com ML-DSA nativo:
 ```sh
 node --test aegis-flow/experiments/pq128/*.test.mjs
 node --test aegis-flow/experiments/pq128/fri/*.test.mjs
+node --test aegis-flow/experiments/pq128/financial/*.test.mjs
 node aegis-flow/experiments/pq128/screen.mjs
 node aegis-flow/experiments/pq128/screen.mjs --require-aegis
 ```

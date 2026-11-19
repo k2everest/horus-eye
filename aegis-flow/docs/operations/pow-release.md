@@ -70,3 +70,14 @@ estão em [critérios de produção](../planning/production-exit-criteria.md), i
 capacidade do histórico, operação adversarial, restauração S3 real e testnet pública.
 
 Validação local: 172 testes de backend aprovados, zero falhas, 8 integrações opcionais não executadas. Após reforçar a vinculação da composição ao checkout confiável, os 8 testes de release/revisão foram reexecutados e aprovados. Os gates criptográfico e de lançamento continuam retornando `production_ready: false`.
+
+## Smoke de runtime da imagem
+
+O empacotamento executa `smoke-pow-image.mjs` com o image ID imutável e o genesis
+verificado. Inicia o nó sem rede externa, root filesystem somente leitura, usuário
+1000 e dados temporários em tmpfs. Exige readiness e config ID corretos, rejeição
+de segundo escritor por lock de perfil, execução do verificador com recusa de
+inputs ausentes e encerramento limpo. Não gera uma prova dentro da imagem nem
+comprova restauração persistente do tmpfs. As provas positivas são exercitadas nos
+jobs nativos separados. O relatório `runtime-smoke.json` entra no artefato e nos
+checksums; nenhum desses checks equivale a uma liberação financeira.

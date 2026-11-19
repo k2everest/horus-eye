@@ -35,6 +35,10 @@ try {
  if(run(['inspect','--format','{{.State.ExitCode}}',name]).trim()!=='0')throw Error('IMAGE_GRACEFUL_SHUTDOWN_FAILED');
  report.graceful_shutdown=true;report.outcome='VERIFIED';
  writeFileSync(resolve(v.report),JSON.stringify(report,null,2)+'\n',{flag:'wx',mode:0o600});console.log(JSON.stringify(report));
+} catch(error) {
+ const logs=spawnSync('docker',['logs','--tail','80',name],{encoding:'utf8',timeout:15000,maxBuffer:262144});
+ if(logs.stdout)process.stderr.write(logs.stdout);if(logs.stderr)process.stderr.write(logs.stderr);
+ throw error;
 } finally {
  spawnSync('docker',['rm','--force',name],{encoding:'utf8',timeout:15000,stdio:'ignore'});
  rmSync(directory,{recursive:true,force:true});

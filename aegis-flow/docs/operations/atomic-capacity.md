@@ -42,3 +42,19 @@ de snapshot persistente/poda canônica. Os limites locais de armazenamento e os
 orçamentos de replay continuam explícitos. A implementação melhora atomicidade
 e custo de leitura; não fecha a análise STARK de 128 bits pós-quânticos, auditoria
 independente, qualificação de recursos ou campanha pública prolongada.
+
+## Ensaio de histórico configurável
+
+`benchmark-pow-history.mjs --blocks N --report ARQUIVO_NOVO` minera blocos com
+PoW real, esgota um limite local configurado, exige recusa do bloco seguinte sem
+perder o tip e reabre/revalida o banco desde genesis. Usa cache de estado limitado
+a 1 MiB e registra duração, RSS amostrado, tamanho SQLite, commit/dirty flag e
+hash do script. O preflight estima disco necessário e exige orçamento explícito.
+
+O smoke local com 64 blocos passou. O CI executa 50.001 blocos para ultrapassar
+o default de 50 mil, com limites maiores explicitamente configurados. Este ensaio
+emite o teto de laboratório em três recompensas e depois minera blocos sem
+transações, com piso de dificuldade quase igual ao alvo inicial. Não há
+transações financeiras, STARKs novas, milhão de notes ou peers independentes
+nesse benchmark. Os jobs nativos de pagamentos são separados. O relatório marca
+`lifetime_leaf_capacity_closed: false` e não autoriza produção.

@@ -98,6 +98,7 @@
     "aegis-flow/scripts/review-stark-security.mjs": "68b10bc1e4aae0fa59aecc89dcc1b7080a8edf03945566862f4129672e2b1ea3",
     "aegis-flow/services/open-chain/queer-units.mjs": "88320a36ec31874aa98183d2f562e1cfffc070c60b44953640a230a6ba0030f3",
     "package.json": "c6e56bb91223bd44e0a88045acd608b9fcd8f4d97895127ce3b124d5d9faa672",
-    "package-lock.json": "91b3ce3359886bb501ad743dccab6f4abfc6523001d82fc499b105a538e961af"
+    "package-lock.json": "91b3ce3359886bb501ad743dccab6f4abfc6523001d82fc499b105a538e961af",
+    "aegis-flow/scripts/smoke-pow-image.mjs": "d65cce4b1774dea79dbc13bf4084693b4065f8c58a1a95603622f5d3027af8c3"
   }
 }

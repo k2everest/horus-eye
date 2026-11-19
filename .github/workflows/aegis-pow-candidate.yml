@@ -51,9 +51,10 @@ jobs:
         run: |
           node aegis-flow/scripts/pow-release.mjs prepare --image "aegis-flow/validation-gateway:$GITHUB_SHA" --genesis "$GENESIS_PATH" --directory work/pow-candidate
           node aegis-flow/scripts/pow-release.mjs verify --directory work/pow-candidate --expected-commit "$GITHUB_SHA" --expected-config-id "$CONFIG_ID"
+          node aegis-flow/scripts/smoke-pow-image.mjs --image "$(docker image inspect --format '{{.Id}}' "aegis-flow/validation-gateway:$GITHUB_SHA")" --genesis "$GENESIS_PATH" --expected-config-id "$CONFIG_ID" --report work/pow-candidate/runtime-smoke.json
           docker save "aegis-flow/validation-gateway:$GITHUB_SHA" | gzip > work/pow-candidate/image.tar.gz
           cd work/pow-candidate
-          sha256sum image.tar.gz release.json compose.yaml pow-genesis.json > SHA256SUMS
+          sha256sum image.tar.gz release.json compose.yaml pow-genesis.json runtime-smoke.json > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: aegis-pow-testnet-${{ github.sha }}

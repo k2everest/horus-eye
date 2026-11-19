@@ -58,7 +58,7 @@
     "aegis-flow/services/wallet-local/wallet.mjs": "301077978d8f8b01d53b993da7c8442f161449be591c451b959ccdc3878d8654",
     "aegis-flow/services/validation-gateway/server.mjs": "8077942eb71d3a948113b8edff82601ab1a956e8ddc2f1306f11ec84abb9c7ac",
     "aegis-flow/services/validation-gateway/runtime-policy.mjs": "295f8823987e4d91bb564a361265f64addf792f6112de17757a44d96b24264d7",
-    "aegis-flow/services/open-chain/chain.mjs": "8bc6cf63392a811ec3bb117b8a3c7d97c7a711f1907bc0d82b2b5d9685a9a920",
+    "aegis-flow/services/open-chain/chain.mjs": "4566bfe938a78738a646981c6afff15ef5cd4ee3d7fe0b04ebbe2b5fb39f93b0",
     "aegis-flow/services/open-chain/consensus.mjs": "73a4a1cd487d644993efba88549a1208fa46b4525eff2781634a03dd0a34c725",
     "aegis-flow/services/open-chain/network.mjs": "5ba82f19a9c282fa52b24a80b476f44c386e2a9f58635d29f1a3fd98e381a871",
     "aegis-flow/services/open-chain/node.mjs": "fa58c9011355f8fb11b980a55f639b42a2cdcbef0ec35b4cec0758434758fbc2",

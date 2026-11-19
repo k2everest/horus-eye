@@ -81,13 +81,21 @@ export class OpenChain {
   let count=this.#nodes.size,storedBytes=this.#storedBytes;
   const fits=()=>count+1<=this.#limits.maxBlocks&&storedBytes+bytes<=this.#limits.maxBytes&&count+1-canonicalAfter<=this.#limits.maxForkBlocks;
   if(fits())return[];
-  const pinned=new Set([...this.#canonical,...this.#branch(parent,true).map(b=>blockHash(b.header))]),removed=new Set(),plan=[];
+  const pinned=new Set([...this.#canonical,...this.#branch(parent,true).map(b=>blockHash(b.header))]),plan=[];
+  const pinnedBytes=[...pinned].reduce((total,hash)=>total+this.#nodes.get(hash).bytes,0);
+  if(pinned.size+1>this.#limits.maxBlocks||pinnedBytes+bytes>this.#limits.maxBytes||pinned.size+1-canonicalAfter>this.#limits.maxForkBlocks)throw new Error('POW_STORAGE_CAPACITY');
+  const children=new Map();for(const node of this.#nodes.values())children.set(node.block.header.parent,(children.get(node.block.header.parent)??0)+1);
+  const compare=(a,b)=>BigInt(a.work)<BigInt(b.work)?-1:BigInt(a.work)>BigInt(b.work)?1:(a.hash<b.hash?-1:a.hash>b.hash?1:0);
+  const candidates=[...this.#nodes.values()].filter(node=>!pinned.has(node.hash)&&!children.get(node.hash)).sort(compare);
   while(!fits()){
-   const retained=[...this.#nodes.values()].filter(r=>!removed.has(r.hash));
-   const parents=new Set(retained.map(r=>r.block.header.parent));
-   const candidates=retained.filter(r=>!pinned.has(r.hash)&&!parents.has(r.hash)).sort((a,b)=>BigInt(a.work)<BigInt(b.work)?-1:BigInt(a.work)>BigInt(b.work)?1:(a.hash<b.hash?-1:a.hash>b.hash?1:0));
-   const row=candidates[0];if(!row)throw new Error('POW_STORAGE_CAPACITY');
-   plan.push(row.hash);removed.add(row.hash);count--;storedBytes-=row.bytes;
+   const node=candidates.shift();if(!node)throw new Error('POW_STORAGE_CAPACITY');
+   plan.push(node.hash);count--;storedBytes-=node.bytes;
+   const parentHash=node.block.header.parent,remaining=(children.get(parentHash)??0)-1;children.set(parentHash,remaining);
+   const next=this.#nodes.get(parentHash);
+   if(next&&remaining===0&&!pinned.has(parentHash)){
+    let low=0,high=candidates.length;while(low<high){const middle=(low+high)>>>1;if(compare(candidates[middle],next)<0)low=middle+1;else high=middle;}
+    candidates.splice(low,0,next);
+   }
   }
   return plan;
  }

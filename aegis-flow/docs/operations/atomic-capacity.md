@@ -17,6 +17,12 @@ tip, corpos, quantidade/bytes/cache e estado no banco; depois removem a falha,
 repetem a admissão e verificam poda efetiva e restart. O teste de INSERT também
 foi executado contra a implementação anterior e reproduziu o problema.
 
+O planejamento mantém contadores de filhos e uma fila ordenada de folhas
+removíveis, sem reconstruir todo o histórico a cada remoção. Um teste adicional
+usa uma transferência com STARK nativa válida e pressão de bytes para remover
+24 blocos em três níveis de forks. A falha de INSERT preserva todos os blocos;
+a repetição sem a falha remove os forks e sobrevive ao restart.
+
 ## Recibos canônicos
 
 Recibos passam a ser encontrados em um índice por request ID, sem percorrer e
@@ -58,3 +64,5 @@ transações, com piso de dificuldade quase igual ao alvo inicial. Não há
 transações financeiras, STARKs novas, milhão de notes ou peers independentes
 nesse benchmark. Os jobs nativos de pagamentos são separados. O relatório marca
 `lifetime_leaf_capacity_closed: false` e não autoriza produção.
+
+O job de 50.001 blocos passou em 19/11/2026 no [run 44483540835](https://github.com/k2everest/horus-eye/actions/runs/44483540835), em 2m34s de duração total do job. Isso não é tempo isolado de mineração ou replay; o relatório JSON do job contém essas medições.

@@ -42,6 +42,40 @@ export function circuitToyDiagnostics(parameters, {tracePo2, segments = 1} = {})
     interpretation: 'Classical conjectural toy-model errors only. Union illustration assumes applicable per-segment error bounds; excludes hashes, Fiat-Shamir/QROM, zero knowledge and receipt composition analysis.'};
 }
 
+// Parameter sizing in the SAME conjectural classical model as above. This is
+// an engineering rejection screen, never a quantum reduction or release gate.
+// Allocate equal error budgets to lookup, constraints and FRI, then union-bound
+// segments and hypothetical receipt attempts. No grinding benefit is assumed.
+export function toyParameterBudget(parameters, {targetErrorBits = 128, tracePo2 = 24, segments = 64, log2ReceiptAttempts = 0} = {}) {
+  circuitToyDiagnostics(parameters, {tracePo2, segments});
+  for (const n of [targetErrorBits, log2ReceiptAttempts]) {
+    if (!Number.isSafeInteger(n) || n < 0 || n > 1024) throw new TypeError('invalid error budget');
+  }
+  if (targetErrorBits < 1) throw new TypeError('invalid error budget');
+  const fieldBits = Math.log2(parameters.field_prime);
+  const termBits = targetErrorBits + Math.log2(segments) + log2ReceiptAttempts + Math.log2(3);
+  const queries = Math.ceil(termBits / Math.log2(parameters.inverse_rate));
+  // Lookup depends on extension degree too; do not freeze columns/d at d=4
+  // when screening a hypothetical larger extension.
+  let extension = 1;
+  while (extension * fieldBits < termBits ||
+    extension * fieldBits - Math.log2(parameters.accumulator_columns / extension) - Math.log2(parameters.constraint_degree - 2) - tracePo2 < termBits) extension++;
+  const proposed = {...parameters, fri_queries: queries, extension_degree: extension};
+  const diagnostic = circuitToyDiagnostics(proposed, {tracePo2, segments});
+  return {
+    target_error_negative_log2: targetErrorBits,
+    trace_po2: tracePo2, segments, log2_receipt_attempts: log2ReceiptAttempts,
+    allocation: 'equal budget across three toy-model error terms; union over segments and hypothetical receipt attempts',
+    required_per_term_negative_log2: termBits,
+    minimum_queries_for_this_allocation: queries,
+    minimum_extension_degree_for_this_allocation: extension,
+    hypothetical_toy_total_error_negative_log2: diagnostic.toy_union_error_negative_log2 - log2ReceiptAttempts,
+    sdk_support_checked: false,
+    demonstrated_post_quantum_bits: null, target_met: false,
+    interpretation: 'Hypothetical classical toy-model sizing only, not a supported SDK profile, a proof of security, or a conversion of classical bits to quantum bits. Hashes, QROM, knowledge and zero knowledge still require separate analysis.',
+  };
+}
+
 export function reviewStarkSecurity({ sourceRoot } = {}) {
   const mismatches = [];
   const check = (root, files) => {
@@ -79,6 +113,11 @@ export function reviewStarkSecurity({ sourceRoot } = {}) {
     diagnostics: toyModelDiagnostics(securityProfile.parameters),
     circuit_diagnostics: [securityProfile.parameters.prover_segment_po2, securityProfile.parameters.sdk_max_segment_po2].map(tracePo2 =>
       circuitToyDiagnostics(securityProfile.parameters, {tracePo2, segments: securityProfile.parameters.max_segments})),
+    hypothetical_parameter_budgets: [0, 32].map(log2ReceiptAttempts => toyParameterBudget(securityProfile.parameters, {
+      targetErrorBits: securityProfile.target.post_quantum_bits,
+      tracePo2: securityProfile.parameters.sdk_max_segment_po2,
+      segments: securityProfile.parameters.max_segments, log2ReceiptAttempts,
+    })),
     // No editable label or larger query count constitutes an accepted analysis.
     demonstrated_post_quantum_bits: null,
     target_met: false,

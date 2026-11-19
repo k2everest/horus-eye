@@ -4,7 +4,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { reviewStarkSecurity, securityProfile, toyModelDiagnostics, circuitToyDiagnostics } from './security-review.mjs';
+import { reviewStarkSecurity, securityProfile, toyModelDiagnostics, circuitToyDiagnostics, toyParameterBudget } from './security-review.mjs';
 
 test('pinned inventory matches and current profile does not demonstrate target', () => {
   const report = reviewStarkSecurity();
@@ -50,6 +50,28 @@ test('missing upstream sources fail inventory verification', () => {
     assert.equal(report.mismatches.length, Object.keys(securityProfile.upstream_source_sha256).length);
     assert.equal(report.target_met, false);
   } finally { rmSync(root, { recursive: true }); }
+});
+
+test('hypothetical sizing covers all error terms and attempts without approving a profile', () => {
+  for (const attempts of [0, 32, 64]) {
+    const budget = toyParameterBudget(securityProfile.parameters, {log2ReceiptAttempts: attempts});
+    const p = {...securityProfile.parameters, fri_queries: budget.minimum_queries_for_this_allocation,
+      extension_degree: budget.minimum_extension_degree_for_this_allocation};
+    const diagnose = parameters => circuitToyDiagnostics(parameters, {tracePo2:24,segments:64});
+    const result = diagnose(p);
+    assert.ok(result.toy_union_error_negative_log2 - attempts >= 128);
+    for (const bits of Object.values(result.term_negative_log2)) assert.ok(bits >= budget.required_per_term_negative_log2);
+    assert.ok(diagnose({...p,fri_queries:p.fri_queries-1}).term_negative_log2.fri_queries < budget.required_per_term_negative_log2);
+    assert.ok(diagnose({...p,extension_degree:p.extension_degree-1}).term_negative_log2.lookup < budget.required_per_term_negative_log2);
+    assert.equal(budget.target_met, false);
+    assert.equal(budget.demonstrated_post_quantum_bits, null);
+    assert.equal(budget.sdk_support_checked, false);
+  }
+  assert.equal(toyParameterBudget(securityProfile.parameters).minimum_queries_for_this_allocation,68);
+  assert.equal(toyParameterBudget(securityProfile.parameters).minimum_extension_degree_for_this_allocation,6);
+  assert.equal(toyParameterBudget(securityProfile.parameters,{log2ReceiptAttempts:32}).minimum_extension_degree_for_this_allocation,7);
+  for (const value of [NaN, Infinity, -1, 0.5, 1025]) assert.throws(() => toyParameterBudget(securityProfile.parameters,{log2ReceiptAttempts:value}));
+  for (const value of [0, NaN, Infinity, -1, 0.5, 1025]) assert.throws(() => toyParameterBudget(securityProfile.parameters,{targetErrorBits:value}));
 });
 
 test('release check fails while diagnostic command succeeds', () => {

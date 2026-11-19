@@ -8,7 +8,7 @@ import {defaultStarkBackend} from '../proof-engine/backend.mjs';
 import {assertOpenGenesis,openNetworkId,genesisTip,powHeaderVersion,protocolMintedSupply,blockHash,assertBlockHeader,expectedTarget,medianTime,subsidy,minerReward,minimumTransactionFee,digest,mineHeader} from './consensus.mjs';
 import {BranchState} from './state.mjs';
 export class OpenChain {
- #db;#config;#nodes=new Map();#best;#backend;#busy=false;#closed=false;#canonical=[];#snapshots=new Map();#cacheBytes=0;#storedBytes=0;#limits;
+ #db;#config;#nodes=new Map();#best;#backend;#busy=false;#closed=false;#canonical=[];#snapshots=new Map();#cacheBytes=0;#storedBytes=0;#limits;#receipts=new Map();
  constructor({directory,config,backend=defaultStarkBackend(),limits={}}){
   const defaults={maxBlocks:50000,maxBytes:512*1024*1024,maxBlockBytes:12*1024*1024,maxForkBlocks:4096,maxReplayBlocks:1024,maxCacheBytes:256*1024*1024};
   if(Object.keys(limits).some(key=>!Object.hasOwn(defaults,key)))throw new Error('INVALID_POW_RESOURCE_LIMIT');
@@ -36,7 +36,7 @@ export class OpenChain {
  blockAt(height){if(!Number.isSafeInteger(height)||height<1)return undefined;const hash=this.#canonical[height-1];return hash?this.block(hash):undefined;}
  hashAt(height){if(height===0)return openNetworkId(this.#config);return this.#canonical[height-1];}
  status(){const confirmed=this.confirmedHeight;const b=confirmed?this.#nodes.get(this.#canonical[confirmed-1]).block.header:undefined;
-  return{model:'open-proof-of-work',config_id:openNetworkId(this.#config),network_id:this.#config.network_id,tip:this.tip,resources:{stored_blocks:this.#nodes.size,stored_body_bytes:this.#storedBytes,cached_state_bytes:this.#cacheBytes,limits:{...this.#limits}},
+  return{model:'open-proof-of-work',config_id:openNetworkId(this.#config),network_id:this.#config.network_id,tip:this.tip,resources:{stored_blocks:this.#nodes.size,canonical_transactions:this.#receipts.size,stored_body_bytes:this.#storedBytes,cached_state_bytes:this.#cacheBytes,limits:{...this.#limits}},
    confirmed:{height:confirmed,checkpoint_id:confirmed?blockHash(b):openNetworkId(this.#config),root:b?.note_root??genesisTip(this.#config).note_root},
    difficulty_policy:this.#config.difficulty?.policy??'time-retarget-v2',minimum_pow_target:this.#config.difficulty?.minimum_target??null,minimum_transaction_fee:minimumTransactionFee(this.#config),fee_policy:this.#config.monetary.fee_policy??'legacy-zero',confirmations_required:this.#config.confirmations,finality:'probabilistic',monetary_authority:null,protocol_minted_supply:protocolMintedSupply(this.#config,this.#best.height).toString(),production_ready:false};
  }
@@ -75,20 +75,32 @@ export class OpenChain {
   if(serialize(state.snapshot()).byteLength>this.#limits.maxCacheBytes)throw new Error('POW_STATE_MEMORY_CAPACITY');
   const parent=this.#nodes.get(block.header.parent);return{hash:checked.hash,work:((parent?BigInt(parent.work):0n)+checked.work).toString(),block,state};
  }
- #reserve(bytes,parent){
-  if(this.#nodes.size+1<=this.#limits.maxBlocks&&this.#storedBytes+bytes<=this.#limits.maxBytes&&this.#nodes.size-this.#canonical.length+1<=this.#limits.maxForkBlocks)return;
-  const pinned=new Set([...this.#canonical,...this.#branch(parent,true).map(b=>blockHash(b.header))]);
-  while(this.#nodes.size+1>this.#limits.maxBlocks||this.#storedBytes+bytes>this.#limits.maxBytes||this.#nodes.size-this.#canonical.length+1>this.#limits.maxForkBlocks){
-   const parents=new Set([...this.#nodes.values()].map(r=>r.block.header.parent));
-   const candidates=[...this.#nodes.values()].filter(r=>!pinned.has(r.hash)&&!parents.has(r.hash)).sort((a,b)=>BigInt(a.work)<BigInt(b.work)?-1:1);
+ #pruningPlan(bytes,parent){
+  let count=this.#nodes.size,storedBytes=this.#storedBytes;
+  const fits=()=>count+1<=this.#limits.maxBlocks&&storedBytes+bytes<=this.#limits.maxBytes&&count-this.#canonical.length+1<=this.#limits.maxForkBlocks;
+  if(fits())return[];
+  const pinned=new Set([...this.#canonical,...this.#branch(parent,true).map(b=>blockHash(b.header))]),removed=new Set(),plan=[];
+  while(!fits()){
+   const retained=[...this.#nodes.values()].filter(r=>!removed.has(r.hash));
+   const parents=new Set(retained.map(r=>r.block.header.parent));
+   const candidates=retained.filter(r=>!pinned.has(r.hash)&&!parents.has(r.hash)).sort((a,b)=>BigInt(a.work)<BigInt(b.work)?-1:BigInt(a.work)>BigInt(b.work)?1:(a.hash<b.hash?-1:a.hash>b.hash?1:0));
    const row=candidates[0];if(!row)throw new Error('POW_STORAGE_CAPACITY');
-   this.#db.prepare('DELETE FROM pow_blocks WHERE hash=?').run(row.hash);this.#nodes.delete(row.hash);this.#storedBytes-=row.bytes;
-   if(this.#snapshots.has(row.hash)){this.#cacheBytes-=this.#snapshots.get(row.hash).bytes;this.#snapshots.delete(row.hash);}
+   plan.push(row.hash);removed.add(row.hash);count--;storedBytes-=row.bytes;
   }
+  return plan;
+ }
+ #forget(hashes){
+  for(const hash of hashes){const row=this.#nodes.get(hash);this.#nodes.delete(hash);this.#storedBytes-=row.bytes;
+   if(this.#snapshots.has(hash)){this.#cacheBytes-=this.#snapshots.get(hash).bytes;this.#snapshots.delete(hash);}
+  }
+ }
+ #indexReceipt(hash){
+  const row=this.#nodes.get(hash),tx=row.block.transaction;
+  if(tx)this.#receipts.set(tx.request_id,{transaction_id:tx.tx_id,height:row.block.header.height,block_hash:hash});
  }
  #storeRow(row,bytes){this.#nodes.set(row.hash,{hash:row.hash,work:row.work,block:{header:structuredClone(row.block.header),transaction:row.block.transaction?{tx_id:row.block.transaction.tx_id,request_id:row.block.transaction.request_id}:null},bytes});this.#storedBytes+=bytes;this.#remember(row.hash,row.state);}
  #consider(row){const better=BigInt(row.work)>BigInt(this.#best.work)||(row.work===this.#best.work&&row.hash<this.#best.hash);
-  if(better){const h=row.block.header,extendsBest=h.parent===this.#best.hash;this.#best={hash:row.hash,height:h.height,work:row.work,note_root:h.note_root,nullifier_root:h.nullifier_root,commitment_count:h.commitment_count,timestamp_ms:h.timestamp_ms};if(extendsBest)this.#canonical.push(row.hash);else this.#canonical=this.#branch(row.hash,true).map(b=>blockHash(b.header));}return better;
+  if(better){const h=row.block.header,extendsBest=h.parent===this.#best.hash;this.#best={hash:row.hash,height:h.height,work:row.work,note_root:h.note_root,nullifier_root:h.nullifier_root,commitment_count:h.commitment_count,timestamp_ms:h.timestamp_ms};if(extendsBest){this.#canonical.push(row.hash);this.#indexReceipt(row.hash);}else{this.#canonical=this.#branch(row.hash,true).map(b=>blockHash(b.header));this.#receipts.clear();for(const hash of this.#canonical)this.#indexReceipt(hash);}}return better;
  }
  async #recover(){if(this.#db.prepare('PRAGMA quick_check').get().quick_check!=='ok')throw new Error('POW_DATABASE_INTEGRITY_FAILED');
   const size=this.#db.prepare('SELECT COUNT(*) AS n,COALESCE(SUM(length(CAST(block_json AS BLOB))),0) AS bytes,COALESCE(MAX(length(CAST(block_json AS BLOB))),0) AS largest FROM pow_blocks').get();
@@ -102,8 +114,8 @@ export class OpenChain {
   if(this.#busy)throw new Error('POW_VALIDATOR_BUSY');block=structuredClone(block);
   if(!block?.header)throw new Error('INVALID_POW_BLOCK');const id=blockHash(block.header);if(this.#nodes.has(id)){if(canonicalSerialize(this.block(id))!==canonicalSerialize(block))throw new Error('POW_REPLAY_BODY_MISMATCH');return{accepted:true,replayed:true,best_changed:false,tip:this.tip};}
   this.#busy=true;
-  try{const encoded=canonicalSerialize(block),bytes=Buffer.byteLength(encoded);if(bytes>this.#limits.maxBlockBytes)throw new Error('POW_BLOCK_SIZE_CAPACITY');const row=await this.#check(block);this.#reserve(bytes,block.header.parent);this.#db.exec('BEGIN IMMEDIATE');try{this.#db.prepare('INSERT INTO pow_blocks VALUES(?,?,?,?,?)').run(row.hash,block.header.parent,block.header.height,row.work,encoded);this.#db.exec('COMMIT');}catch(error){this.#db.exec('ROLLBACK');throw error;}
-   this.#storeRow(row,bytes);const previous=this.#best.hash;const changed=this.#consider(row);
+  try{const encoded=canonicalSerialize(block),bytes=Buffer.byteLength(encoded);if(bytes>this.#limits.maxBlockBytes)throw new Error('POW_BLOCK_SIZE_CAPACITY');const row=await this.#check(block);const pruning=this.#pruningPlan(bytes,block.header.parent);this.#db.exec('BEGIN IMMEDIATE');try{for(const hash of pruning)this.#db.prepare('DELETE FROM pow_blocks WHERE hash=?').run(hash);this.#db.prepare('INSERT INTO pow_blocks VALUES(?,?,?,?,?)').run(row.hash,block.header.parent,block.header.height,row.work,encoded);this.#db.exec('COMMIT');}catch(error){this.#db.exec('ROLLBACK');throw error;}
+   this.#forget(pruning);this.#storeRow(row,bytes);const previous=this.#best.hash;const changed=this.#consider(row);
    return{accepted:true,replayed:false,best_changed:changed,reorganized:changed&&block.header.parent!==previous,tip:this.tip};
   }finally{this.#busy=false;}
  }
@@ -128,9 +140,10 @@ export class OpenChain {
    const b=this.block(hash);if(!b)break;if(b.transaction)bundles.push({transaction:b.transaction,proof:b.proof});hash=b.header.parent;
   }return bundles;
  }
- transactionReceipt(requestId){const blocks=this.#branch(this.#best.hash,true);const block=blocks.find(b=>b.transaction?.request_id===requestId);if(!block)return undefined;
-  const confirmations=this.#best.height-block.header.height+1;return{request_id:requestId,transaction_id:block.transaction.tx_id,height:block.header.height,block_hash:blockHash(block.header),confirmations,
+ transactionReceipt(requestId){const entry=this.#receipts.get(requestId);if(!entry)return undefined;
+  const confirmations=this.#best.height-entry.height+1;return{request_id:requestId,...entry,confirmations,
    confirmations_required:this.#config.confirmations,status:confirmations>=this.#config.confirmations?'CONFIRMED_POW':'INCLUDED_POW',settled:false,finality:'probabilistic',production_ready:false};
  }
+
  close(){if(this.#closed)return;if(this.#busy)throw new Error('POW_VALIDATOR_BUSY');this.#db.close();this.#closed=true;}
 }

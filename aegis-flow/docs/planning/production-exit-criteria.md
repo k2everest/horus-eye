@@ -1,14 +1,22 @@
-# Critérios de saída para produção — PoW V2
+# Critérios de saída para produção — PoW V2/V3
 
 Estado: preparação em andamento; sem liberação ou rede pública implantada.
 O empacotamento específico do nó PoW agora tem manifesto, verificação de
-imagem/genesis e workflow manual de artefato; construção e deploy reais seguem
-pendentes. Procedimento: [release PoW](../operations/pow-release.md).
+imagem/genesis e workflow de artefato. Imagens experimentais V3 foram construídas
+e verificadas no CI; deploy público e qualificação operacional seguem pendentes.
+Procedimento: [release PoW](../operations/pow-release.md).
 A alteração atual fecha integrações de código, não valida todas as premissas de
 produção. Nenhum valor comercial de emissão ou destino de infraestrutura foi
 presumido a partir do exemplo de laboratório.
 
 ## Implementado e ensaiado localmente
+
+- Teto QUEER V3 e dificuldade PoW global vinculados ao genesis;
+  [regra monetária](../launch/queer-monetary-request.md). A curva tem piso finito,
+  e os parâmetros comerciais de recompensa/alvo final ainda exigem revisão.
+- Poda de forks e inserção de blocos atômicas, com rollback sob falhas SQL;
+  recibos indexados sem percorrer o histórico em cada leitura. Evidências e
+  limitações: [atomicidade e capacidade](../operations/atomic-capacity.md).
 
 - Atualização Merkle incremental com raízes compatíveis e fronteiras locais
   isoladas entre forks; [evidências e limites de histórico](../operations/history-scaling.md).

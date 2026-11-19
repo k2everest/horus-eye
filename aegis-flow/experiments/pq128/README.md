@@ -1,8 +1,9 @@
 # Pesquisa de uma construção PQ128
 
 Este diretório entrega bindings criptográficos executáveis e um cálculo exato
-de um limite **condicional para FRI isolado**. Não entrega um novo prover STARK,
-AIR financeiro, verificador de transações ou migração. Não é importado pela
+de um limite **condicional para FRI isolado**, além de um prover/verificador
+FRI de referência executável em [fri/](fri/README.md). Não entrega um novo
+STARK financeiro, verificador de transações ou migração. Não é importado pela
 admissão de blocos; o perfil de produção continua bloqueado.
 
 ## Componentes executáveis
@@ -107,6 +108,7 @@ Node.js >=24.8 com ML-DSA nativo:
 
 ```sh
 node --test aegis-flow/experiments/pq128/*.test.mjs
+node --test aegis-flow/experiments/pq128/fri/*.test.mjs
 node aegis-flow/experiments/pq128/screen.mjs
 node aegis-flow/experiments/pq128/screen.mjs --require-aegis
 ```

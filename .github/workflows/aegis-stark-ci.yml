@@ -19,13 +19,17 @@ jobs:
         with:
           node-version: '24'
       - name: Test experimental SHA-512 bindings and conditional standalone FRI arithmetic
-        run: node --test aegis-flow/experiments/pq128/*.test.mjs
+        run: node --test aegis-flow/experiments/pq128/*.test.mjs aegis-flow/experiments/pq128/fri/*.test.mjs
+      - name: Prove and verify a public polynomial with the reference FRI implementation
+        run: node aegis-flow/experiments/pq128/fri/demo.mjs --domain-log2 16 --queries 720 --report pq128-reference-fri.json
       - name: Record conditional screen without authorizing production
         run: node aegis-flow/experiments/pq128/screen.mjs > pq128-conditional-screen.json
       - uses: actions/upload-artifact@v4
         with:
           name: pq128-conditional-research-${{ github.sha }}
-          path: pq128-conditional-screen.json
+          path: |
+            pq128-conditional-screen.json
+            pq128-reference-fri.json
           retention-days: 3
           if-no-files-found: error
 

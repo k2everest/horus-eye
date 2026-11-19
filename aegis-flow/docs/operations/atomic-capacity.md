@@ -6,6 +6,12 @@ do pai protegidas. Executa os DELETEs e o INSERT sob BEGIN IMMEDIATE, confirma
 e somente então atualiza os índices/caches em memória. Uma falha não deve apagar
 forks e deixar o bloco novo ausente.
 
+A cota de forks é calculada para a cadeia canônica que resultaria da admissão.
+Estender a melhor cadeia não consome uma vaga de fork e não provoca poda sem
+necessidade. Se não for possível cumprir as cotas preservando a cadeia atual e
+a branch de entrada, a admissão falha sem alterar o banco; o operador precisa
+rever o orçamento de recursos. Não se apaga a cadeia atual para caber uma reorg.
+
 Dois testes injetam falhas SQL em INSERT e DELETE. Conferem preservação de
 tip, corpos, quantidade/bytes/cache e estado no banco; depois removem a falha,
 repetem a admissão e verificam poda efetiva e restart. O teste de INSERT também

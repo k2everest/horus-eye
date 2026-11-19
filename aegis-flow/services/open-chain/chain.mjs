@@ -75,9 +75,11 @@ export class OpenChain {
   if(serialize(state.snapshot()).byteLength>this.#limits.maxCacheBytes)throw new Error('POW_STATE_MEMORY_CAPACITY');
   const parent=this.#nodes.get(block.header.parent);return{hash:checked.hash,work:((parent?BigInt(parent.work):0n)+checked.work).toString(),block,state};
  }
- #pruningPlan(bytes,parent){
+ #isBetter(row){return BigInt(row.work)>BigInt(this.#best.work)||(row.work===this.#best.work&&row.hash<this.#best.hash);}
+ #pruningPlan(bytes,row){
+  const parent=row.block.header.parent,canonicalAfter=this.#isBetter(row)?row.block.header.height:this.#canonical.length;
   let count=this.#nodes.size,storedBytes=this.#storedBytes;
-  const fits=()=>count+1<=this.#limits.maxBlocks&&storedBytes+bytes<=this.#limits.maxBytes&&count-this.#canonical.length+1<=this.#limits.maxForkBlocks;
+  const fits=()=>count+1<=this.#limits.maxBlocks&&storedBytes+bytes<=this.#limits.maxBytes&&count+1-canonicalAfter<=this.#limits.maxForkBlocks;
   if(fits())return[];
   const pinned=new Set([...this.#canonical,...this.#branch(parent,true).map(b=>blockHash(b.header))]),removed=new Set(),plan=[];
   while(!fits()){
@@ -99,7 +101,7 @@ export class OpenChain {
   if(tx)this.#receipts.set(tx.request_id,{transaction_id:tx.tx_id,height:row.block.header.height,block_hash:hash});
  }
  #storeRow(row,bytes){this.#nodes.set(row.hash,{hash:row.hash,work:row.work,block:{header:structuredClone(row.block.header),transaction:row.block.transaction?{tx_id:row.block.transaction.tx_id,request_id:row.block.transaction.request_id}:null},bytes});this.#storedBytes+=bytes;this.#remember(row.hash,row.state);}
- #consider(row){const better=BigInt(row.work)>BigInt(this.#best.work)||(row.work===this.#best.work&&row.hash<this.#best.hash);
+ #consider(row){const better=this.#isBetter(row);
   if(better){const h=row.block.header,extendsBest=h.parent===this.#best.hash;this.#best={hash:row.hash,height:h.height,work:row.work,note_root:h.note_root,nullifier_root:h.nullifier_root,commitment_count:h.commitment_count,timestamp_ms:h.timestamp_ms};if(extendsBest){this.#canonical.push(row.hash);this.#indexReceipt(row.hash);}else{this.#canonical=this.#branch(row.hash,true).map(b=>blockHash(b.header));this.#receipts.clear();for(const hash of this.#canonical)this.#indexReceipt(hash);}}return better;
  }
  async #recover(){if(this.#db.prepare('PRAGMA quick_check').get().quick_check!=='ok')throw new Error('POW_DATABASE_INTEGRITY_FAILED');
@@ -114,7 +116,7 @@ export class OpenChain {
   if(this.#busy)throw new Error('POW_VALIDATOR_BUSY');block=structuredClone(block);
   if(!block?.header)throw new Error('INVALID_POW_BLOCK');const id=blockHash(block.header);if(this.#nodes.has(id)){if(canonicalSerialize(this.block(id))!==canonicalSerialize(block))throw new Error('POW_REPLAY_BODY_MISMATCH');return{accepted:true,replayed:true,best_changed:false,tip:this.tip};}
   this.#busy=true;
-  try{const encoded=canonicalSerialize(block),bytes=Buffer.byteLength(encoded);if(bytes>this.#limits.maxBlockBytes)throw new Error('POW_BLOCK_SIZE_CAPACITY');const row=await this.#check(block);const pruning=this.#pruningPlan(bytes,block.header.parent);this.#db.exec('BEGIN IMMEDIATE');try{for(const hash of pruning)this.#db.prepare('DELETE FROM pow_blocks WHERE hash=?').run(hash);this.#db.prepare('INSERT INTO pow_blocks VALUES(?,?,?,?,?)').run(row.hash,block.header.parent,block.header.height,row.work,encoded);this.#db.exec('COMMIT');}catch(error){this.#db.exec('ROLLBACK');throw error;}
+  try{const encoded=canonicalSerialize(block),bytes=Buffer.byteLength(encoded);if(bytes>this.#limits.maxBlockBytes)throw new Error('POW_BLOCK_SIZE_CAPACITY');const row=await this.#check(block);const pruning=this.#pruningPlan(bytes,row);this.#db.exec('BEGIN IMMEDIATE');try{for(const hash of pruning)this.#db.prepare('DELETE FROM pow_blocks WHERE hash=?').run(hash);this.#db.prepare('INSERT INTO pow_blocks VALUES(?,?,?,?,?)').run(row.hash,block.header.parent,block.header.height,row.work,encoded);this.#db.exec('COMMIT');}catch(error){this.#db.exec('ROLLBACK');throw error;}
    this.#forget(pruning);this.#storeRow(row,bytes);const previous=this.#best.hash;const changed=this.#consider(row);
    return{accepted:true,replayed:false,best_changed:changed,reorganized:changed&&block.header.parent!==previous,tip:this.tip};
   }finally{this.#busy=false;}

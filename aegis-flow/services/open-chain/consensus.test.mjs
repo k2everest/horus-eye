@@ -130,6 +130,15 @@ test('low-work orphan leaves are pruned without deleting the canonical chain',as
  }
  assert.equal(a.tip.hash,best);assert.ok(a.status().resources.stored_blocks<=6);assert.equal(a.blockAt(1).header.height,1);
 });
+test('extending the best chain does not evict a fork that is already within its quota',async t=>{
+ const{directory,config}=setup(t);config.retarget_interval=64;
+ const chain=await OpenChain.open({directory:join(directory,'quota-node'),config,backend,limits:{maxForkBlocks:1}});
+ const fork=await OpenChain.open({directory:join(directory,'quota-fork'),config,backend});t.after(()=>{fork.close();chain.close();});
+ for(let i=0;i<3;i++)await chain.mine({ownerTag:spendOwner('03'.repeat(32))});
+ const orphan=await fork.mine({ownerTag:spendOwner('04'.repeat(32))}),hash=blockHash(orphan.header);await chain.addBlock(orphan);
+ await chain.mine({ownerTag:spendOwner('03'.repeat(32))});
+ assert.equal(chain.tip.height,4);assert.equal(chain.has(hash),true);assert.equal(chain.status().resources.stored_blocks,5);
+});
 test('public readiness fails closed without a verifier and metrics contain only bounded public gauges',async t=>{
  const{directory,config}=setup(t);const node=new OpenNode({chain:await OpenChain.open({directory,config,backend})});await node.listen();t.after(()=>node.close());
  const ready=await fetch(node.origin+'/readyz');assert.equal(ready.status,503);assert.equal((await ready.json()).verifier_available,false);

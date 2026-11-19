@@ -11,6 +11,24 @@ permissions:
   contents: read
 
 jobs:
+  pq128-research:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test experimental SHA-512 bindings and conditional standalone FRI arithmetic
+        run: node --test aegis-flow/experiments/pq128/*.test.mjs
+      - name: Record conditional screen without authorizing production
+        run: node aegis-flow/experiments/pq128/screen.mjs > pq128-conditional-screen.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pq128-conditional-research-${{ github.sha }}
+          path: pq128-conditional-screen.json
+          retention-days: 3
+          if-no-files-found: error
+
   reward-history-capacity:
     runs-on: ubuntu-latest
     timeout-minutes: 30

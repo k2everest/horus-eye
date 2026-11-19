@@ -9,6 +9,10 @@ registra a comparação com Plonky3 e Winterfell e o dimensionamento hipotético
 de consultas/campo com orçamento explícito por receipt. Nenhum substituto foi
 aprovado para a meta pós-quântica.
 
+A [pesquisa executável PQ128](../../experiments/pq128/README.md) inclui bindings
+SHA-512/ML-DSA-87 e um limite finito condicional de FRI isolado no QROM. Não
+substitui o prover/verificador financeiro atual nem altera o status deste P0.
+
 ## Requisito de liberação
 
 A meta é pelo menos **128 bits de segurança pós-quântica para a prova completa

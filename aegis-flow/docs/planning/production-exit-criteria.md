@@ -17,6 +17,8 @@ presumido a partir do exemplo de laboratório.
 - Poda de forks e inserção de blocos atômicas, com rollback sob falhas SQL;
   recibos indexados sem percorrer o histórico em cada leitura. Evidências e
   limitações: [atomicidade e capacidade](../operations/atomic-capacity.md).
+- Dependências corrigidas: auditoria npm completa sem vulnerabilidades conhecidas
+  na consulta de 19/11/2026; [versões e validação](../security/dependency-review-2026-11-19.md).
 
 - Atualização Merkle incremental com raízes compatíveis e fronteiras locais
   isoladas entre forks; [evidências e limites de histórico](../operations/history-scaling.md).
@@ -50,7 +52,6 @@ restauração do banco PoW revalidado em aproximadamente 225 segundos.
 | P0 | Infraestrutura real | Nós/peers independentes, identidade do artefato, configuração e segredos locais definidos; deploy e recuperação por peers ensaiados, com disponibilidade e perda de dados medidas |
 | P0 | Operação adversarial | Falha de host/disco/rede, reorgs com muitas intents, capacidade de cofre, rotação de chaves e recuperação sob carga demonstradas no destino |
 | P1 | Testnet pública prolongada | Pelo menos a campanha definida, provas reais novas, terceiros e mineradores independentes, partições/reorgs/carga e evidências verificáveis; laboratório não conta como tempo público |
-| P1 | Dependências de build | Advisories dev triados/corrigidos ou mitigação formal aceita; runtime auditado sem avisos não encerra o risco de supply chain |
 
 S3 e AWS não são requisitos da blockchain nem condições de liberação.
 O transporte S3 existente é opcional e não foi utilizado. A recuperação do nó

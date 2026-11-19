@@ -1,5 +1,8 @@
 # Revisão técnica do repositório — 18/11/2026
 
+Atualização de dependências em 19/11: [lockfile corrigido e auditoria npm completa zerada](dependency-review-2026-11-19.md).
+Os números de advisories abaixo são o registro histórico da consulta anterior.
+
 ## Correções posteriores à revisão
 
 O texto de achados abaixo registra a versão examinada originalmente. As correções

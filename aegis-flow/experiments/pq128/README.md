@@ -7,9 +7,9 @@ STARK financeiro, verificador de transações ou migração. Não é importado p
 admissão de blocos; o perfil de produção continua bloqueado.
 
 A [relação financeira experimental](financial/README.md) acrescenta notes,
-inclusão, R1CS de valores e mascaramento privado. As operações de hash ainda
-não são constraints e o checker local recebe o witness; isso não é um novo
-verificador de transações privadas ou demonstração PQ128.
+inclusão, R1CS de valores e mascaramento privado. O [compilador de constraints](constraints/README.md)
+vincula hashes e valores aos mesmos bits. Os checkers ainda recebem o witness;
+isso não é um novo verificador de provas privadas ou demonstração PQ128.
 
 ## Componentes executáveis
 
@@ -115,6 +115,7 @@ Node.js >=24.8 com ML-DSA nativo:
 node --test aegis-flow/experiments/pq128/*.test.mjs
 node --test aegis-flow/experiments/pq128/fri/*.test.mjs
 node --test aegis-flow/experiments/pq128/financial/*.test.mjs
+node --test aegis-flow/experiments/pq128/constraints/*.test.mjs
 node aegis-flow/experiments/pq128/screen.mjs
 node aegis-flow/experiments/pq128/screen.mjs --require-aegis
 ```

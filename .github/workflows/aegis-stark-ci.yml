@@ -19,7 +19,9 @@ jobs:
         with:
           node-version: '24'
       - name: Test experimental SHA-512 bindings and conditional standalone FRI arithmetic
-        run: node --test aegis-flow/experiments/pq128/*.test.mjs aegis-flow/experiments/pq128/fri/*.test.mjs aegis-flow/experiments/pq128/financial/*.test.mjs
+        run: node --test aegis-flow/experiments/pq128/*.test.mjs aegis-flow/experiments/pq128/fri/*.test.mjs aegis-flow/experiments/pq128/financial/*.test.mjs aegis-flow/experiments/pq128/constraints/*.test.mjs
+      - name: Check the private transfer constraint assignment without publishing it
+        run: node aegis-flow/experiments/pq128/constraints/demo.mjs --report pq128-transfer-constraints.json
       - name: Prove and verify a public polynomial with the reference FRI implementation
         run: node aegis-flow/experiments/pq128/fri/demo.mjs --domain-log2 16 --queries 720 --report pq128-reference-fri.json
       - name: Record conditional screen without authorizing production
@@ -30,6 +32,7 @@ jobs:
           path: |
             pq128-conditional-screen.json
             pq128-reference-fri.json
+            pq128-transfer-constraints.json
           retention-days: 3
           if-no-files-found: error
 

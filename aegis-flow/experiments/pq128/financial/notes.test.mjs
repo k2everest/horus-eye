@@ -36,7 +36,7 @@ test('value ranges reject coercions, noncanonical decimals and unsafe/out-of-ran
 test('schemas, versions, asset, network and byte encodings fail closed without legacy fallback', () => {
   const valid = note('5');
   for (const patch of [
-    {version:'AEGIS-TRANSFER-V2'},{asset_id:'AEGIS'},{asset_id:'queer'},{network_id:''},{network_id:'x'.repeat(65)},
+    {version:'AEGIS-TRANSFER-V2'},{version:'AEGIS_EXPERIMENT_NOTE512_V1'},{asset_id:'AEGIS'},{asset_id:'queer'},{network_id:''},{network_id:'x'.repeat(65)},
     {network_id:'bad|network'},{network_id:'bad\0network'},{network_id:'á'},
     {owner_tag:'AB'.repeat(64)},{owner_tag:'01'.repeat(32)},{randomness:'AB'.repeat(64)},
     {randomness:'01'.repeat(32)},{randomness:'gg'.repeat(64)},{extra:true},{anchor:'00'.repeat(64)},

@@ -3,16 +3,17 @@
 Este diretório implementa a relação privada a ser aritmetizada para um futuro
 prover. **Não é um verificador de provas, endpoint de rede ou autorização para
 movimentar fundos.** Consome witnesses locais e inclui operações SHA-512 no
-host que ainda não foram traduzidas para restrições. A rede atual não importa
-este código nem aceita este formato.
+host. O [compilador de constraints](../constraints/README.md) implementa essas
+operações como gates com um witness comum; ele também é um checker local, não
+uma prova privada. A rede atual não importa este código nem aceita este formato.
 
 ## Componentes
 
 | Componente | Implementado | Ainda necessário |
 | --- | --- | --- |
-| Notes | SHA-512 com framing, versão/rede/ativo, owner e randomness de 64 bytes | Gadgets dos hashes e serialização no circuito |
-| Ownership e nullifier | Checagem local do segredo e nullifier estável por note | Argumento de conhecimento dentro da prova |
-| Inclusão | Árvore SHA-512 com raiz vinculada à rede e número de folhas | Caminhos e hashes aritmetizados |
+| Notes | SHA-512 nativo e gadget simbólico do formato V2 | Integrar o circuito inteiro à prova privada |
+| Ownership e nullifier | Hashes simbólicos e nullifier estável por note | Argumento público de conhecimento sem receber o witness |
+| Inclusão | Hashes, posição privada e padding ímpar como constraints | Provar a satisfação sem revelar o caminho |
 | Valores | R1CS com bits, reconstrução, positividade e conservação | Vincular seus wires aos valores das notes e à prova |
 | Polinômios aritméticos | QAP privado, três máscaras independentes, FFT sem alias e quociente exato | Compromissos públicos vinculados a um witness comum e ao statement |
 | Mascaramento | `M=T+(X^N-1)R`, randomness nova, preservação do trace | ZK de compromissos, quocientes, aberturas e protocolo completo |
@@ -20,6 +21,8 @@ este código nem aceita este formato.
 
 O formato novo tem identificadores `AEGIS_EXPERIMENT_*`, hashes de 64 bytes e
 valores decimais canônicos em **strings inteiras de AEGIS atômicos**, sem float.
+O formato de note experimental V2 serializa o valor em oito bytes fixos no hash,
+evitando que o circuito publique o comprimento decimal privado; V1 é rejeitado.
 O ativo é QUEER. Isso não muda a divisão de 105.000.000 AEGIS por QUEER, o teto
 de emissão ou as regras PoW: nenhuma regra monetária da rede foi alterada.
 O limite aritmético por note é `2^53-1`, não uma autorização de emissão; o teto

@@ -5,7 +5,9 @@ import crypto from 'node:crypto';
 import { bindingDigest512 } from '../bindings.mjs';
 import { decodeHex } from '../../../libs/crypto-core/pqc-wrapper.mjs';
 
-export const NOTE512_VERSION = 'AEGIS_EXPERIMENT_NOTE512_V1';
+// Experimental V2 uses fixed-width values so a circuit's public shape cannot
+// disclose/select the decimal length of a private amount. V1 is not accepted.
+export const NOTE512_VERSION = 'AEGIS_EXPERIMENT_NOTE512_V2';
 export const NOTE512_ASSET = 'QUEER';
 export const MAX_NOTE512_VALUE = '9007199254740991';
 const VERSION = Buffer.from(NOTE512_VERSION,'ascii'), ASSET = Buffer.from(NOTE512_ASSET,'ascii');
@@ -39,7 +41,8 @@ export function createNote512({networkId,ownerTag,value,randomness = crypto.rand
 }
 export function noteCommitment512(note) {
   assertNote512(note);
-  return bindingDigest512({domain:'NOTE512_COMMITMENT',parts:[VERSION,networkBytes(note.network_id),ASSET,Buffer.from(note.value,'ascii'),
+  const value=Buffer.alloc(8);value.writeBigUInt64BE(BigInt(note.value));
+  return bindingDigest512({domain:'NOTE512_COMMITMENT',parts:[VERSION,networkBytes(note.network_id),ASSET,value,
     decodeHex(note.owner_tag,'owner tag',64),decodeHex(note.randomness,'note randomness',64)]});
 }
 export function nullifier512({note,spendSecret}) {

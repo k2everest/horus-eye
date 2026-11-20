@@ -2,10 +2,13 @@
 // checking are not a proof system, a ZK protocol, a constant-time implementation,
 // or a demonstrated PQ128 construction. No production code imports this file.
 import {inspect} from 'node:util';
+import {createHash} from 'node:crypto';
+import {P} from '../fri/field.mjs';
 
 const AND=1,XOR=2,NOT=3,EQUAL=4;
 const MAX_GATES=8_000_000,MAX_INPUT_BYTES=262144;
 const trusted=new WeakMap(),assignments=new WeakMap();
+const circuitDigests=new WeakMap();
 const freeze=value=>Object.freeze(value);
 const byteArray=value=>value instanceof Uint8Array;
 function bound(value,maximum,label){
@@ -173,4 +176,72 @@ export function readBitBytes(circuit,witness,wires){
     bytes[i>>3]|=values[wire]<<(7-(i&7));
   }
   return bytes;
+}
+
+const canonical=value=>{const result=value%P;return result<0n?result+P:result;};
+function rowLinear(constant,terms=[]){
+  const merged=new Map();
+  for(const [wire,coefficient] of terms)merged.set(wire,canonical((merged.get(wire)??0n)+coefficient));
+  return freeze({constant:canonical(constant),terms:freeze([...merged].filter(([,c])=>c!==0n)
+    .sort(([a],[b])=>a-b).map(([wire,coefficient])=>freeze({wire,coefficient})))});
+}
+const ROW_ZERO=rowLinear(0n),ROW_ONE=rowLinear(1n);
+const row=(A,B,C)=>freeze({A,B,C});
+
+// Lazy public matrix view of the independently compiled circuit. No private
+// assignment is read and no array containing millions of rows is materialized.
+export function bitConstraintCount(circuit){
+  const data=state(circuit);return 2+data.wireCount+data.gateCount;
+}
+export function bitConstraintRow(circuit,index){
+  const data=state(circuit);
+  if(!Number.isSafeInteger(index)||index<0||index>=2+data.wireCount+data.gateCount)throw new RangeError('invalid bit constraint row');
+  if(index===0)return row(rowLinear(0n,[[0,1n]]),ROW_ONE,ROW_ZERO);
+  if(index===1)return row(rowLinear(-1n,[[1,1n]]),ROW_ONE,ROW_ZERO);
+  index-=2;
+  if(index<data.wireCount)return row(rowLinear(0n,[[index,1n]]),rowLinear(-1n,[[index,1n]]),ROW_ZERO);
+  index-=data.wireCount;
+  const a=data.a[index],b=data.b[index],z=data.z[index];
+  switch(data.ops[index]){
+    case AND:return row(rowLinear(0n,[[a,1n]]),rowLinear(0n,[[b,1n]]),rowLinear(0n,[[z,1n]]));
+    case XOR:return row(rowLinear(0n,[[a,2n]]),rowLinear(0n,[[b,1n]]),rowLinear(0n,[[a,1n],[b,1n],[z,-1n]]));
+    case NOT:return row(rowLinear(1n,[[a,-1n]]),ROW_ONE,rowLinear(0n,[[z,1n]]));
+    case EQUAL:return row(rowLinear(0n,[[a,1n],[b,-1n]]),ROW_ONE,ROW_ZERO);
+    default:throw new Error('unknown internal bit constraint');
+  }
+}
+
+// Snapshot first, then check the returned copy. Source Buffer.slice() would
+// alias memory, so use Uint8Array.from. Gate validity is a separate obligation.
+export function snapshotBitWitness(circuit,witness){
+  const copy=Uint8Array.from(valuesFor(circuit,witness));
+  if(copy[0]!==0||copy[1]!==1||copy.some(value=>value!==0&&value!==1))throw new TypeError('canonical Boolean witness with fixed pins required');
+  return copy;
+}
+
+// Canonical streaming program identity, not a signature or proof. The gate
+// semantics are bound explicitly so a later change of equations needs a new
+// descriptor/version. All lengths/counts/indices are unsigned big-endian u32;
+// the prime is fixed-width unsigned u64. Only populated gates are included.
+export function bitCircuitDigest512(circuit){
+  const data=state(circuit),cached=circuitDigests.get(circuit);if(cached)return cached;
+  const h=createHash('sha512'),u32=value=>{const b=Buffer.alloc(4);b.writeUInt32BE(value);return b;};
+  const framed=value=>{h.update(u32(value.length));h.update(value);};
+  h.update(Buffer.from('AEGIS_EXPERIMENT_BIT_CIRCUIT_DIGEST512_V1\0','ascii'));
+  const prime=Buffer.alloc(8);prime.writeBigUInt64BE(P);framed(prime);
+  framed(Buffer.from(circuit.schema,'ascii'));
+  framed(Buffer.from('PINS:w0=0,w1=1;BOOL:w*(w-1)=0;AND:a*b=z;XOR:(2*a)*b=a+b-z;NOT:(1-a)*1=z;EQ:(a-b)*1=0','ascii'));
+  h.update(u32(data.wireCount));h.update(u32(data.gateCount));h.update(u32(data.inputs.size));h.update(u32(data.wireCount));
+  for(const [name,{length,first}] of data.inputs){framed(Buffer.from(name,'ascii'));h.update(u32(length));h.update(u32(first));}
+  const chunk=Buffer.alloc(13*1024);
+  for(let start=0;start<data.gateCount;start+=1024){
+    const count=Math.min(1024,data.gateCount-start);
+    for(let i=0;i<count;i++){
+      const gate=start+i,offset=13*i;chunk[offset]=data.ops[gate];
+      chunk.writeUInt32BE(data.a[gate],offset+1);chunk.writeUInt32BE(data.b[gate],offset+5);chunk.writeUInt32BE(data.z[gate],offset+9);
+    }
+    h.update(chunk.subarray(0,count*13));
+  }
+  h.update(Buffer.from('END_BIT_CIRCUIT_V1\0','ascii'));
+  const digest=h.digest('hex');circuitDigests.set(circuit,digest);return digest;
 }

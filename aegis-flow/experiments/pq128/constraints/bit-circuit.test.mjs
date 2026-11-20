@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {inspect} from 'node:util';
-import {BitCircuit,evaluateBitCircuit,checkBitCircuit,readBitBytes,evaluateGateConstraint} from './bit-circuit.mjs';
+import {createHash} from 'node:crypto';
+import {P} from '../fri/field.mjs';
+import {BitCircuit,evaluateBitCircuit,checkBitCircuit,readBitBytes,evaluateGateConstraint,
+  bitConstraintCount,bitConstraintRow,snapshotBitWitness,bitCircuitDigest512} from './bit-circuit.mjs';
 
 test('actual Boolean gates satisfy arithmetic R1CS equations for every truth-table row',()=>{
   const builder=new BitCircuit(),input=builder.inputBytes('data',1);
@@ -16,6 +19,88 @@ test('actual Boolean gates satisfy arithmetic R1CS equations for every truth-tab
     for(let i=0;i<3;i++)assert.equal(evaluateGateConstraint(circuit,v,i),0);
     for(const wire of [and,xor,not]){const tampered=Uint8Array.from(v);tampered[wire]^=1;assert.equal(checkBitCircuit(circuit,tampered),false);}
   }
+});
+
+const field=value=>{const r=value%P;return r<0n?r+P:r;};
+function publicRowHolds(row,values){
+  const linear=lc=>field(lc.constant+lc.terms.reduce((sum,t)=>sum+t.coefficient*BigInt(values[t.wire]),0n));
+  return field(linear(row.A)*linear(row.B)-linear(row.C))===0n;
+}
+test('lazy public R1CS rows independently agree with Boolean checker, pins and every gate truth row',()=>{
+  const b=new BitCircuit(),bits=b.inputBytes('data',1),a=bits[0],c=bits[1];
+  const product=b.and(a,c),different=b.xor(a,c);b.not(a);b.assertEqual(product,different);
+  const circuit=b.seal(),count=bitConstraintCount(circuit);
+  assert.equal(count,2+circuit.wireCount+circuit.gateCount);
+  const rows=Array.from({length:count},(_,i)=>bitConstraintRow(circuit,i));
+  for(const av of [0,1])for(const cv of [0,1]){
+    const w=evaluateBitCircuit(circuit,{data:Buffer.from([(av<<7)|(cv<<6)])});
+    assert.equal(rows.every(row=>publicRowHolds(row,w.values)),checkBitCircuit(circuit,w));
+    for(let wire=0;wire<circuit.wireCount;wire++){
+      const changed=w.values.slice();changed[wire]^=1;
+      assert.equal(rows.every(row=>publicRowHolds(row,changed)),checkBitCircuit(circuit,changed));
+    }
+    const nonboolean=w.values.slice();nonboolean[bits[2]]=2;
+    assert.equal(rows.every(row=>publicRowHolds(row,nonboolean)),false);
+  }
+  const valid=evaluateBitCircuit(circuit,{data:Buffer.alloc(1)});
+  for(const [wire,value] of [[0,1],[1,0]]){
+    const changed=valid.values.slice();changed[wire]=value;
+    assert.equal(publicRowHolds(rows[wire],changed),false);
+  }
+  const fieldAttack=Array.from(valid.values,BigInt);fieldAttack[bits[3]]=P-1n;
+  assert.equal(publicRowHolds(rows[2+bits[3]],fieldAttack),false);
+  for(const row of rows){
+    assert.ok(Object.isFrozen(row));
+    for(const lc of [row.A,row.B,row.C]){
+      assert.ok(Object.isFrozen(lc)&&Object.isFrozen(lc.terms));assert.ok(lc.constant>=0n&&lc.constant<P);
+      let last=-1;for(const term of lc.terms){assert.ok(Object.isFrozen(term));assert.ok(term.wire>last);last=term.wire;assert.ok(term.coefficient>0n&&term.coefficient<P);}
+    }
+  }
+  assert.throws(()=>{rows[0].A.terms[0].coefficient=9n;});
+  for(const i of [-1,count,Infinity,1.5,'0',0n])assert.throws(()=>bitConstraintRow(circuit,i));
+  assert.throws(()=>bitConstraintCount({...circuit}));
+});
+
+test('private witness snapshots copy first and validate only canonical bits and pins',()=>{
+  const b=new BitCircuit(),bits=b.inputBytes('data',1),output=b.not(bits[0]),c=b.seal();
+  const assignment=evaluateBitCircuit(c,{data:Buffer.alloc(1)}),snapshot=snapshotBitWitness(c,assignment);
+  assert.ok(snapshot instanceof Uint8Array);assert.notEqual(snapshot,assignment.values);
+  snapshot[bits[1]]=1;assert.equal(assignment.values[bits[1]],0);
+  assignment.values[bits[2]]=1;assert.equal(snapshot[bits[2]],0);
+  const wrong=assignment.values.slice();wrong[output]^=1;
+  // Gate checks are deliberately separate; a canonical but invalid assignment
+  // remains available for a later constraint/polynomial checker to reject.
+  assert.doesNotThrow(()=>snapshotBitWitness(c,wrong));assert.equal(checkBitCircuit(c,wrong),false);
+  for(const [wire,value] of [[0,1],[1,0],[bits[3],2]]){const invalid=assignment.values.slice();invalid[wire]=value;assert.throws(()=>snapshotBitWitness(c,invalid));}
+  assert.throws(()=>snapshotBitWitness(c,assignment.values.slice(1)));
+  assert.throws(()=>snapshotBitWitness({...c},assignment));
+});
+
+test('canonical circuit digest streams exact public mapping and populated gate records, never witness bytes',()=>{
+  function compile(maxGates=1024){
+    const b=new BitCircuit({maxGates}),v=b.inputBytes('data',1),a=b.and(v[0],v[1]),x=b.xor(v[0],v[1]);b.not(v[0]);b.assertEqual(a,x);return b.seal();
+  }
+  const c=compile(),small=compile(4),digest=bitCircuitDigest512(c);
+  assert.match(digest,/^[0-9a-f]{128}$/);assert.equal(bitCircuitDigest512(small),digest);
+  const u32=n=>{const b=Buffer.alloc(4);b.writeUInt32BE(n);return b;};
+  const frame=b=>Buffer.concat([u32(b.length),b]);
+  const prime=Buffer.alloc(8);prime.writeBigUInt64BE(P);
+  const record=(op,a,b,z)=>Buffer.concat([Buffer.from([op]),u32(a),u32(b),u32(z)]);
+  const bytes=Buffer.concat([
+    Buffer.from('AEGIS_EXPERIMENT_BIT_CIRCUIT_DIGEST512_V1\0','ascii'),frame(prime),frame(Buffer.from('AEGIS_EXPERIMENT_BIT_R1CS_V1')),
+    frame(Buffer.from('PINS:w0=0,w1=1;BOOL:w*(w-1)=0;AND:a*b=z;XOR:(2*a)*b=a+b-z;NOT:(1-a)*1=z;EQ:(a-b)*1=0')),
+    u32(13),u32(4),u32(1),u32(13),frame(Buffer.from('data')),u32(1),u32(2),
+    record(1,2,3,10),record(2,2,3,11),record(3,2,0,12),record(4,10,11,0),Buffer.from('END_BIT_CIRCUIT_V1\0','ascii'),
+  ]);
+  assert.equal(digest,createHash('sha512').update(bytes).digest('hex'));
+  for(const message of [0,255]){const witness=evaluateBitCircuit(c,{data:Buffer.from([message])});witness.values.fill(1);assert.equal(bitCircuitDigest512(c),digest);}
+  const single=(operation,name='data',reverse=false)=>{const b=new BitCircuit(),v=b.inputBytes(name,1);b[operation](v[reverse?1:0],v[reverse?0:1]);return b.seal();};
+  const and=single('and');
+  for(const different of [single('xor'),single('and','other'),single('and','data',true)])assert.notEqual(bitCircuitDigest512(and),bitCircuitDigest512(different));
+  const interleaved=new BitCircuit(),a=interleaved.inputBytes('a',1);interleaved.not(a[0]);interleaved.inputBytes('b',1);
+  const together=new BitCircuit(),aa=together.inputBytes('a',1);together.inputBytes('b',1);together.not(aa[0]);
+  assert.notEqual(bitCircuitDigest512(interleaved.seal()),bitCircuitDigest512(together.seal()));
+  assert.throws(()=>bitCircuitDigest512({...c}));
 });
 
 test('constant bytes and named private bytes use MSB-first wires without input aliasing',()=>{

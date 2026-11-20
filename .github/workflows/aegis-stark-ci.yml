@@ -22,6 +22,8 @@ jobs:
         run: node --test aegis-flow/experiments/pq128/*.test.mjs aegis-flow/experiments/pq128/fri/*.test.mjs aegis-flow/experiments/pq128/financial/*.test.mjs aegis-flow/experiments/pq128/constraints/*.test.mjs
       - name: Check the private transfer constraint assignment without publishing it
         run: node aegis-flow/experiments/pq128/constraints/demo.mjs --report pq128-transfer-constraints.json
+      - name: Rehearse sampled private polynomial segments with an explicit resource budget
+        run: node aegis-flow/experiments/pq128/constraints/segment-demo.mjs --max-segments 8192 --report pq128-segmented-rehearsal.json
       - name: Prove and verify a public polynomial with the reference FRI implementation
         run: node aegis-flow/experiments/pq128/fri/demo.mjs --domain-log2 16 --queries 720 --report pq128-reference-fri.json
       - name: Record conditional screen without authorizing production
@@ -33,6 +35,7 @@ jobs:
             pq128-conditional-screen.json
             pq128-reference-fri.json
             pq128-transfer-constraints.json
+            pq128-segmented-rehearsal.json
           retention-days: 3
           if-no-files-found: error
 

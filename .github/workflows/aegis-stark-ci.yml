@@ -19,7 +19,7 @@ jobs:
         with:
           node-version: '24'
       - name: Test experimental SHA-512 bindings and conditional standalone FRI arithmetic
-        run: node --test aegis-flow/experiments/pq128/*.test.mjs aegis-flow/experiments/pq128/fri/*.test.mjs aegis-flow/experiments/pq128/financial/*.test.mjs aegis-flow/experiments/pq128/constraints/*.test.mjs
+        run: node --test aegis-flow/experiments/pq128/*.test.mjs aegis-flow/experiments/pq128/fri/*.test.mjs aegis-flow/experiments/pq128/financial/*.test.mjs aegis-flow/experiments/pq128/constraints/*.test.mjs aegis-flow/experiments/pq128/native/backend.test.mjs
       - name: Check the private transfer constraint assignment without publishing it
         run: node aegis-flow/experiments/pq128/constraints/demo.mjs --report pq128-transfer-constraints.json
       - name: Rehearse sampled private polynomial segments with an explicit resource budget
@@ -36,6 +36,41 @@ jobs:
             pq128-reference-fri.json
             pq128-transfer-constraints.json
             pq128-segmented-rehearsal.json
+          retention-days: 3
+          if-no-files-found: error
+
+  native-financial512-laboratory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@1.100.0
+      - name: Install pinned tools and preserve the accepted program
+        run: python3 aegis-flow/scripts/setup-stark.py
+      - name: Build the isolated host relation and run differential checks
+        run: |
+          python3 aegis-flow/experiments/pq128/native/build.py --host-only
+          CARGO_HOME="$GITHUB_WORKSPACE/work/cargo" CARGO_TARGET_DIR="$GITHUB_WORKSPACE/work/native512-host" CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 cargo test --locked --offline --manifest-path aegis-flow/experiments/pq128/native/guest/Cargo.toml --lib
+          AEGIS_NATIVE512_HOST_TESTS=1 node --test aegis-flow/experiments/pq128/native/host-differential.test.mjs
+      - name: Build the isolated native program without enabling it on any network
+        run: python3 aegis-flow/experiments/pq128/native/build.py
+      - name: Prove the SHA-512 financial relation and verify its public journal
+        env:
+          AEGIS_NATIVE512_INTEGRATION: '1'
+          AEGIS_NATIVE512_PUBLIC_ARTIFACT: work/native512/public-proof.json
+        run: node --test aegis-flow/experiments/pq128/native/integration.test.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-financial512-laboratory-${{ github.sha }}
+          path: |
+            work/native512/program.json
+            work/native512/public-proof.json
           retention-days: 3
           if-no-files-found: error
 

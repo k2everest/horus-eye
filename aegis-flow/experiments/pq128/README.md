@@ -11,6 +11,11 @@ inclusão, R1CS de valores e mascaramento privado. O [compilador de constraints]
 vincula hashes e valores aos mesmos bits. Os checkers ainda recebem o witness;
 isso não é um novo verificador de provas privadas ou demonstração PQ128.
 
+O [ensaio nativo isolado](native/README.md) testa a relação SHA-512 inteira em
+um guest separado, usando o motor RISC Zero de laboratório já conhecido. O
+verificador recebe receipt e statement públicos; os parâmetros do motor são
+inalterados e continuam sem qualificação PQ128. Esse programa não é aceito na rede.
+
 ## Componentes executáveis
 
 `bindings.mjs` usa SHA-512 completo para commitments genéricos, folhas/nós Merkle,

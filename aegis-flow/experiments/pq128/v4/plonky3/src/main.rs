@@ -44,17 +44,37 @@ impl CryptographicHasher<u8,[u8;64]> for Sha512Hash {
         h.finalize().into()
     }
 }
-type FH=SerializingHasher<Sha512Hash>;
-type Compress=CompressionFunctionFromHasher<Sha512Hash,2,64>;
-type Mmcs=MerkleTreeMmcs<F,u8,FH,Compress,2,64>;
+// The SHA-512 digest is represented as 8 canonical little-endian u64 words.
+// This preserves all 512 bits while remaining serializable in the PCS proof.
+#[derive(Clone,Copy,Debug)]
+struct Sha512Words(&'static [u8]);
+impl CryptographicHasher<u64,[u64;8]> for Sha512Words {
+    fn hash_iter<I>(&self,input:I)->[u64;8] where I:IntoIterator<Item=u64>{
+        let mut h=Sha512::new();
+        h.update(self.0);
+        for word in input {h.update(word.to_le_bytes());}
+        let digest:[u8;64]=h.finalize().into();
+        std::array::from_fn(|i|u64::from_le_bytes(digest[i*8..i*8+8].try_into().unwrap()))
+    }
+    fn hash_iter_slices<'a,I>(&self,input:I)->[u64;8] where I:IntoIterator<Item=&'a [u64]>{
+        let mut h=Sha512::new();
+        h.update(self.0);
+        for words in input {for word in words {h.update(word.to_le_bytes());}}
+        let digest:[u8;64]=h.finalize().into();
+        std::array::from_fn(|i|u64::from_le_bytes(digest[i*8..i*8+8].try_into().unwrap()))
+    }
+}
+type FH=SerializingHasher<Sha512Words>;
+type Compress=CompressionFunctionFromHasher<Sha512Words,2,8>;
+type Mmcs=MerkleTreeMmcs<F,u64,FH,Compress,2,8>;
 type EMmcs=ExtensionMmcs<F,E,Mmcs>;
 type Chall=SerializingChallenger32<F,HashChallenger<u8,Sha512Hash,64>>;
 type Pcs=TwoAdicFriPcs<F,Radix2Bowers,Mmcs,EMmcs>;
 type Config=StarkConfig<Pcs,E,Chall>;
 
 fn config()->Config{
-    let leaf=Sha512Hash(b"AEGIS_V4_P3_LEAF_SHA512_V1\0");
-    let node=Sha512Hash(b"AEGIS_V4_P3_NODE_SHA512_V1\0");
+    let leaf=Sha512Words(b"AEGIS_V4_P3_LEAF_SHA512_V1\0");
+    let node=Sha512Words(b"AEGIS_V4_P3_NODE_SHA512_V1\0");
     let chal_hash=Sha512Hash(b"AEGIS_V4_P3_TRANSCRIPT_SHA512_V1\0");
     let mmcs=Mmcs::new(FH::new(leaf),Compress::new(node),3);
     let fri=FriParameters::new_benchmark(EMmcs::new(mmcs.clone()));

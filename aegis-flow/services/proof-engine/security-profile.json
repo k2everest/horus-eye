@@ -28,7 +28,9 @@
     "sdk_max_segment_po2": 24,
     "max_segments": 64,
     "accumulator_columns": 103,
-    "constraint_degree": 5
+    "constraint_degree": 5,
+    "trace_polynomials": 315,
+    "biggest_combo": 6
   },
   "program_id": "c57dad1e424a8049010a037cce9372d74f0a13368d13eeb1a63560915765006e",
   "repository_sha256": {

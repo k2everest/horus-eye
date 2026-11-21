@@ -82,3 +82,8 @@ não é por si só uma demonstração matemática de zero knowledge. As flags
 `aegis_target_met` e `production_ready` ficam falsas mesmo que a verificação
 nativa tenha sucesso. Esse ensaio valida a relação; substituir/qualificar o
 motor para 128 bits pós-quânticos permanece uma tarefa separada.
+
+A [avaliação do motor RISC Zero](../../../docs/security/risc0-qualification-2026-11-20.md)
+registra a receipt real aprovada no CI, os parâmetros extraídos do SDK e os
+requisitos de segurança ainda sem demonstração. O relatório de correspondência
+dos fontes produzido no job permanece separado da decisão PQ128.

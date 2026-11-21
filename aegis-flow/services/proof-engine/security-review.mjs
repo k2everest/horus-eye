@@ -2,9 +2,18 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { inspectRisc0Parameters } from './risc0-parameters.mjs';
+import { upstreamProvenDiagnostics } from './risc0-soundness.mjs';
 
 const engine = fileURLToPath(new URL('./', import.meta.url));
-export const securityProfile = JSON.parse(readFileSync(join(engine, 'security-profile.json'), 'utf8'));
+function deepFreeze(value) {
+  if (value && typeof value === 'object') {
+    for (const entry of Object.values(value)) deepFreeze(entry);
+    Object.freeze(value);
+  }
+  return value;
+}
+export const securityProfile = deepFreeze(JSON.parse(readFileSync(join(engine, 'security-profile.json'), 'utf8')));
 
 // Diagnostics for the two terms in upstream toy_model_security, NOT a complete
 // soundness calculation, attack complexity, or quantum security reduction.
@@ -91,33 +100,48 @@ export function reviewStarkSecurity({ sourceRoot } = {}) {
   if (program.program_id !== securityProfile.program_id || program.sdk !== securityProfile.parameters.sdk) mismatches.push('program.json');
   if (sourceRoot) {
     check(sourceRoot, securityProfile.upstream_source_sha256);
-    try {
-      const taps = readFileSync(join(sourceRoot, `risc0-circuit-rv32im-${securityProfile.parameters.circuit}/src/zirgen/taps.rs`), 'utf8');
-      const offsets = [...taps.matchAll(/TapData\s*\{\s*offset:\s*(\d+),\s*back:\s*\d+,\s*group:\s*0,/g)].map(match => Number(match[1]));
-      if (!offsets.length || Math.max(...offsets) + 1 !== securityProfile.parameters.accumulator_columns) mismatches.push('parameters.accumulator_columns');
-      const calculator = readFileSync(join(sourceRoot, `risc0-zkp-${securityProfile.parameters.zkp}/src/prove/soundness.rs`), 'utf8');
-      const degree = calculator.match(/let max_degree = (\d+)\.0;/);
-      if (!degree || Number(degree[1]) !== securityProfile.parameters.constraint_degree) mismatches.push('parameters.constraint_degree');
-    } catch {
-      // Missing sources already appear in the pinned inventory mismatches.
-    }
   }
+  const parameterVerification = inspectRisc0Parameters({sourceRoot, profile: securityProfile});
+  for (const item of parameterVerification.checks) {
+    if (!['match', 'not-checked'].includes(item.status)) mismatches.push(`parameters.${item.parameter}`);
+  }
+  const inventoryMatches = mismatches.length === 0;
+  const sourceProfileVerified = Boolean(sourceRoot) && inventoryMatches && parameterVerification.parameters_match;
   return {
     schema: 'AEGIS_STARK_SECURITY_REVIEW_V1',
     target: securityProfile.target,
     parameters: securityProfile.parameters,
     program_id: securityProfile.program_id,
-    inventory_matches: mismatches.length === 0,
+    inventory_matches: inventoryMatches,
     mismatches,
     upstream_sources_checked: Boolean(sourceRoot),
+    parameter_verification: parameterVerification,
     diagnostics: toyModelDiagnostics(securityProfile.parameters),
     circuit_diagnostics: [securityProfile.parameters.prover_segment_po2, securityProfile.parameters.sdk_max_segment_po2].map(tracePo2 =>
       circuitToyDiagnostics(securityProfile.parameters, {tracePo2, segments: securityProfile.parameters.max_segments})),
+    upstream_proven_diagnostics: [securityProfile.parameters.prover_segment_po2, securityProfile.parameters.sdk_max_segment_po2].map(tracePo2 =>
+      upstreamProvenDiagnostics(securityProfile.parameters, {tracePo2, segments: securityProfile.parameters.max_segments})),
     hypothetical_parameter_budgets: [0, 32].map(log2ReceiptAttempts => toyParameterBudget(securityProfile.parameters, {
       targetErrorBits: securityProfile.target.post_quantum_bits,
       tracePo2: securityProfile.parameters.sdk_max_segment_po2,
       segments: securityProfile.parameters.max_segments, log2ReceiptAttempts,
     })),
+    quantum_qualification: {
+      schema: 'AEGIS_RISC0_QUANTUM_QUALIFICATION_V1',
+      decision: 'not-qualified-for-pq128',
+      source_profile_verified: sourceProfileVerified,
+      source_check_scope: 'Pinned source inventory and extracted constants only; not compiled-binary/source attestation or a cryptographic certificate.',
+      applies_to: 'Both accepted legacy guest and isolated financial512 guest when using this same RISC Zero engine. SHA-512 inside a guest does not replace internal STARK primitives.',
+      requirements: [
+        {id: 'adversary-budget', status: 'missing', evidence: 'Target lacks an approved concrete work/memory/oracle-query budget and network-lifetime composition scenario.'},
+        {id: 'complete-quantum-soundness', status: 'not-demonstrated', evidence: 'Toy and upstream proven list-decoding diagnostics are classical and incomplete for this accepted noninteractive receipt.'},
+        {id: 'fiat-shamir-qrom', status: 'missing', evidence: 'No accepted QROM reduction instantiated for the exact transcript, samplers, field, hash suite and composition.'},
+        {id: 'hash-and-program-binding', status: 'not-demonstrated', evidence: 'Poseidon2, journal/image SHA-256 and private financial bindings need applicable quantum property and composition analysis.'},
+        {id: 'knowledge-and-privacy', status: 'not-demonstrated', evidence: 'A verified public journal and successful negative tests do not establish quantum knowledge soundness or complete ZK/leakage bounds.'},
+        {id: 'independent-review', status: 'missing', evidence: 'No accepted independent review of the exact parameters, argument, generated circuit and compiled artifacts.'},
+      ],
+      demonstrated_post_quantum_bits: null, qualified: false,
+    },
     // No editable label or larger query count constitutes an accepted analysis.
     demonstrated_post_quantum_bits: null,
     target_met: false,

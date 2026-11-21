@@ -94,10 +94,14 @@ explicitamente opt-in e falha se os binários aprovados estiverem ausentes.
 ## Limites antes de produção
 
 STARK é a base de prova pós-quântica escolhida, mas esta integração ainda exige
-revisão criptográfica/circuito independente. A configuração padrão do SDK tem
-cerca de **98 bits de segurança conjecturada**; não anunciar 128 bits de
-segurança pós-quântica. Parâmetros, Fiat–Shamir contra adversários quânticos e
-hashes precisam ser revisados antes de aceitar valor real.
+revisão criptográfica/circuito independente. **O perfil aceito não demonstra
+128 bits de segurança pós-quântica.** A [avaliação do motor](../../docs/security/risc0-qualification-2026-11-20.md)
+confronta os parâmetros declarados com os fontes e distingue estimativas
+clássicas de uma demonstração quântica. O modo `--require-source-profile` do
+script `review-stark-security.mjs` exige correspondência dos fontes; o modo
+`--require-production` continua rejeitando o perfil. Parâmetros, Fiat–Shamir,
+hashes, conhecimento, privacidade e composição precisam de análise aplicável
+à configuração completa.
 
 Commitments V2 são hashes SHA-256 com domains e randomness, não construções
 lattice/SIS/LWE. Preimage/collision/hiding sob o adversário escolhido precisam
@@ -110,6 +114,8 @@ contexto, asset e identidade KEM. Seu retorno `confirmed:false` exige confirmaç
 separada contra estado/prova confiáveis; o helper não credita saldo nem finaliza
 uma transação. A carteira browser ainda precisa integrar esse caminho.
 
-Não há consenso, ancoragem externa de roots, keystore browser, indexador público,
-controle de acesso de produção ou auditoria concluída. O bloqueio de produção
-continua ativo. Os formatos antigos ZK/Note V1 não são aceitos para `/submit`.
+A receipt valida a relação financeira e depende do consenso para inclusão,
+double spend e finalização. Consulte os módulos de settlement/open-chain para
+essas responsabilidades. A auditoria independente não foi concluída e o
+bloqueio de produção continua ativo. Os formatos antigos ZK/Note V1 não são
+aceitos para `/submit`.

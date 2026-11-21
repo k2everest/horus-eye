@@ -4,6 +4,12 @@
 pós-quânticos. Produção permanece bloqueada.** Esta revisão interna não substitui
 a auditoria independente e não apresenta uma redução de segurança quântica.
 
+A [qualificação do motor de 20/11/2026](risc0-qualification-2026-11-20.md)
+acrescenta a comparação de constantes extraídas do SDK, confere o perfil
+declarado e reproduz também a rotina upstream `proven` de list-decoding. Ela
+registra separadamente correspondência de fontes e qualificação criptográfica;
+esta última continua sem demonstração.
+
 A [decisão de seleção de backend de 19/11/2026](backend-selection-2026-11-19.md)
 registra a comparação com Plonky3 e Winterfell e o dimensionamento hipotético
 de consultas/campo com orçamento explícito por receipt. Nenhum substituto foi

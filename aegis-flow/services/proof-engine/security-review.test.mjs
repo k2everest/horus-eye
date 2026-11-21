@@ -13,6 +13,11 @@ test('pinned inventory matches and current profile does not demonstrate target',
   assert.equal(report.target_met, false);
   assert.equal(report.demonstrated_post_quantum_bits, null);
   assert.equal(report.upstream_sources_checked, false);
+  assert.equal(report.parameter_verification.source_checked, false);
+  assert.equal(report.quantum_qualification.source_profile_verified, false);
+  assert.equal(report.quantum_qualification.qualified, false);
+  assert.equal(report.quantum_qualification.decision, 'not-qualified-for-pq128');
+  assert.equal(report.upstream_proven_diagnostics.length, 2);
   assert.equal(report.diagnostics.fri_term_negative_log2, 100);
   assert.ok(report.diagnostics.constraint_term_negative_log2 < 124);
 });
@@ -47,9 +52,24 @@ test('missing upstream sources fail inventory verification', () => {
     const report = reviewStarkSecurity({ sourceRoot: root });
     assert.equal(report.upstream_sources_checked, true);
     assert.equal(report.inventory_matches, false);
-    assert.equal(report.mismatches.length, Object.keys(securityProfile.upstream_source_sha256).length);
+    for (const name of Object.keys(securityProfile.upstream_source_sha256)) assert.ok(report.mismatches.includes(name));
+    assert.equal(report.parameter_verification.parameters_match, false);
+    assert.equal(report.quantum_qualification.source_profile_verified, false);
     assert.equal(report.target_met, false);
   } finally { rmSync(root, { recursive: true }); }
+});
+
+test('the pinned profile and nested parameters cannot be relabeled in memory', () => {
+  for (const value of [securityProfile, securityProfile.parameters, securityProfile.target, securityProfile.repository_sha256]) {
+    assert.equal(Object.isFrozen(value), true);
+  }
+  assert.throws(() => { securityProfile.parameters.fri_queries = 128; }, TypeError);
+  assert.throws(() => { securityProfile.target.post_quantum_bits = 1; }, TypeError);
+  assert.throws(() => { securityProfile.repository_sha256['verifier/src/main.rs'] = '0'.repeat(64); }, TypeError);
+  const report = reviewStarkSecurity();
+  assert.equal(report.parameters.fri_queries, 50);
+  assert.equal(report.diagnostics.fri_term_negative_log2, 100);
+  assert.equal(report.target_met, false);
 });
 
 test('hypothetical sizing covers all error terms and attempts without approving a profile', () => {
@@ -81,4 +101,7 @@ test('release check fails while diagnostic command succeeds', () => {
   const release = spawnSync(process.execPath, [script.pathname, '--require-production'], { encoding: 'utf8' });
   assert.equal(release.status, 1);
   assert.equal(JSON.parse(release.stdout).production_ready, false);
+  const missingSources = spawnSync(process.execPath, [script.pathname, '--require-source-profile'], { encoding: 'utf8' });
+  assert.equal(missingSources.status, 1);
+  assert.equal(JSON.parse(missingSources.stdout).quantum_qualification.source_profile_verified, false);
 });

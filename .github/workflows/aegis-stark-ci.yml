@@ -60,6 +60,8 @@ jobs:
           AEGIS_NATIVE512_HOST_TESTS=1 node --test aegis-flow/experiments/pq128/native/host-differential.test.mjs
       - name: Build the isolated native program without enabling it on any network
         run: python3 aegis-flow/experiments/pq128/native/build.py
+      - name: Verify the actual SDK parameters without granting PQ128 qualification
+        run: node aegis-flow/scripts/review-stark-security.mjs --source-root work/cargo/registry/src/index.crates.io-1949cf8c6b5b557f --require-source-profile > work/native512/risc0-qualification.json
       - name: Prove the SHA-512 financial relation and verify its public journal
         env:
           AEGIS_NATIVE512_INTEGRATION: '1'
@@ -71,6 +73,7 @@ jobs:
           path: |
             work/native512/program.json
             work/native512/public-proof.json
+            work/native512/risc0-qualification.json
           retention-days: 3
           if-no-files-found: error
 
@@ -105,6 +108,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.100.0
       - name: Build pinned guest and verifier
         run: python3 aegis-flow/scripts/setup-stark.py
+      - name: Verify the source profile used by the accepted proof engine
+        run: node aegis-flow/scripts/review-stark-security.mjs --source-root work/cargo/registry/src/index.crates.io-1949cf8c6b5b557f --require-source-profile > work/risc0-qualification.json
       - name: Prove and verify a real composite STARK, then apply durable state
         env:
           AEGIS_STARK_INTEGRATION: '1'
@@ -137,6 +142,12 @@ jobs:
         env:
           AEGIS_POW_RECOVERY_ARTIFACT: work/open-pow-v2-public.json
         run: node --test aegis-flow/services/open-chain/peer-recovery.integration.test.mjs aegis-flow/services/open-chain/receipt-index.integration.test.mjs aegis-flow/services/open-chain/storage-atomic.integration.test.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: risc0-source-qualification-${{ github.sha }}
+          path: work/risc0-qualification.json
+          retention-days: 3
+          if-no-files-found: error
 
   native-pow-wallet:
     runs-on: ubuntu-latest

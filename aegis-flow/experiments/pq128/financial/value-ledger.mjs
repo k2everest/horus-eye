@@ -3,7 +3,7 @@
 // allocation and independently verified native receipts are prerequisites.
 import {decodeHex} from '../../../libs/crypto-core/pqc-wrapper.mjs';
 import {buildNoteTree512,MAX_LEAVES} from './membership.mjs';
-import {assertFinancialStatement512} from './relation.mjs';
+import {assertFinancialStatement512,financialStatementDigest512} from './relation.mjs';
 import {Native512LaboratoryBackend,NATIVE512_SCHEME} from '../native/backend.mjs';
 
 const NETWORK=/^[A-Za-z0-9_-]{1,64}$/;
@@ -63,7 +63,8 @@ export class ExperimentalValueLedger512 {
     // backend. No witness, note values or arbitrary "verified:true" flags
     // enter the public state machine.
     if(!exact(proof,['program_id','receipt','scheme','statement_digest'])||
-      proof.scheme!==NATIVE512_SCHEME||proof.program_id!==this.#backend.programId)
+      proof.scheme!==NATIVE512_SCHEME||proof.program_id!==this.#backend.programId||
+      proof.statement_digest!==financialStatementDigest512(statement))
       throw invalid('WRONG_PROOF_SUITE');
     const verified=await this.#backend.verify({statement,proof});
     if(verified?.valid!==true||verified.program_id!==this.#backend.programId||

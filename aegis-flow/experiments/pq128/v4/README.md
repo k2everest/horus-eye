@@ -27,12 +27,53 @@ The candidate JS modules are:
   binary quantum random oracle** with unknown theorem inputs retained as
   unknown; it is not an SDK security calculator.
 
-The candidate program identity is a SHA-512 digest of the independently trusted\nprogram image bytes, not a supplied label. Reproducible source-to-binary\nattestation remains a separate unsatisfied obligation.\n\nThe adapter contract intentionally has **no implemented trusted backend**.
-The unit tests supply a clearly identified, deterministic TEST-ONLY mock
-of verified claims; they are structural checks, not STARK cryptography.
-The result always declares `production_ready:false`,
-`cryptographic_soundness_demonstrated:false`,
-`demonstrated_post_quantum_bits:null`.
+The candidate program identity is a SHA-512 digest of the independently trusted
+program image bytes, not a supplied label. Reproducible source-to-binary
+attestation remains a separate unsatisfied obligation.
+
+## New native verification laboratory — implementation, not qualification
+
+The `plonky3/` crate now contains an **actual Plonky3 0.8.0 prove/verify
+command**, using a 64-byte domain-separated SHA-512 hasher for the
+Merkle leaf, Merkle node and Fiat–Shamir challenger. A small AIR
+constrains nine 16-bit amounts (four inputs, four outputs and one fee)
+with a bit decomposition and integer conservation, while an independently
+specified public claim is bound through a SHA-512 digest split into 32
+field elements. This is a **bounded-balance smoke AIR**. It has neither
+owner/secret/nullifier/Merkle SHA-512 financial constraints nor ZK
+privacy, and must NEVER authorize a financial transfer.
+
+`plonky3-backend.mjs` passes a proof bundle to the real native verifier
+and accepts only its response after verifying a locally trusted binary
+against two SHA-512-derived identifiers. No fallback or mock is accepted
+by that adapter. The existing mock tests exercise only the STRUCTURAL
+`composite.mjs` contract. A dedicated CI job constructs a native
+Plonky3 prover/verifier, runs the Rust tests and requires creation of
+a real proof with positive verification and adversarial rejection.
+**A successful CI build and fresh proof have not yet been confirmed.**
+
+This native laboratory does NOT satisfy the financial witness relation.
+It is intentionally kept outside the payment verifier and consensus
+admission paths. Every V4 response includes
+`aegis_target_met:false` and `production_ready:false`.
+The Composite structural interface also always sets
+`cryptographic_soundness_demonstrated:false`.
+
+Build and test with Rust and Node.js (requires downloading and auditing
+the new Rust dependencies):
+
+```sh
+cargo generate-lockfile --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
+cargo build --locked --release --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
+cargo test --locked --release --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
+AEGIS_V4_P3_INTEGRATION=1 \
+ AEGIS_V4_P3_BINARY="$PWD/aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab" \
+ node --test aegis-flow/experiments/pq128/v4/plonky3.integration.test.mjs
+```
+
+Lock generation currently occurs in CI; reproducible third-party
+qualification still requires committing/reviewing the resolved Cargo.lock,
+pinning the toolchain and independent source/binary review.
 
 ## New SDK choice: Plonky3 research candidate, not an automatic fix
 

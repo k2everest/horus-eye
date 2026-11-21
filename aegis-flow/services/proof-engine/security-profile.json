@@ -1,0 +1,56 @@
+{
+  "schema": "AEGIS_STARK_SECURITY_PROFILE_V1",
+  "status": "laboratory-only",
+  "target": {
+    "post_quantum_bits": 128,
+    "scope": "complete accepted composite receipt, up to 64 segments",
+    "model": "quantum adversary; Fiat-Shamir in QROM; explicit time, memory and oracle-query budgets required in independent analysis"
+  },
+  "parameters": {
+    "sdk": "3.1.0",
+    "zkp": "3.0.6",
+    "circuit": "4.1.0",
+    "core": "3.0.2",
+    "receipt_kind": "composite",
+    "hash": "poseidon2",
+    "fri_queries": 50,
+    "inverse_rate": 4,
+    "fri_fold": 16,
+    "fri_min_degree": 256,
+    "field_prime": 2013265921,
+    "extension_degree": 4,
+    "poseidon_width": 24,
+    "poseidon_rate": 16,
+    "poseidon_output_elements": 8,
+    "poseidon_full_rounds": 8,
+    "poseidon_partial_rounds": 21,
+    "prover_segment_po2": 18,
+    "sdk_max_segment_po2": 24,
+    "max_segments": 64,
+    "accumulator_columns": 103,
+    "constraint_degree": 5,
+    "trace_polynomials": 315,
+    "biggest_combo": 6
+  },
+  "program_id": "c57dad1e424a8049010a037cce9372d74f0a13368d13eeb1a63560915765006e",
+  "repository_sha256": {
+    "verifier/Cargo.toml": "7538741df1c1b12100f96cfd8e96d02bc32ba3292b7c6c0ab039e98a5cab3e4f",
+    "verifier/Cargo.lock": "ed1bba4dc224a37b5d22fc5aa4fd20f46e2bca988577b446c224e3bb6af57e0d",
+    "verifier/src/main.rs": "aa30947380ef0d02222b707a504eae0ee79cad16964a87816a8ccbd125b83088",
+    "backend.mjs": "2ae6ceb04a8c96c217dc4cf1501ea40ef6ef4f1747a5a66934261af124726eb9"
+  },
+  "upstream_source_sha256": {
+    "risc0-zkp-3.0.6/src/lib.rs": "107521d2426442fbc9358b7b9ae5650be92d670ea85e9a34aec7b9e9cc27dc6d",
+    "risc0-zkp-3.0.6/src/prove/soundness.rs": "6d814ec839d0f4b33f275cdfa2d382f4ce455957b1ec7932d9bc717ccf732921",
+    "risc0-zkp-3.0.6/src/verify/mod.rs": "003a67af89a7cfaeac9ff23808225cdc4d81c41d64956f20243574531b166c4f",
+    "risc0-zkp-3.0.6/src/core/hash/poseidon2/mod.rs": "a2993a2e29fa33345a6a9ce0b4f192efe7412746b92b172b0eed8ce78ee8471f",
+    "risc0-zkp-3.0.6/src/core/hash/poseidon2/consts.rs": "5ee51bce046bce1306181a43136aa0731dcf976ab10e2e8d82db88711efdcc41",
+    "risc0-core-3.0.2/src/field/baby_bear.rs": "df3e77d606dd74d78fb6b6f3dbbe72455c5ed5b091f7a74de8c049e85b857ff3",
+    "risc0-circuit-rv32im-4.1.0/src/lib.rs": "0d54248a3252fa2a0d314a119068a854a80ee1274167388c324c2fcb7a00937a",
+    "risc0-zkvm-3.1.0/src/receipt/segment.rs": "de2d75f84f20107aa5d8cacf606e734229ce7b63bfee8da1aa7d37446244d191",
+    "risc0-circuit-rv32im-4.1.0/src/zirgen/taps.rs": "fb109cc9d24c6b9caaccaf3204b8f38a985dab909e0fa50f755d612db0356eca",
+    "risc0-zkp-3.0.6/src/taps.rs": "f5f69bcbed730cc8acd43da89dd4e37ca7560b9eb991a37238482f3655f7e402"
+  },
+  "upstream_source_url_template": "https://docs.rs/crate/{crate}/{version}/source/{path}",
+  "independent_quantum_analysis": null
+}

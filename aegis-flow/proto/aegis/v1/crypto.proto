@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package aegis.v1;
+
+option go_package = "github.com/horus-eye/aegis-flow/gen/go/aegis/v1;aegisv1";
+
+// Anti-quantum primitives interface (MVP envelope).
+service CryptoService {
+  rpc Encapsulate(EncapsulateRequest) returns (EncapsulateResponse);
+  rpc Decapsulate(DecapsulateRequest) returns (DecapsulateResponse);
+  rpc Sign(SignRequest) returns (SignResponse);
+  rpc Verify(VerifyRequest) returns (VerifyResponse);
+}
+
+message EncapsulateRequest {
+  bytes recipient_ml_kem_public_key = 1;
+  bytes context = 2;
+}
+
+message EncapsulateResponse {
+  bytes ciphertext = 1;
+  bytes shared_secret = 2;
+  string kem_algorithm = 3; // ex: ML-KEM-768
+}
+
+message DecapsulateRequest {
+  bytes recipient_ml_kem_private_key_ref = 1;
+  bytes ciphertext = 2;
+}
+
+message DecapsulateResponse {
+  bytes shared_secret = 1;
+  string kem_algorithm = 2;
+}
+
+message SignRequest {
+  bytes private_key_ref = 1;
+  bytes message_digest = 2;
+  string domain_tag = 3;
+}
+
+message SignResponse {
+  bytes signature = 1;
+  string signature_algorithm = 2; // ex: ML-DSA-65
+}
+
+message VerifyRequest {
+  bytes public_key = 1;
+  bytes message_digest = 2;
+  bytes signature = 3;
+  string domain_tag = 4;
+}
+
+message VerifyResponse {
+  bool valid = 1;
+  string reason = 2;
+  string signature_algorithm = 3;
+}

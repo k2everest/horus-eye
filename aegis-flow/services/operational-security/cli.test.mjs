@@ -1,0 +1,22 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { AccessPolicy, readBearerSecret } from './access.mjs';
+test('credential CLI rotates/revokes without printing secrets and persists incident mode', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'aegis-ops-cli-')); t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const cli = new URL('../../scripts/ops-access.mjs', import.meta.url).pathname;
+  const run = (...args) => execFileSync(process.execPath, [cli, ...args], { encoding: 'utf8' });
+  const first = run('issue', directory, 'wallet', 'reader,submitter'); const issued = JSON.parse(first);
+  const token = readBearerSecret(issued.token_file); assert.ok(!first.includes(token));
+  const second = JSON.parse(run('issue', directory, 'wallet', 'reader'));
+  assert.notEqual(readBearerSecret(second.token_file), token);
+  const access = new AccessPolicy({ filename: issued.policy_file });
+  assert.equal(access.load().principals.length, 1);
+  assert.deepEqual(access.load().principals[0].roles, ['reader']);
+  run('incident', directory, 'halt'); assert.equal(access.load().incident_mode, 'halt');
+  run('revoke', directory, 'wallet'); assert.equal(access.load().principals.length, 0);
+  assert.ok(!readFileSync(issued.policy_file, 'utf8').includes(token));
+});

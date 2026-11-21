@@ -1,0 +1,28 @@
+{
+  "schema": "AEGIS_BACKEND_RESEARCH_SOURCES_V1",
+  "review_date": "2026-11-19",
+  "scope": "Files inspected for candidate selection; not an audit, build pin or quantum security certificate",
+  "sources": [
+    {
+      "repository": "Plonky3/Plonky3",
+      "path": "security/src/lib.rs",
+      "url": "https://github.com/Plonky3/Plonky3/blob/main/security/src/lib.rs",
+      "git_blob_sha1": "99c2bdd1d0de8d5a05029a5d32bce0f13b860d4d",
+      "sha256": "441cb95bb1bb783915458ec6709539a7a6d0b2575208b964e9a054c36049c086"
+    },
+    {
+      "repository": "Plonky3/Plonky3",
+      "path": "docs/architecture.md",
+      "url": "https://github.com/Plonky3/Plonky3/blob/main/docs/architecture.md",
+      "git_blob_sha1": "1061a3c989120635114c9e5ced2a8d0b7fe10ee4",
+      "sha256": "b1ca97b692995127be31a406528514ef2026f11e50e49ce249e04b07f02db19a"
+    },
+    {
+      "repository": "meta/winterfell",
+      "path": "README.md",
+      "url": "https://github.com/meta/winterfell/blob/main/README.md",
+      "git_blob_sha1": "f22c8050f232e14fc33cb1a1bfef8ec2a144c721",
+      "sha256": "4f8b3731440cb8a2320be2cec458f1b44230a20fa9eaba106260be16a0f875e4"
+    }
+  ]
+}

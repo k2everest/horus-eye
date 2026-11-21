@@ -1,0 +1,63 @@
+name: Package Aegis PoW testnet candidate
+
+on:
+  pull_request:
+    paths: ['aegis-flow/**', '.github/workflows/aegis-pow-candidate.yml']
+  workflow_dispatch:
+    inputs:
+      genesis_path:
+        description: Reviewed public PoW V2 genesis JSON path in this checkout (no secrets)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Select an explicit lab genesis for PRs or a tracked reviewed genesis for manual builds
+        env:
+          REQUESTED_GENESIS: ${{ inputs.genesis_path }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            mkdir -p work
+            LAB_FINAL_TARGET=$(node --input-type=module -e 'import {MAX_TARGET} from "./aegis-flow/services/open-chain/consensus.mjs";console.log((MAX_TARGET/16n).toString(16).padStart(64,"0"));')
+            node aegis-flow/scripts/open-chain.mjs queer-genesis --output work/pow-lab-genesis.json --network-id queer-pr-lab --base-reward 105000000 --minimum-target "$LAB_FINAL_TARGET"
+            export GENESIS_PATH=work/pow-lab-genesis.json
+          else
+            export GENESIS_PATH="$REQUESTED_GENESIS"
+            git ls-files --error-unmatch -- "$GENESIS_PATH"
+          fi
+          node --input-type=module -e '
+            import fs from "node:fs";
+            import {openNetworkId} from "./aegis-flow/services/open-chain/consensus.mjs";
+            if(!/^[A-Za-z0-9_./-]+$/.test(process.env.GENESIS_PATH))throw Error("INVALID_GENESIS_PATH");
+            const config=JSON.parse(fs.readFileSync(process.env.GENESIS_PATH));
+            const program=JSON.parse(fs.readFileSync("aegis-flow/services/proof-engine/program.json"));
+            if(config.program_id!==program.program_id)throw Error("GENESIS_PROGRAM_MISMATCH");
+            fs.appendFileSync(process.env.GITHUB_ENV,"GENESIS_PATH="+process.env.GENESIS_PATH+"\nCONFIG_ID="+openNetworkId(config)+"\n");'
+      - name: Run contract and state tests before packaging
+        run: bash aegis-flow/scripts/dev-env.sh test
+      - name: Build the reviewed image
+        run: node aegis-flow/scripts/build-release.mjs
+      - name: Prepare and independently verify the PoW candidate bundle
+        run: |
+          node aegis-flow/scripts/pow-release.mjs prepare --image "aegis-flow/validation-gateway:$GITHUB_SHA" --genesis "$GENESIS_PATH" --directory work/pow-candidate
+          node aegis-flow/scripts/pow-release.mjs verify --directory work/pow-candidate --expected-commit "$GITHUB_SHA" --expected-config-id "$CONFIG_ID"
+          node aegis-flow/scripts/smoke-pow-image.mjs --image "$(docker image inspect --format '{{.Id}}' "aegis-flow/validation-gateway:$GITHUB_SHA")" --genesis "$GENESIS_PATH" --expected-config-id "$CONFIG_ID" --report work/pow-candidate/runtime-smoke.json
+          docker save "aegis-flow/validation-gateway:$GITHUB_SHA" | gzip > work/pow-candidate/image.tar.gz
+          cd work/pow-candidate
+          sha256sum image.tar.gz release.json compose.yaml pow-genesis.json runtime-smoke.json > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aegis-pow-testnet-${{ github.sha }}
+          path: work/pow-candidate/
+          retention-days: 3
+          if-no-files-found: error

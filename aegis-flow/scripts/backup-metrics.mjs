@@ -1,0 +1,3 @@
+import{parseArgs}from'node:util';import{writeFileSync,renameSync,rmSync}from'node:fs';import crypto from'node:crypto';import{renderBackupMetrics}from'../services/recovery/backup-metrics.mjs';
+const{values:v}=parseArgs({options:{directory:{type:'string'},output:{type:'string'},profile:{type:'string'}}});if(!v.directory)throw Error('BACKUP_DIRECTORY_REQUIRED');const metrics=renderBackupMetrics(v.directory,{profile:v.profile??'default'});
+if(v.output){const temporary=v.output+'.'+crypto.randomUUID()+'.tmp';try{writeFileSync(temporary,metrics,{flag:'wx',mode:0o644});renameSync(temporary,v.output);}finally{rmSync(temporary,{force:true});}}else process.stdout.write(metrics);

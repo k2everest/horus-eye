@@ -1,0 +1,21 @@
+[Unit]
+Description=Aegis public-testnet observation (does not authorize production)
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=simple
+User=aegis-observer
+Group=aegis-observer
+WorkingDirectory=/opt/horus-eye
+EnvironmentFile=/etc/aegis/testnet-observer.env
+ExecStart=/usr/bin/node aegis-flow/scripts/testnet-campaign.mjs observe --campaign ${CAMPAIGN_FILE} --config ${NETWORK_CONFIG_FILE} --directory ${EVIDENCE_DIRECTORY} --observer ${OBSERVER_ID} --duration-ms 2678400000 --interval-ms 30000
+Restart=on-failure
+RestartSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/aegis-testnet
+[Install]
+WantedBy=multi-user.target

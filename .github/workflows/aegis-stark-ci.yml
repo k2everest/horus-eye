@@ -1,0 +1,210 @@
+name: Aegis STARK and persistent state
+
+on:
+  pull_request:
+    paths: ['aegis-flow/**', '.github/workflows/aegis-stark-ci.yml']
+  push:
+    branches: [main]
+    paths: ['aegis-flow/**', '.github/workflows/aegis-stark-ci.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  pq128-research:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test experimental SHA-512 bindings and conditional standalone FRI arithmetic
+        run: node --test aegis-flow/experiments/pq128/*.test.mjs aegis-flow/experiments/pq128/fri/*.test.mjs aegis-flow/experiments/pq128/financial/*.test.mjs aegis-flow/experiments/pq128/constraints/*.test.mjs aegis-flow/experiments/pq128/quantitative/*.test.mjs aegis-flow/experiments/pq128/v4/*.test.mjs aegis-flow/experiments/pq128/native/backend.test.mjs
+      - name: Record finite query-model obligations without approving the complete protocol
+        run: node aegis-flow/experiments/pq128/quantitative/demo.mjs > pq128-quantitative-research.json
+      - name: Report the SHA-512 outer-binding QROM ideal-screen for V4 only
+        run: node aegis-flow/experiments/pq128/v4/demo.mjs > pq128-v4-outer-screen.json
+      - name: Check the private transfer constraint assignment without publishing it
+        run: node aegis-flow/experiments/pq128/constraints/demo.mjs --report pq128-transfer-constraints.json
+      - name: Rehearse sampled private polynomial segments with an explicit resource budget
+        run: node aegis-flow/experiments/pq128/constraints/segment-demo.mjs --max-segments 8192 --report pq128-segmented-rehearsal.json
+      - name: Prove and verify a public polynomial with the reference FRI implementation
+        run: node aegis-flow/experiments/pq128/fri/demo.mjs --domain-log2 16 --queries 720 --report pq128-reference-fri.json
+      - name: Record conditional screen without authorizing production
+        run: node aegis-flow/experiments/pq128/screen.mjs > pq128-conditional-screen.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pq128-conditional-research-${{ github.sha }}
+          path: |
+            pq128-conditional-screen.json
+            pq128-reference-fri.json
+            pq128-transfer-constraints.json
+            pq128-segmented-rehearsal.json
+            pq128-quantitative-research.json
+            pq128-v4-outer-screen.json
+          retention-days: 3
+          if-no-files-found: error
+
+
+  plonky3-v4-laboratory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Resolve and build the isolated Plonky3 0.8.0 native experiment
+        run: |
+          cargo generate-lockfile --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
+          cargo build --locked --release --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
+          cargo test --locked --release --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
+      - name: Prove and verify a real bounded-balance proof (NOT a financial receipt)
+        env:
+          AEGIS_V4_P3_INTEGRATION: '1'
+          AEGIS_V4_P3_BINARY: ${{ github.workspace }}/aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab
+        run: node --test aegis-flow/experiments/pq128/v4/plonky3.integration.test.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v4-plonky3-lab-lock-${{ github.sha }}
+          path: aegis-flow/experiments/pq128/v4/plonky3/Cargo.lock
+          if-no-files-found: error
+          retention-days: 3
+
+  native-financial512-laboratory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@1.100.0
+      - name: Install pinned tools and preserve the accepted program
+        run: python3 aegis-flow/scripts/setup-stark.py
+      - name: Build the isolated host relation and run differential checks
+        run: |
+          python3 aegis-flow/experiments/pq128/native/build.py --host-only
+          CARGO_HOME="$GITHUB_WORKSPACE/work/cargo" CARGO_TARGET_DIR="$GITHUB_WORKSPACE/work/native512-host" CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 cargo test --locked --offline --manifest-path aegis-flow/experiments/pq128/native/guest/Cargo.toml --lib
+          AEGIS_NATIVE512_HOST_TESTS=1 node --test aegis-flow/experiments/pq128/native/host-differential.test.mjs
+      - name: Build the isolated native program without enabling it on any network
+        run: python3 aegis-flow/experiments/pq128/native/build.py
+      - name: Verify the actual SDK parameters without granting PQ128 qualification
+        run: node aegis-flow/scripts/review-stark-security.mjs --source-root work/cargo/registry/src/index.crates.io-1949cf8c6b5b557f --require-source-profile > work/native512/risc0-qualification.json
+      - name: Prove the SHA-512 financial relation and verify its public journal
+        env:
+          AEGIS_NATIVE512_INTEGRATION: '1'
+          AEGIS_NATIVE512_PUBLIC_ARTIFACT: work/native512/public-proof.json
+        run: node --test aegis-flow/experiments/pq128/native/integration.test.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-financial512-laboratory-${{ github.sha }}
+          path: |
+            work/native512/program.json
+            work/native512/public-proof.json
+            work/native512/risc0-qualification.json
+          retention-days: 3
+          if-no-files-found: error
+
+  reward-history-capacity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Mine and revalidate beyond the default block limit with bounded cache
+        run: node aegis-flow/scripts/benchmark-pow-history.mjs --blocks 50001 --report work/history-capacity.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aegis-reward-history-${{ github.sha }}
+          path: work/history-capacity.json
+          retention-days: 3
+          if-no-files-found: error
+
+  real-stark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@1.100.0
+      - name: Build pinned guest and verifier
+        run: python3 aegis-flow/scripts/setup-stark.py
+      - name: Verify the source profile used by the accepted proof engine
+        run: node aegis-flow/scripts/review-stark-security.mjs --source-root work/cargo/registry/src/index.crates.io-1949cf8c6b5b557f --require-source-profile > work/risc0-qualification.json
+      - name: Bind the quantitative research report to the exact engine and financial sources
+        run: node aegis-flow/experiments/pq128/quantitative/demo.mjs --source-root work/cargo/registry/src/index.crates.io-1949cf8c6b5b557f --require-sources > work/risc0-quantitative-research.json
+      - name: Prove and verify a real composite STARK, then apply durable state
+        env:
+          AEGIS_STARK_INTEGRATION: '1'
+          AEGIS_STARK_PUBLIC_ARTIFACT: work/stark-smoke-public.json
+        run: node --test aegis-flow/services/proof-engine/integration.test.mjs
+      - name: Check SQLite crash recovery, backup and process concurrency
+        run: node --test aegis-flow/services/ledger-state/*.test.mjs
+
+      - name: Rehearse encrypted recovery against the freshly proved finalized state
+        env:
+          AEGIS_RECOVERY_INTEGRATION: '1'
+        run: node --test aegis-flow/services/recovery/recovery.integration.test.mjs
+      - name: Run local operational, migration and recovery contract tests
+        run: bash aegis-flow/scripts/dev-env.sh test
+
+      - name: Rehearse fresh-proof testnet tooling locally (not public acceptance)
+        env:
+          AEGIS_TESTNET_INTEGRATION: '1'
+        run: node --test aegis-flow/services/testnet/campaign.integration.test.mjs
+      - name: Spend a mined reward with a fresh native STARK on independent PoW nodes
+        env:
+          AEGIS_OPEN_POW_INTEGRATION: '1'
+          AEGIS_OPEN_POW_PUBLIC_ARTIFACT: work/open-pow-v2-public.json
+        run: node --test aegis-flow/services/open-chain/native.integration.test.mjs
+      - name: Revalidate a native STARK through the resumable backup restore drill
+        env:
+          AEGIS_POW_RECOVERY_ARTIFACT: work/open-pow-v2-public.json
+        run: node --test aegis-flow/services/open-chain/s3-drill.integration.test.mjs
+      - name: Recover an empty node from peers and reverify the native STARK without external storage
+        env:
+          AEGIS_POW_RECOVERY_ARTIFACT: work/open-pow-v2-public.json
+        run: node --test aegis-flow/services/open-chain/peer-recovery.integration.test.mjs aegis-flow/services/open-chain/receipt-index.integration.test.mjs aegis-flow/services/open-chain/storage-atomic.integration.test.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: risc0-source-qualification-${{ github.sha }}
+          path: |
+            work/risc0-qualification.json
+            work/risc0-quantitative-research.json
+          retention-days: 3
+          if-no-files-found: error
+
+  native-pow-wallet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@1.100.0
+      - name: Build pinned guest and verifier
+        run: python3 aegis-flow/scripts/setup-stark.py
+      - name: Verify native wallet reorg and encrypted PoW recovery
+        env:
+          AEGIS_POW_WALLET_INTEGRATION: '1'
+        run: node --test aegis-flow/services/open-chain/wallet.integration.test.mjs
+      - name: Verify QUEER fixed-cap supply-dependent PoW with fresh native proof and fee-only blocks
+        env:
+          AEGIS_QUEER_POW_INTEGRATION: '1'
+        run: node --test aegis-flow/services/open-chain/queer-pow.integration.test.mjs

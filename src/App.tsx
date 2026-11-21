@@ -17,6 +17,8 @@ import SettingsPage from "@/pages/SettingsPage";
 import AuthPage from "@/pages/AuthPage";
 import RegisterPage from "@/pages/RegisterPage";
 import AdminPage from "@/pages/AdminPage";
+import QueerLanding from "@/pages/QueerLanding";
+import QueerWallet from "@/pages/QueerWallet";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +31,8 @@ const App = () => (
         <AuthProvider>
           <SidebarProvider>
             <Routes>
+              <Route path="/queer" element={<QueerLanding />} />
+              <Route path="/queer/wallet" element={<QueerWallet />} />
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route

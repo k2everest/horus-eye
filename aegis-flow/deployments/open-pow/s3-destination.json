@@ -1,0 +1,7 @@
+{
+  "schema": "AEGIS_S3_DESTINATION_V1",
+  "bucket": "queer-altcoin",
+  "region": "us-east-2",
+  "expected_bucket_owner": "941554679497",
+  "prefix": "aegis/pow/v2"
+}

@@ -1,0 +1,57 @@
+name: aegis-single-host
+services:
+  gateway:
+    platform: linux/amd64
+    image: ${AEGIS_RELEASE_IMAGE:?Use the immutable image reference from release.json}
+    pull_policy: never
+    user: '1000:1000'
+    network_mode: host
+    environment:
+      NODE_ENV: development
+      AEGIS_MODE: demo
+      AEGIS_BIND_HOST: 127.0.0.1
+      PORT: ${AEGIS_GATEWAY_PORT:-8081}
+      AEGIS_LEDGER_PATH: /data/ledger.sqlite
+      AEGIS_NETWORK_ID: ${AEGIS_NETWORK_ID:?Required network ID}
+      AEGIS_REQUIRE_MIGRATED: '1'
+      AEGIS_ACCESS_POLICY_PATH: /run/aegis-policy/access-policy.json
+      AEGIS_SETTLEMENT_CONFIG_PATH: /run/aegis-public/config.json
+      AEGIS_FINALITY_ANCHOR_PATH: /run/aegis-public/anchor.json
+      AEGIS_STARK_VERIFIER: /opt/aegis/verify-stark
+    volumes:
+      - type: bind
+        source: ${AEGIS_LEDGER_DIR:?Dedicated local persistent directory}
+        target: /data
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${AEGIS_POLICY_DIR:?Policy-only directory; no raw tokens}
+        target: /run/aegis-policy
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${AEGIS_PUBLIC_CONFIG_DIR:?Public config.json and independent anchor.json}
+        target: /run/aegis-public
+        read_only: true
+        bind: {create_host_path: false}
+    deploy:
+      replicas: 1
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 1g
+    cpus: 2
+    ulimits:
+      nofile: {soft: 1024, hard: 1024}
+    tmpfs: ['/tmp:size=32m,mode=1777']
+    stop_grace_period: 30s
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, node, '-e', "fetch('http://127.0.0.1:'+process.env.PORT+'/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}

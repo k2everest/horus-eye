@@ -19,7 +19,7 @@ and domain-separated; an old 32-byte image ID fails to parse. The public
 financial relation uses the existing *experimental* SHA-512 private note model.
 The candidate JS modules are:
 
-- `hash512.mjs`: bounded binary encoding and SHA-512 external commitments;
+- `hash512.mjs`: bounded binary encoding, SHA-512 external commitments and a 512-bit program image digest from trusted build bytes;
 - `composite.mjs`: accepts *only* claims returned by a separately verified
   segment adapter, enforces exact program, statement, state continuity and
   journal equality, and constructs the 512-bit composite root;
@@ -27,7 +27,7 @@ The candidate JS modules are:
   binary quantum random oracle** with unknown theorem inputs retained as
   unknown; it is not an SDK security calculator.
 
-The adapter contract intentionally has **no implemented trusted backend**.
+The candidate program identity is a SHA-512 digest of the independently trusted\nprogram image bytes, not a supplied label. Reproducible source-to-binary\nattestation remains a separate unsatisfied obligation.\n\nThe adapter contract intentionally has **no implemented trusted backend**.
 The unit tests supply a clearly identified, deterministic TEST-ONLY mock
 of verified claims; they are structural checks, not STARK cryptography.
 The result always declares `production_ready:false`,

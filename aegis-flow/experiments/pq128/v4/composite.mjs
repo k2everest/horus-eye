@@ -11,11 +11,11 @@ export const V4_CANDIDATE='AEGIS_V4_TRANSPARENT_STARK_CANDIDATE_ONLY';
 const RESEARCH={aegis_target_met:false,production_ready:false,cryptographic_soundness_demonstrated:false};
 const bad=reason=>({structurally_consistent:false,reason,...RESEARCH});
 function canonicalProof(proof){
-  if(typeof proof!=='string'||proof.length<4||proof.length>11_184_812||
+  if(typeof proof!=='string'||proof.length<4||proof.length>1_398_104||
     !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(proof))
     throw new TypeError('canonical bounded base64 required');
   const bytes=Buffer.from(proof,'base64');
-  if(bytes.length===0||bytes.length>8*1024*1024||bytes.toString('base64')!==proof)
+  if(bytes.length===0||bytes.length>1024*1024||bytes.toString('base64')!==proof)
     throw new TypeError('invalid proof encoding');
   return bytes;
 }

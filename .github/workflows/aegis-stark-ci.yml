@@ -63,9 +63,24 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Resolve and build the isolated Plonky3 0.8.0 native experiment
         run: |
-          cargo generate-lockfile --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
-          cargo build --locked --release --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
-          cargo test --locked --release --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
+          python3 - <<'PY'
+          import subprocess
+          manifest = 'aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml'
+          commands = [
+              ['cargo', 'generate-lockfile', '--manifest-path', manifest],
+              ['cargo', 'build', '--locked', '--release', '--manifest-path', manifest],
+              ['cargo', 'test', '--locked', '--release', '--manifest-path', manifest],
+          ]
+          for command in commands:
+              result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+              print(result.stdout, end='', flush=True)
+              if result.returncode:
+                  # Keep public compiler diagnostics visible in check annotations
+                  # even when the external job-log archive is unavailable.
+                  diagnostic = result.stdout[-12000:].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                  print(f'::error title=Plonky3 laboratory build::{diagnostic}', flush=True)
+                  raise SystemExit(result.returncode)
+          PY
       - name: Prove and verify a real bounded-balance proof (NOT a financial receipt)
         env:
           AEGIS_V4_P3_INTEGRATION: '1'

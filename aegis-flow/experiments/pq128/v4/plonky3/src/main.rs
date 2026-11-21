@@ -4,7 +4,7 @@
 //! NON-ZK; no PQ128 qualification or consensus activation.
 use std::{fs,panic::{catch_unwind,AssertUnwindSafe},path::Path};
 use base64::{engine::general_purpose::STANDARD as B64,Engine};
-use p3_air::{Air,AirBuilder,BaseAir};
+use p3_air::{Air,AirBuilder,BaseAir,WindowAccess};
 use p3_baby_bear::BabyBear;
 use p3_challenger::{HashChallenger,SerializingChallenger32};
 use p3_commit::ExtensionMmcs;
@@ -121,8 +121,8 @@ impl<T> BaseAir<T> for BalanceAir{
 impl<AB:AirBuilder> Air<AB> for BalanceAir{
     fn eval(&self,builder:&mut AB){
         let main=builder.main();
-        // Plonky3 0.8.0 makes checked matrix row access explicit.
-        let local=main.row_slice(0).expect("AIR requires its local row");
+        // Plonky3 0.8.0 exposes a two-row AIR window, not a trace Matrix.
+        let local=main.current_slice();
         for (i,value) in self.claim.iter().enumerate(){
             builder.assert_eq(local[i],AB::Expr::from_u16(*value));
         }
@@ -136,9 +136,9 @@ impl<AB:AirBuilder> Air<AB> for BalanceAir{
             builder.assert_eq(local[WORDS+i],reconstruct);
         }
         let mut input=AB::Expr::ZERO;
-        for i in 0..4 {input+=local[WORDS+i].into();}
+        for i in 0..4 {input+=local[WORDS+i];}
         let mut output=AB::Expr::ZERO;
-        for i in 4..AMOUNTS {output+=local[WORDS+i].into();}
+        for i in 4..AMOUNTS {output+=local[WORDS+i];}
         // All values <=65535; no BabyBear modular wrap is possible.
         builder.assert_eq(input,output);
     }

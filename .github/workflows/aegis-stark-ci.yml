@@ -19,7 +19,9 @@ jobs:
         with:
           node-version: '24'
       - name: Test experimental SHA-512 bindings and conditional standalone FRI arithmetic
-        run: node --test aegis-flow/experiments/pq128/*.test.mjs aegis-flow/experiments/pq128/fri/*.test.mjs aegis-flow/experiments/pq128/financial/*.test.mjs aegis-flow/experiments/pq128/constraints/*.test.mjs aegis-flow/experiments/pq128/native/backend.test.mjs
+        run: node --test aegis-flow/experiments/pq128/*.test.mjs aegis-flow/experiments/pq128/fri/*.test.mjs aegis-flow/experiments/pq128/financial/*.test.mjs aegis-flow/experiments/pq128/constraints/*.test.mjs aegis-flow/experiments/pq128/quantitative/*.test.mjs aegis-flow/experiments/pq128/native/backend.test.mjs
+      - name: Record finite query-model obligations without approving the complete protocol
+        run: node aegis-flow/experiments/pq128/quantitative/demo.mjs > pq128-quantitative-research.json
       - name: Check the private transfer constraint assignment without publishing it
         run: node aegis-flow/experiments/pq128/constraints/demo.mjs --report pq128-transfer-constraints.json
       - name: Rehearse sampled private polynomial segments with an explicit resource budget
@@ -36,6 +38,7 @@ jobs:
             pq128-reference-fri.json
             pq128-transfer-constraints.json
             pq128-segmented-rehearsal.json
+            pq128-quantitative-research.json
           retention-days: 3
           if-no-files-found: error
 
@@ -110,6 +113,8 @@ jobs:
         run: python3 aegis-flow/scripts/setup-stark.py
       - name: Verify the source profile used by the accepted proof engine
         run: node aegis-flow/scripts/review-stark-security.mjs --source-root work/cargo/registry/src/index.crates.io-1949cf8c6b5b557f --require-source-profile > work/risc0-qualification.json
+      - name: Bind the quantitative research report to the exact engine and financial sources
+        run: node aegis-flow/experiments/pq128/quantitative/demo.mjs --source-root work/cargo/registry/src/index.crates.io-1949cf8c6b5b557f --require-sources > work/risc0-quantitative-research.json
       - name: Prove and verify a real composite STARK, then apply durable state
         env:
           AEGIS_STARK_INTEGRATION: '1'
@@ -145,7 +150,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: risc0-source-qualification-${{ github.sha }}
-          path: work/risc0-qualification.json
+          path: |
+            work/risc0-qualification.json
+            work/risc0-quantitative-research.json
           retention-days: 3
           if-no-files-found: error
 

@@ -16,6 +16,12 @@ um guest separado, usando o motor RISC Zero de laboratório já conhecido. O
 verificador recebe receipt e statement públicos; os parâmetros do motor são
 inalterados e continuam sem qualificação PQ128. Esse programa não é aceito na rede.
 
+A [análise quantitativa de 21/11/2026](../../docs/security/pq128-quantitative-2026-11-21.md)
+acrescenta um cenário global explícito, requisitos CMS/QROM com aritmética exata,
+uma derivação finita de claw no modelo ideal e o viés iid do sampler. Limites
+ausentes de soundness, conhecimento e privacidade ficam `null`. Essa análise
+não certifica o motor e não executa um ataque contra SHA-256.
+
 ## Componentes executáveis
 
 `bindings.mjs` usa SHA-512 completo para commitments genéricos, folhas/nós Merkle,
@@ -34,8 +40,9 @@ a aritmética de extensão.
 
 Isso remove o digest externo de 32 bytes deste experimento, não da rede atual.
 ML-DSA-87 é um parâmetro padronizado; sua categoria NIST não é declarada como
-uma demonstração de 128 bits literais para o sistema completo. Não há novo KEM,
-envelope de notes, circuitos ou tratamento de senhas neste diretório.
+uma demonstração de 128 bits literais para o sistema completo. As funções de
+binding não portam um novo KEM, envelope de notes ou tratamento de senhas; os
+circuitos e o guest experimental são componentes separados descritos acima.
 
 ## Limite finito de FRI no QROM
 

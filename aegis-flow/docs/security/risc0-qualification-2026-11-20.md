@@ -4,6 +4,11 @@
 A correspondência entre perfil e fontes pode ser verificada mecanicamente; isso
 não aprova a segurança criptográfica do motor nem sua entrada em produção.
 
+A [análise quantitativa de 21/11/2026](pq128-quantitative-2026-11-21.md)
+registra o cenário explícito de recursos, o jogo de binding de valores,
+os requisitos da redução QROM e as lacunas de conhecimento/privacidade. Suas
+derivações condicionais não alteram a decisão desta qualificação.
+
 ## Escopo efetivamente avaliado
 
 Esta avaliação abrange o verificador composite fixado no repositório: nenhuma

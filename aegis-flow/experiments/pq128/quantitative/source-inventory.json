@@ -1,0 +1,31 @@
+{
+  "schema": "AEGIS_PQ128_QUANTITATIVE_SOURCE_INVENTORY_V1",
+  "scope": "Internal analysis source binding; not an independent audit or source/binary attestation",
+  "repository_sha256": {
+    "aegis-flow/services/proof-engine/guest/src/main.rs": "40dc07fb2895ad608844c4ddaed865b2fa27138762276c890fd8f2a1d0187cc0",
+    "aegis-flow/experiments/pq128/native/guest/src/lib.rs": "811ed4176de1d5275139e5d31e895652c2c66da30414593b0ab542d0046f84a5",
+    "aegis-flow/services/proof-engine/verifier/src/main.rs": "aa30947380ef0d02222b707a504eae0ee79cad16964a87816a8ccbd125b83088",
+    "aegis-flow/services/proof-engine/security-profile.json": "7c1b003a4000b54f4bfdf20f58566a0952df3f10e3a99f42424d62309b8a1642"
+  },
+  "upstream_source_sha256": {
+    "risc0-zkp-3.0.6/src/core/hash/poseidon2/rng.rs": "8c5868a8b258896835e2c3c93a84cfe01167f1a446e4d74a3b7be94ae1bf8017",
+    "risc0-zkvm-3.1.0/src/receipt.rs": "ec445670befb0fad19bfe46eede73e551de03d9f91fa1fb81c9149dc04912fed",
+    "risc0-zkvm-3.1.0/src/receipt/composite.rs": "db95f5440923997ec9bc99ac0609196731d6beb111bb3e03cd361094933bb826",
+    "risc0-zkvm-3.1.0/src/claim/receipt.rs": "7c8dafb73bbf96394ebd1a0e651c4e7bcf7b3a166438444e35615bb397223ba1",
+    "risc0-circuit-rv32im-4.1.0/src/zirgen/info.rs": "4f85a316150ed3f656f43950381e96f64cfab62e2414be4122644c1c671fdf26",
+    "risc0-zkp-3.0.6/src/verify/fri.rs": "a601cfad5d01b294f934d697d6d832c57662e4778eac20ac549b1da53d11e377",
+    "risc0-zkp-3.0.6/src/prove/fri.rs": "4a892cf3faac96b727063d1a4a29c5da5bde4241c34cabd28f747801d38a5760"
+  },
+  "papers": [
+    {
+      "id": "CMS19-2020-01-14",
+      "url": "https://eprint.iacr.org/2019/834",
+      "sha256": "c3258e2faa339bdc441403d73aba9fee7d03687121c3369ef007ccce71cd2b41"
+    },
+    {
+      "id": "BGKTTZ23",
+      "url": "https://eprint.iacr.org/2023/1071",
+      "sha256": "301d3bc0325838c3361d7bf133cb8e6fe09d0196263f4697f0cc04c3a4839ad2"
+    }
+  ]
+}

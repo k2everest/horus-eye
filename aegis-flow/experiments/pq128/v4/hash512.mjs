@@ -69,5 +69,5 @@ export function journalDigestV4(statement){
   if(Object.keys(statement).sort().join(',')!==[...ordered].sort().join(','))
     throw new TypeError('unknown journal fields');
   return digestV4('AEGIS_V4_JOURNAL', [Buffer.from(JSON.stringify(Object.fromEntries(
-    ordered.map(k=>[k,statement[k]])),'utf8')]);
+    ordered.map(k=>[k,statement[k]]))),'utf8')]);
 }

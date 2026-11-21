@@ -11,7 +11,8 @@ test('no native verifier, no acceptance: malformed and missing binaries always f
   const b=new NativePlonky3V4Verifier({binaryPath:'/not/installed/v4-p3-lab',
     expectedProgramId:ID,expectedBinarySha512:digest});
   assert.equal(b.available(),false);
-  assert.deepEqual(await b.verifySegment(null),{valid:false});
+  for(const malformed of [undefined,null,false,0,'invalid',[],{}, {proofBytes:Buffer.from('fake')}])
+    assert.deepEqual(await b.verifySegment(malformed),{valid:false});
   assert.deepEqual(await b.verifySegment({proofBytes:Buffer.from('fake'),programId:ID,
     networkId:'test',statementDigest:digest,segmentIndex:0,segmentCount:1}),{valid:false});
 });

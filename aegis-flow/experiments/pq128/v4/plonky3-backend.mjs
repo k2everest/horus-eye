@@ -38,9 +38,11 @@ export class NativePlonky3V4Verifier {
     // This is a local integrity check, not source-to-binary attestation.
   }
   available(){try{this.#check();return true;}catch{return false;}}
-  async verifySegment({proofBytes,programId,networkId,statementDigest,segmentIndex,segmentCount}={}){
+  async verifySegment(options={}){
     let dir;
     try{
+      if(!exact(options,['proofBytes','programId','networkId','statementDigest','segmentIndex','segmentCount']))return reject();
+      const {proofBytes,programId,networkId,statementDigest,segmentIndex,segmentCount}=options;
       this.#check();
       if(!(proofBytes instanceof Uint8Array)||proofBytes.byteLength<16||
         proofBytes.byteLength>1_500_000||programId!==this.#expectedProgramId||

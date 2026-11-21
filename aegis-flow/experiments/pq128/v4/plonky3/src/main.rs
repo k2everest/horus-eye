@@ -121,7 +121,8 @@ impl<T> BaseAir<T> for BalanceAir{
 impl<AB:AirBuilder> Air<AB> for BalanceAir{
     fn eval(&self,builder:&mut AB){
         let main=builder.main();
-        let local=main.row_slice(0);
+        // Plonky3 0.8.0 makes checked matrix row access explicit.
+        let local=main.row_slice(0).expect("AIR requires its local row");
         for (i,value) in self.claim.iter().enumerate(){
             builder.assert_eq(local[i],AB::Expr::from_u16(*value));
         }

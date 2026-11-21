@@ -9,7 +9,7 @@ test('whole receipt and lifetime counts cover all accepted 1..64 segments',()=>{
   assert.equal(r.counts.adjacent_boundaries,((1n<<32n)*63n).toString());
   assert.equal(r.event_families.length,4);
   assert.equal(r.event_families[0].sufficient_binary_bits_per_event_equal_family_allocation,41);
-  assert.equal(r.event_families[1].sufficient_binary_bits_per_event_equal_family_allocation,40);
+  assert.equal(r.event_families[1].sufficient_binary_bits_per_event_equal_family_allocation,41);
   assert.equal(r.event_families[2].sufficient_binary_bits_per_event_equal_family_allocation,35);
   assert.equal(r.qrom_cms_thresholds.sufficient_power_of_two_rbr_error_bits,301);
   assert.equal(r.qrom_cms_thresholds.minimum_binary_hash_bits_for_this_allocation,431);

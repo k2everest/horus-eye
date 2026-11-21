@@ -45,6 +45,33 @@ jobs:
           retention-days: 3
           if-no-files-found: error
 
+
+  plonky3-v4-laboratory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Resolve and build the isolated Plonky3 0.8.0 native experiment
+        run: |
+          cargo generate-lockfile --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
+          cargo build --locked --release --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
+          cargo test --locked --release --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
+      - name: Prove and verify a real bounded-balance proof (NOT a financial receipt)
+        env:
+          AEGIS_V4_P3_INTEGRATION: '1'
+          AEGIS_V4_P3_BINARY: ${{ github.workspace }}/aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab
+        run: node --test aegis-flow/experiments/pq128/v4/plonky3.integration.test.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v4-plonky3-lab-lock-${{ github.sha }}
+          path: aegis-flow/experiments/pq128/v4/plonky3/Cargo.lock
+          if-no-files-found: error
+          retention-days: 3
+
   native-financial512-laboratory:
     runs-on: ubuntu-latest
     timeout-minutes: 40

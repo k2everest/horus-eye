@@ -11,6 +11,7 @@ test('512-bit full-width candidate defeats the trivial *ideal outer collision bo
   assert.equal(v.demonstrated_composite_quantum_soundness,null);
   assert.equal(v.aegis_target_met,false);
   assert.ok(BigInt(f.numerator)*2n < BigInt(f.denominator));
+  assert.ok(BigInt(f.numerator)*(1n<<85n) < BigInt(f.denominator));
   assert.equal(v.applicability.sdk_internal_hashes_are_512_bit,false);
 });
 test('a larger output is only an oracle-sizing example, not a stronger concrete SHA512 digest',()=>{

@@ -69,6 +69,7 @@ test('reject SHA-256 note commitments, foreign network, unknown anchor and other
     x=>x.statement.version='AEGIS-ZK-STARK-V1',
     x=>x.proof.scheme='RISC0-COMPOSITE-STARK-V1',
     x=>x.proof.program_id='cc'.repeat(32),
+    x=>x.proof.statement_digest='00'.repeat(64),
     x=>x.proof.extra=true,
   ];
   for(const mutate of variants){

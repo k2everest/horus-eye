@@ -28,7 +28,12 @@ export function frameV4(domain,parts){
 export function digestV4(domain,parts){
   return createHash('sha512').update(frameV4(domain,parts)).digest('hex');
 }
-// Candidate program identity covers bytes supplied by an independent, pinned\n// build. The caller must establish source-to-binary equivalence separately.\nexport function programImageIdV4(imageBytes){\n  return digestV4('AEGIS_V4_PROGRAM_IMAGE',[imageBytes]);\n}\nexport function uint32BE(n){
+// Candidate program identity covers bytes supplied by an independent, pinned
+// build. The caller must establish source-to-binary equivalence separately.
+export function programImageIdV4(imageBytes){
+  return digestV4('AEGIS_V4_PROGRAM_IMAGE',[imageBytes]);
+}
+export function uint32BE(n){
   if(!Number.isSafeInteger(n)||n<0||n>0xffffffff)throw new TypeError('u32 required');
   return u32(n);
 }

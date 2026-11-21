@@ -31,7 +31,16 @@ export function digestV4(domain,parts){
 // Candidate program identity covers bytes supplied by an independent, pinned
 // build. The caller must establish source-to-binary equivalence separately.
 export function programImageIdV4(imageBytes){
-  return digestV4('AEGIS_V4_PROGRAM_IMAGE',[imageBytes]);
+  if(!(imageBytes instanceof Uint8Array)||imageBytes.byteLength<1||
+    imageBytes.byteLength>128*1024*1024)throw new TypeError('bounded nonempty program image required');
+  // The standard V4 frame restricts parts to 1 MiB. A native Plonky3
+  // executable exceeds that. Hash its full bytes first, then frame both
+  // its exact length and its 512-bit fingerprint. This is *not* a
+  // reproducible-build attestation or a certification of SHA-512.
+  const length=Buffer.alloc(8);
+  length.writeBigUInt64BE(BigInt(imageBytes.byteLength));
+  const fingerprint=createHash('sha512').update(imageBytes).digest();
+  return digestV4('AEGIS_V4_PROGRAM_IMAGE',[length,fingerprint]);
 }
 export function uint32BE(n){
   if(!Number.isSafeInteger(n)||n<0||n>0xffffffff)throw new TypeError('u32 required');

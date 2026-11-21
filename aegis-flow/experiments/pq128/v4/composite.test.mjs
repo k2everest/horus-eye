@@ -76,3 +76,26 @@ test('saturating SHA-512 commitment is not a receipt: no segment verifier, no ac
   assert.equal(r.structurally_consistent,false);
   assert.equal(r.cryptographic_soundness_demonstrated,false);
 });
+
+test('the full allowed 64-segment candidate chain has no fixed-size framing truncation',async()=>{
+  const f=scenario(),count=64,program=f.expected.program_id;
+  const proofs=[],lookup=new Map();
+  let start=f.expected.initial_state;
+  for(let i=0;i<count;i++){
+    const end=(i+1).toString(16).padStart(128,'0'),p=Buffer.from('validated V4 segment '+i).toString('base64');
+    proofs.push({proof:p});
+    lookup.set(p,{network_id:f.statement.network_id,program_id:program,index:i,segment_count:count,
+      pre_state:start,post_state:end,journal_digest:i===count-1?journalDigestV4(f.statement):null});
+    start=end;
+  }
+  const backend={kind:'external-verified-512-bit-segment-claims',async verifySegment({proofBytes}){
+    const claim=lookup.get(proofBytes.toString('base64'));
+    return {valid:!!claim,authenticated:claim};
+  }};
+  const r=await reviewCompositeV4({statement:f.statement,expected:{...f.expected,segment_count:count},
+    segments:proofs,backend});
+  assert.equal(r.structurally_consistent,true);
+  assert.equal(r.segments_verified_by_adapter,64);
+  assert.match(r.composite_root,/^[0-9a-f]{128}$/);
+  assert.equal(r.production_ready,false);
+});

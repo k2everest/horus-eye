@@ -55,7 +55,7 @@ fn config()->Config{
     let mmcs=Mmcs::new(FH::new(h),Compress::new(h),3);
     let fri=FriParameters::new_benchmark(EMmcs::new(mmcs.clone()));
     let pcs=Pcs::new(Radix2Bowers::default(),mmcs,fri);
-    let challenger=Chall::from_hasher(b"AEGIS_V4_P3_BALANCE_SMOKE_V1".to_vec(),h);
+    let challenger=Chall::new(HashChallenger::new(b"AEGIS_V4_P3_BALANCE_SMOKE_V1".to_vec(),h));
     Config::new(pcs,challenger)
 }
 

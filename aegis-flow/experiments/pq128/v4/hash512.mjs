@@ -19,7 +19,7 @@ export function bytes512(value){
 }
 export function frameV4(domain,parts){
   if(typeof domain!=='string'||!DOMAIN.test(domain)||!Array.isArray(parts)||
-    parts.length>64)throw new TypeError('invalid V4 hash frame');
+    parts.length>128)throw new TypeError('invalid V4 hash frame');
   const tag=Buffer.from(domain,'ascii');
   const chunks=parts.map(typed);
   return Buffer.concat([PREFIX,u32(tag.length),tag,u32(chunks.length),

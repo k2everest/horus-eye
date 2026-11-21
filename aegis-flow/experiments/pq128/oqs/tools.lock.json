@@ -1,0 +1,7 @@
+{
+  "schema": "AEGIS_OQS_TOOLS_LOCK_V1",
+  "liboqs_version": "0.16.0",
+  "source_commit": "5a1a854b0dc9f2141bdc771c555ee60c37950183",
+  "archive_url": "https://codeload.github.com/open-quantum-safe/liboqs/tar.gz/5a1a854b0dc9f2141bdc771c555ee60c37950183",
+  "archive_sha256": "83c6e6cff490638312e1e20ed5de593fb5d7bfab162235f6238f519d6a1feafb"
+}

@@ -42,6 +42,35 @@ jobs:
           retention-days: 3
           if-no-files-found: error
 
+  liboqs-interoperability-laboratory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build the checksum-pinned minimal liboqs laboratory helper
+        run: python3 aegis-flow/experiments/pq128/oqs/build.py
+      - name: Test strict public-key formats and private subprocess boundaries
+        run: node --test aegis-flow/experiments/pq128/oqs/backend.test.mjs
+      - name: Require genuine C and Node signature and KEM interoperability
+        env:
+          AEGIS_OQS_INTEGRATION: '1'
+          AEGIS_OQS_PUBLIC_ARTIFACT: work/oqs/interop-public.json
+        run: node --test aegis-flow/experiments/pq128/oqs/integration.test.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: liboqs-interoperability-laboratory-${{ github.sha }}
+          path: |
+            work/oqs/manifest.json
+            work/oqs/interop-public.json
+          retention-days: 3
+          if-no-files-found: error
+
   native-financial512-laboratory:
     runs-on: ubuntu-latest
     timeout-minutes: 40

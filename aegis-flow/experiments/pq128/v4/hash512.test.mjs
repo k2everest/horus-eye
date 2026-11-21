@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ascii,bytes512,frameV4,digestV4,segmentClaimDigestV4} from './hash512.mjs';
+import {ascii,bytes512,frameV4,digestV4,segmentClaimDigestV4,programImageIdV4} from './hash512.mjs';
 const H='ab'.repeat(64);
 test('512-bit framed SHA-512 rejects concatenation ambiguity and domain confusion',()=>{
   const a=digestV4('AEGIS_V4_TEST',[Buffer.from('ab'),Buffer.from('c')]);
@@ -24,4 +24,11 @@ test('canonical digest and identifiers reject truncation, case and binary garbag
   for(const v of ['','á', 'a\\0b','a/b','x'.repeat(65)])assert.throws(()=>ascii(v));
   assert.throws(()=>digestV4('SHA256',[Buffer.alloc(0)]));
   assert.throws(()=>digestV4('AEGIS_V4_TEST',[Buffer.alloc(1024*1024+1)]));
+});
+
+test('independent program identity digest reacts to any binary change',()=>{
+  const original=programImageIdV4(Buffer.from('pinned-alternative-air-v1'));
+  assert.match(original,/^[0-9a-f]{128}$/);
+  assert.notEqual(original,programImageIdV4(Buffer.from('pinned-alternative-air-v2')));
+  assert.notEqual(original,digestV4('AEGIS_V4_TEST',[Buffer.from('pinned-alternative-air-v1')]));
 });

@@ -14,7 +14,10 @@
     "risc0-zkvm-3.1.0/src/claim/receipt.rs": "7c8dafb73bbf96394ebd1a0e651c4e7bcf7b3a166438444e35615bb397223ba1",
     "risc0-circuit-rv32im-4.1.0/src/zirgen/info.rs": "4f85a316150ed3f656f43950381e96f64cfab62e2414be4122644c1c671fdf26",
     "risc0-zkp-3.0.6/src/verify/fri.rs": "a601cfad5d01b294f934d697d6d832c57662e4778eac20ac549b1da53d11e377",
-    "risc0-zkp-3.0.6/src/prove/fri.rs": "4a892cf3faac96b727063d1a4a29c5da5bde4241c34cabd28f747801d38a5760"
+    "risc0-zkp-3.0.6/src/prove/fri.rs": "4a892cf3faac96b727063d1a4a29c5da5bde4241c34cabd28f747801d38a5760",
+    "risc0-zkvm-3.1.0/src/receipt/segment.rs": "de2d75f84f20107aa5d8cacf606e734229ce7b63bfee8da1aa7d37446244d191",
+    "risc0-zkvm-3.1.0/src/guest/env/mod.rs": "78c4fbe1e2636ab25c16b933c29cdaf4515c49e561a38c4511d9f8bc00e8ca25",
+    "risc0-circuit-rv32im-4.1.0/src/lib.rs": "0d54248a3252fa2a0d314a119068a854a80ee1274167388c324c2fcb7a00937a"
   },
   "papers": [
     {

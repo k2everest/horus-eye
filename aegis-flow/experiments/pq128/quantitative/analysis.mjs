@@ -12,6 +12,7 @@ import {screenStandaloneFri} from '../fri-qrom-bound.mjs';
 
 const ROOT=fileURLToPath(new URL('../../../../',import.meta.url));
 const inventory=JSON.parse(readFileSync(new URL('./source-inventory.json',import.meta.url),'utf8'));
+const literature=JSON.parse(readFileSync(new URL('./literature.json',import.meta.url),'utf8'));
 function inspectSources(sourceRoot){
   const checks=[];
   const check=(root,files,upstream)=>{
@@ -44,6 +45,7 @@ export function analyzeQuantitatively({sourceRoot}={}){
     decision:'complete-protocol-pq128-not-demonstrated',
     source_profile_verified:engine.quantum_qualification.source_profile_verified&&sources.all_checked_and_matching,
     additional_source_inventory:sources,
+    whole_receipt_literature:structuredClone(literature),
     accepted_engine:{program_id:engine.program_id,sdk:engine.parameters.sdk,hash:engine.parameters.hash,
       fri_queries:engine.parameters.fri_queries,extension_degree:engine.parameters.extension_degree,
       max_segments:engine.parameters.max_segments,poseidon_output_cardinality_upper_bound:(p**BigInt(engine.parameters.poseidon_output_elements)).toString(),
@@ -75,8 +77,8 @@ export function analyzeQuantitatively({sourceRoot}={}){
       queries:BigInt(engine.parameters.fri_queries),segments:BigInt(engine.parameters.max_segments),receipts:H}),
     theorem_applicability:[
       {component:'lookup/constraints/DEEP/ALI',status:'unproved',reason:'Upstream global toy/proven error is not a demonstrated round-by-round error for the compiled IOP.'},
-      {component:'FRI',status:'protocol-mismatch',reason:'The cited theorem uses binary folding and final constant; this SDK uses folding 16 and final polynomial degree at most 256. Power-of-one-scalar batching also needs its own bound.'},
-      {component:'Fiat-Shamir',status:'unproved-equivalence',reason:'Stateful Poseidon2 sponge mixing is not shown equivalent to the CMS19 compiler/hash chain; alternative chains require the corresponding strong-RBR hypotheses.'},
+      {component:'FRI',status:'no-sdk-qrom-instantiation',reason:'The BGKTTZ23 route analyzed here uses binary folding and a final constant. The official RISC Zero IOP draft covers fold16/final256, but does not supply a full Poseidon2 receipt QROM/ZK instantiation. Power-of-one-scalar batching needs its applicable bound.'},
+      {component:'Fiat-Shamir',status:'unproved-equivalence',reason:'Stateful Poseidon2 sponge mixing is not shown equivalent to CMS19 BCS or the newer DSFS/QRPM constructions. Recent compiler theorems exist, but their IOP, codec, extraction and privacy hypotheses remain uninstantiated for this SDK.'},
       {component:'hashes',status:'unproved-instantiation',reason:'SHA-512 in the experimental financial guest does not replace internal Poseidon2 or the SHA-256 journal/image binding. Fixed-target image integrity differs from chosen-message journal/commitment binding.'},
       {component:'lifetime union',status:'conditional-only',reason:'Each per-instance bound must hold conditional on adaptive prior history. Fixed-statement soundness alone does not establish this.'},
     ],
@@ -84,12 +86,18 @@ export function analyzeQuantitatively({sourceRoot}={}){
       {id:'soundness',claim:'Reject false public relations at the stated global query budget, including accepted segment/composite composition.',
         applicable_upper_bound:null,missing:'Applicable compiled-IOP RBR or soundness theorem, Fiat-Shamir reduction, oracle instantiation and adaptive composition.'},
       {id:'knowledge',claim:'A resource-bounded quantum extractor obtains one valid common witness of secret, notes, hashes, values and membership from an accepting prover.',
-        applicable_upper_bound:null,extractor_runtime_bound:null,missing:'Extraction theorem, threshold, runtime/rewinding or QROM-access definition and composition.'},
+        applicable_upper_bound:null,extractor_runtime_bound:null,
+        extractor_access:'Quantum black-box access to the adversarial prover and the theorem oracle model; not just a published receipt. Public replay/forwarding does not demonstrate possession of the witness.',
+        missing:'A compiled-IOP extractor, its threshold/runtime, correct compiler and vector-commitment assumptions, joint extraction of all segments with consistent states, and trace-to-financial-witness refinement.'},
       {id:'privacy',claim:'A quantum simulator from the public statement and a narrowly declared execution-leakage function produces an indistinguishable proof view.',
         applicable_upper_bound:null,simulator_runtime_bound:null,
         advantage_definition:'|Pr[D(real proof view)=1]-Pr[D(simulated view)=1]|, ranging from zero to one.',
         proposed_leakage:['segment count/order','per-segment po2','seal lengths','authorized exit status'],
-        excluded_from_leakage:['witness','private values/secrets','the receipt itself'],
+        excluded_from_leakage:['witness','private values/secrets','the receipt itself','unrestricted hashes of private memory'],
+        state_hiding_obligation:{status:'unproved',source:'risc0-zkvm-3.1.0/src/guest/env/mod.rs',
+          initialized_memory_entropy_bytes:16,
+          scope:'Static source observation only. Entropy size is not a demonstrated quantum security level or a completed privacy attack.',
+          requirement:'The simulator must account for observable state fields and their hiding. Adding private-memory hashes to permitted leakage without analysis would weaken the claim.'},
         missing:'Leakage completeness and a simulator/ZK theorem for this protocol with adaptive auxiliary input and repeated proofs. Timing, I/O and a prover that sees the witness need separate trust models.'},
     ],
     aggregation:{status:'unavailable',reason:'Unknown or inapplicable component bounds remain null; knowledge and privacy are separate games, not zero terms in a soundness sum.',

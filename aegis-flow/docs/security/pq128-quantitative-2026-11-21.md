@@ -11,6 +11,10 @@ O relatório mantém limites ausentes como `null`; um termo sem demonstração n
 é substituído por zero. As [checagens anteriores do motor](risc0-qualification-2026-11-20.md)
 continuam separadas da segurança quantitativa.
 
+A [verificação da receipt inteira](whole-receipt-2026-11-21.md) incorpora os
+teoremas mais recentes de extração adaptativa e de compiladores sponge/QRPM,
+distinguindo seus resultados genéricos da instanciação ainda ausente no SDK.
+
 ## Cenário explícito, sem mudança de política de rede
 
 O cenário de engenharia considera **um orçamento global de $Q=2^{128}$
@@ -227,7 +231,7 @@ node aegis-flow/experiments/pq128/quantitative/demo.mjs --source-root work/cargo
 node aegis-flow/experiments/pq128/quantitative/demo.mjs --require-aegis
 ```
 
-O último comando termina com 1. O inventário adicional fixa 11 arquivos locais
+O último comando termina com 1. O inventário adicional fixa 14 arquivos locais
 e upstream usados nesta análise; não é atestação de binário ou auditoria externa.
 Nenhum desses experimentos é importado pela admissão de blocos.
 

@@ -1,0 +1,58 @@
+{
+  "schema": "AEGIS_WHOLE_RECEIPT_LITERATURE_V1",
+  "review_date": "2026-11-21",
+  "scope": "Primary research applicability inventory, not proof evidence for the SDK",
+  "sources": [
+    {
+      "id": "CMS19-2020-01-14",
+      "url": "https://eprint.iacr.org/2019/834",
+      "reviewed_material": "full-paper",
+      "result": "BCS preserves RBR knowledge and HVZK in the QROM under its exact hypotheses; Theorem 8.6 and Definition 8.5.",
+      "sdk_instantiated": false,
+      "finite_sdk_bound": null
+    },
+    {
+      "id": "BGKTTZ23",
+      "url": "https://eprint.iacr.org/2023/1071",
+      "reviewed_material": "full-paper",
+      "result": "RISC Zero RBR knowledge left as an open task in the RISC Zero subsection on page 27; conclusions page 35.",
+      "sdk_instantiated": false,
+      "finite_sdk_bound": null
+    },
+    {
+      "id": "RISC0-IOP-draft-2023-08-11",
+      "url": "https://dev.risczero.com/proof-system-in-detail.pdf",
+      "reviewed_material": "full-draft",
+      "pdf_sha256": "033f1ff04eb0760f08921ece02133cce38e3d073b712c9fec448370bb8f0b045",
+      "result": "Knowledge/soundness analysis of the IOP, including fold16,50queries,final256. Not a complete Poseidon2 receipt QROM or ZK theorem.",
+      "sdk_instantiated": false,
+      "finite_sdk_bound": null
+    },
+    {
+      "id": "CDHZ26",
+      "url": "https://eprint.iacr.org/2025/2166",
+      "reviewed_material": "official-abstract-and-author-slides; full revised PDF not retrieved",
+      "result": "Extended BCS has adaptive straightline quantum extraction assuming post-quantum state-restoration security and vector-commitment extraction; applies only after instantiation.",
+      "sdk_instantiated": false,
+      "finite_sdk_bound": null
+    },
+    {
+      "id": "CO25-revised-2026-03-27",
+      "url": "https://eprint.iacr.org/2025/536",
+      "reviewed_material": "official-abstract-and-author-slides; full revised PDF not retrieved",
+      "author_slides": "https://zksc2026.secpriv.wien/static/talks/slides-michele-orru.pdf",
+      "result": "DSFS in an ideal permutation model with codec requirements; indifferentiability alone is insufficient for knowledge/ZK.",
+      "sdk_instantiated": false,
+      "finite_sdk_bound": null
+    },
+    {
+      "id": "HHMRS26-revised-2026-03-25",
+      "url": "https://eprint.iacr.org/2026/146",
+      "reviewed_material": "official-abstract-and-author-slides; full revised PDF not retrieved",
+      "author_slides": "https://protecs-workshop.gitlab.io/assets/slides/protecs26_yu-hsuan-huang.pdf",
+      "result": "Adaptive post-quantum ZK of DSFS NIZKs in the QRPM under its hypotheses; does not certify this SDK or a full RISC Zero knowledge theorem.",
+      "sdk_instantiated": false,
+      "finite_sdk_bound": null
+    }
+  ]
+}

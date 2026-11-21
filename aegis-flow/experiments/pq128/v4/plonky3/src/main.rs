@@ -29,15 +29,17 @@ type F=BabyBear;
 type E=BinomialExtensionField<F,4>;
 
 #[derive(Clone,Copy,Debug)]
-struct Sha512Hash;
+struct Sha512Hash(&'static [u8]);
 impl CryptographicHasher<u8,[u8;64]> for Sha512Hash {
     fn hash_iter<I>(&self,input:I)->[u8;64] where I:IntoIterator<Item=u8>{
         let mut h=Sha512::new();
+        h.update(self.0);
         for b in input {h.update([b]);}
         h.finalize().into()
     }
     fn hash_iter_slices<'a,I>(&self,input:I)->[u8;64] where I:IntoIterator<Item=&'a [u8]>{
         let mut h=Sha512::new();
+        h.update(self.0);
         for part in input {h.update(part);}
         h.finalize().into()
     }
@@ -51,11 +53,13 @@ type Pcs=TwoAdicFriPcs<F,Radix2Bowers,Mmcs,EMmcs>;
 type Config=StarkConfig<Pcs,E,Chall>;
 
 fn config()->Config{
-    let h=Sha512Hash;
-    let mmcs=Mmcs::new(FH::new(h),Compress::new(h),3);
+    let leaf=Sha512Hash(b"AEGIS_V4_P3_LEAF_SHA512_V1\0");
+    let node=Sha512Hash(b"AEGIS_V4_P3_NODE_SHA512_V1\0");
+    let chal_hash=Sha512Hash(b"AEGIS_V4_P3_TRANSCRIPT_SHA512_V1\0");
+    let mmcs=Mmcs::new(FH::new(leaf),Compress::new(node),3);
     let fri=FriParameters::new_benchmark(EMmcs::new(mmcs.clone()));
     let pcs=Pcs::new(Radix2Bowers::default(),mmcs,fri);
-    let challenger=Chall::new(HashChallenger::new(b"AEGIS_V4_P3_BALANCE_SMOKE_V1".to_vec(),h));
+    let challenger=Chall::new(HashChallenger::new(b"AEGIS_V4_P3_BALANCE_SMOKE_V1".to_vec(),chal_hash));
     Config::new(pcs,challenger)
 }
 

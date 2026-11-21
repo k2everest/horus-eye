@@ -19,9 +19,11 @@ jobs:
         with:
           node-version: '24'
       - name: Test experimental SHA-512 bindings and conditional standalone FRI arithmetic
-        run: node --test aegis-flow/experiments/pq128/*.test.mjs aegis-flow/experiments/pq128/fri/*.test.mjs aegis-flow/experiments/pq128/financial/*.test.mjs aegis-flow/experiments/pq128/constraints/*.test.mjs aegis-flow/experiments/pq128/quantitative/*.test.mjs aegis-flow/experiments/pq128/native/backend.test.mjs
+        run: node --test aegis-flow/experiments/pq128/*.test.mjs aegis-flow/experiments/pq128/fri/*.test.mjs aegis-flow/experiments/pq128/financial/*.test.mjs aegis-flow/experiments/pq128/constraints/*.test.mjs aegis-flow/experiments/pq128/quantitative/*.test.mjs aegis-flow/experiments/pq128/v4/*.test.mjs aegis-flow/experiments/pq128/native/backend.test.mjs
       - name: Record finite query-model obligations without approving the complete protocol
         run: node aegis-flow/experiments/pq128/quantitative/demo.mjs > pq128-quantitative-research.json
+      - name: Report the SHA-512 outer-binding QROM ideal-screen for V4 only
+        run: node aegis-flow/experiments/pq128/v4/demo.mjs > pq128-v4-outer-screen.json
       - name: Check the private transfer constraint assignment without publishing it
         run: node aegis-flow/experiments/pq128/constraints/demo.mjs --report pq128-transfer-constraints.json
       - name: Rehearse sampled private polynomial segments with an explicit resource budget
@@ -39,8 +41,36 @@ jobs:
             pq128-transfer-constraints.json
             pq128-segmented-rehearsal.json
             pq128-quantitative-research.json
+            pq128-v4-outer-screen.json
           retention-days: 3
           if-no-files-found: error
+
+
+  plonky3-v4-laboratory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Resolve and build the isolated Plonky3 0.8.0 native experiment
+        run: |
+          cargo generate-lockfile --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
+          cargo build --locked --release --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
+          cargo test --locked --release --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
+      - name: Prove and verify a real bounded-balance proof (NOT a financial receipt)
+        env:
+          AEGIS_V4_P3_INTEGRATION: '1'
+          AEGIS_V4_P3_BINARY: ${{ github.workspace }}/aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab
+        run: node --test aegis-flow/experiments/pq128/v4/plonky3.integration.test.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v4-plonky3-lab-lock-${{ github.sha }}
+          path: aegis-flow/experiments/pq128/v4/plonky3/Cargo.lock
+          if-no-files-found: error
+          retention-days: 3
 
   liboqs-interoperability-laboratory:
     runs-on: ubuntu-latest

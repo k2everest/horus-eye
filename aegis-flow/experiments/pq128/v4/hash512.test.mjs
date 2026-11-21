@@ -32,3 +32,13 @@ test('independent program identity digest reacts to any binary change',()=>{
   assert.notEqual(original,programImageIdV4(Buffer.from('pinned-alternative-air-v2')));
   assert.notEqual(original,digestV4('AEGIS_V4_TEST',[Buffer.from('pinned-alternative-air-v1')]));
 });
+
+test('native program identity binds multi-megabyte binaries without unsafe frame truncation',()=>{
+  const first=Buffer.alloc(2*1024*1024,0x41);
+  const old=programImageIdV4(first);
+  assert.match(old,/^[0-9a-f]{128}$/);
+  first[first.length-1]^=1;
+  assert.notEqual(programImageIdV4(first),old);
+  assert.throws(()=>programImageIdV4(Buffer.alloc(0)));
+  assert.throws(()=>programImageIdV4(Buffer.alloc(128*1024*1024+1)));
+});

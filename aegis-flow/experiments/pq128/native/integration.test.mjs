@@ -8,6 +8,7 @@ import {native512Fixture} from './fixtures.mjs';
 import {financialStatementDigest512} from '../financial/relation.mjs';
 import {noteCommitment512,createSpendIdentity512} from '../financial/notes.mjs';
 import {StarkBackend} from '../../../services/proof-engine/backend.mjs';
+import {ExperimentalValueLedger512} from '../financial/value-ledger.mjs';
 const enabled=process.env.AEGIS_NATIVE512_INTEGRATION==='1';
 
 test('fresh native receipt binds the entire SHA-512 relation without sending the witness to the verifier',
@@ -20,6 +21,19 @@ test('fresh native receipt binds the entire SHA-512 relation without sending the
     const proof=await pending,elapsed=Math.round(performance.now()-start);
     const result=await backend.verify({statement:original.statement,proof});
     assert.equal(result.valid,true);assert.equal(result.aegis_target_met,false);assert.equal(result.production_ready,false);
+    // Admission through the isolated value-binding state machine: the backend
+    // verifies the REAL receipt, not a boolean supplied by a caller.
+    const genesis=Array.from({length:original.statement.anchor_leaf_count},(_,i)=>
+      i===original.statement.anchor_leaf_count-1?original.statement.input_commitments[0]:(i+1).toString(16).padStart(128,'0'));
+    const valueLedger=new ExperimentalValueLedger512({networkId:original.statement.network_id,genesisCommitments:genesis,backend});
+    assert.equal(valueLedger.snapshot.root,original.statement.anchor_root);
+    const accepted=await valueLedger.applyTransfer({statement:original.statement,proof});
+    assert.equal(accepted.leaf_count,genesis.length+1);
+    assert.equal(accepted.fees_total,original.statement.fee);
+    assert.equal(accepted.spent_inputs,1);assert.equal(accepted.nullifiers_recorded,1);
+    assert.equal(accepted.production_ready,false);
+    await assert.rejects(valueLedger.applyTransfer({statement:original.statement,proof}),/VALUE512_UNKNOWN_OR_SPENT_INPUT/);
+
     assert.ok(Buffer.from(proof.receipt,'base64').length>1000);
     for(const input of original.witness.inputs){assert.ok(!JSON.stringify(proof).includes(input.spend_secret));assert.ok(!JSON.stringify(proof).includes(input.note.randomness));}
     assert.equal((await backend.verify({statement:f.statement,proof})).valid,false);

@@ -7,6 +7,7 @@ import {reviewStarkSecurity,securityProfile} from '../../../services/proof-engin
 import {deriveConditionalCmsBudget,evaluateConditionalCmsBound} from './budget.mjs';
 import {idealClawBound} from './claw-bound.mjs';
 import {idealCollisionBound} from './ideal-collision-bound.mjs';
+import {modelCompositeSoundness} from './receipt-soundness.mjs';
 import {idealRisc0SamplerBias} from './sampler-bias.mjs';
 import {screenStandaloneFri} from '../fri-qrom-bound.mjs';
 
@@ -63,6 +64,7 @@ export function analyzeQuantitatively({sourceRoot}={}){
       hypothetical_hash256:evaluateConditionalCmsBound({budget:lifetime,roundByRoundError:exampleError,hashBits:256}),
       standalone_fri_candidate_lifetime_only:evaluateConditionalCmsBound({budget:lifetime,roundByRoundError:reference.round_by_round_error.maximum,hashBits:512}),
       accepted_engine:evaluateConditionalCmsBound({budget:lifetime,roundByRoundError:null,hashBits:256})},
+    conditional_composite_soundness:modelCompositeSoundness({maxSegments:engine.parameters.max_segments,receipts:H,oracleQueries:Q}),
     conditional_value_binding:{
       game:'Choose a secret/owner and two distinct values; find two randomness strings that open the same note commitment.',
       legacy_256:legacy,expanded_512:expanded,

@@ -16,6 +16,11 @@ um guest separado, usando o motor RISC Zero de laboratório já conhecido. O
 verificador recebe receipt e statement públicos; os parâmetros do motor são
 inalterados e continuam sem qualificação PQ128. Esse programa não é aceito na rede.
 
+A [recuperação de oráculos completos](constraints/ORACLE_RECOVERY.md) reconstrói
+um witness financeiro comum dos segmentos privados do circuito experimental.
+O [laboratório liboqs](oqs/README.md) testa ML-DSA-87 e ML-KEM-1024 entre C e Node.
+São componentes separados; nenhum fornece extração quântica de uma receipt.
+
 A [análise quantitativa de 21/11/2026](../../docs/security/pq128-quantitative-2026-11-21.md)
 acrescenta um cenário global explícito, requisitos CMS/QROM com aritmética exata,
 uma derivação finita de claw no modelo ideal e o viés iid do sampler. Limites

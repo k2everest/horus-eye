@@ -22,6 +22,9 @@ todos os wires privados e não deve ser usado como endpoint ou autorização de 
   ligado ao circuito, statement, tamanho e posição; aberturas são privadas.
 - `segmented-qap.mjs`: QAPs privados por segmento, com o mesmo snapshot global
   de wires, máscaras novas e resto zero, sem materializar a matriz inteira.
+- `oracle-extractor.mjs`: recuperação privada de um único vetor global a partir
+  de todos os oráculos A/B/C, seguida da reconstrução financeira em `transfer.mjs`.
+  Veja [o alcance e a derivação](ORACLE_RECOVERY.md): não extrai de receipts.
 
 As equações são `a*b=z`, `a+b-2*a*b=z`, `1-a=z` e `a=b`, além de
 `w*(w-1)=0` em cada wire. Como os wires são bits e os resíduos são pequenos,

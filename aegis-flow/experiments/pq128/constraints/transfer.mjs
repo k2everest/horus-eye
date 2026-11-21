@@ -1,11 +1,13 @@
 // Experimental full Boolean constraint relation, NOT a private proof system.
 // The checker below receives the entire private assignment. Never expose it as
 // an endpoint or publish its inputs/wires. No production code imports this file.
-import {BitCircuit,evaluateBitCircuit,checkBitCircuit} from './bit-circuit.mjs';
+import {inspect} from 'node:util';
+import {BitCircuit,evaluateBitCircuit,checkBitCircuit,bitInputLayout,snapshotBitWitness} from './bit-circuit.mjs';
+import {recoverBitWitnessFromOracles} from './oracle-extractor.mjs';
 import {ownerHashBits,noteHashBits,nullifierHashBits,treeLeafHashBits,treeNodeHashBits,treeRootHashBits} from './note-hashes.mjs';
-import {assertNote512} from '../financial/notes.mjs';
+import {assertNote512,NOTE512_VERSION} from '../financial/notes.mjs';
 import {MEMBERSHIP_VERSION} from '../financial/membership.mjs';
-import {assertFinancialStatement512,financialStatementDigest512} from '../financial/relation.mjs';
+import {assertFinancialStatement512,financialStatementDigest512,checkTransferWitness512} from '../financial/relation.mjs';
 import {decodeHex} from '../../../libs/crypto-core/pqc-wrapper.mjs';
 const compiled=new WeakMap();
 const freeze=Object.freeze;
@@ -106,4 +108,58 @@ export function assignTransferConstraints512(relation,witness){
 export function checkTransferConstraints512(relation,assignment){
   if(!compiled.has(relation))return false;
   return checkBitCircuit(relation.circuit,assignment);
+}
+
+// Decode only an assignment of the independently compiled financial circuit.
+// This is a PRIVATE local operation, never receipt verification or a network API.
+export function decodeTransferWitness512(relation,recoveredValues){
+  let values;
+  try{
+    const data=compiled.get(relation);if(!data)throw new Error('untrusted relation');
+    values=snapshotBitWitness(relation.circuit,recoveredValues);
+    if(!checkBitCircuit(relation.circuit,values))throw new Error('invalid assignment');
+    const st=data.statement,layout=new Map(bitInputLayout(relation.circuit).map(x=>[x.name,x]));
+    const bytes=name=>{
+      const block=layout.get(name);if(!block)throw new Error('missing input layout');
+      const out=Buffer.alloc(block.length);
+      for(let i=0;i<8*block.length;i++)out[i>>3]|=values[block.first+i]<<(7-(i&7));
+      return out;
+    };
+    const note=prefix=>({version:NOTE512_VERSION,network_id:st.network_id,asset_id:st.asset_id,
+      value:bytes(prefix+'value').readBigUInt64BE().toString(),owner_tag:bytes(prefix+'owner').toString('hex'),randomness:bytes(prefix+'randomness').toString('hex')});
+    const witness={inputs:st.input_commitments.map((commitment,i)=>{
+      const prefix=`input_${i}_`;
+      return {note:note(prefix),spend_secret:bytes(prefix+'secret').toString('hex'),membership:{version:MEMBERSHIP_VERSION,
+        network_id:st.network_id,commitment,leaf_count:st.anchor_leaf_count,leaf_index:bytes(prefix+'index').readUInt32BE(),
+        siblings:Array.from({length:data.depth},(_,level)=>bytes(prefix+`sibling_${level}`).toString('hex'))}};
+    }),outputs:st.output_commitments.map((_,i)=>note(`output_${i}_`))};
+    const expected={networkId:st.network_id,anchorRoot:st.anchor_root,anchorLeafCount:st.anchor_leaf_count,
+      transactionBinding:st.transaction_binding,statementDigest:relation.statement_digest};
+    if(!checkTransferWitness512({statement:st,witness,expected}).valid)throw new Error('financial refinement failed');
+    let owned=witness;
+    const result={schema:'AEGIS_PRIVATE_FINANCIAL_RECOVERY_V1',statement_digest:relation.statement_digest,
+      scope:'private-full-oracle-financial-recovery-only',receipt_extractor:false,knowledge_soundness_demonstrated:false,
+      witness_commitment_binding_checked:false,aegis_target_met:false,production_ready:false};
+    Object.defineProperties(result,{
+      witness:{get(){if(!owned)throw new Error('PRIVATE_RECOVERY_DISPOSED');return structuredClone(owned);}},
+      dispose:{value(){owned=null;}},
+      toJSON:{value(){throw new Error('PRIVATE_FINANCIAL_WITNESS_MUST_NOT_BE_SERIALIZED');}},
+      [inspect.custom]:{value(){return '[PRIVATE financial witness recovery; not a receipt proof]';}},
+    });
+    return freeze(result);
+  }catch{throw new Error('PRIVATE_FINANCIAL_EXTRACTION_FAILED');}
+  finally{values?.fill(0);} // JS strings/copies are not claimed securely erased.
+}
+
+export function recoverTransferWitnessFromOracles(relation,options){
+  let recovered,values;
+  try{
+    if(!compiled.has(relation)||!options||typeof options!=='object'||Array.isArray(options)||
+      Object.keys(options).some(k=>!['segmentRows','maskCoefficients','maxSegments','maxWires','oracleFormat','readSegment'].includes(k)))throw new Error('untrusted extraction context');
+    // Public circuit and statement identity cannot be selected by the source.
+    recovered=recoverBitWitnessFromOracles({...options,circuit:relation.circuit,statementDigest:relation.statement_digest});
+    values=recovered.values;
+    return decodeTransferWitness512(relation,values);
+  }catch{throw new Error('PRIVATE_FINANCIAL_EXTRACTION_FAILED');}
+  finally{values?.fill(0);recovered?.dispose();}
 }

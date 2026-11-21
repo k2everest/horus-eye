@@ -193,6 +193,14 @@ const row=(A,B,C)=>freeze({A,B,C});
 export function bitConstraintCount(circuit){
   const data=state(circuit);return 2+data.wireCount+data.gateCount;
 }
+
+// Public layout of named inputs, already included in the circuit fingerprint.
+// Gates and inputs are interleaved, so offsets must not be inferred by adding
+// input lengths. No assignment or input bytes are accessed here.
+export function bitInputLayout(circuit){
+  const data=state(circuit);
+  return freeze([...data.inputs].map(([name,{length,first}])=>freeze({name,first,length})));
+}
 export function bitConstraintRow(circuit,index){
   const data=state(circuit);
   if(!Number.isSafeInteger(index)||index<0||index>=2+data.wireCount+data.gateCount)throw new RangeError('invalid bit constraint row');

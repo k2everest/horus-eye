@@ -59,6 +59,16 @@ Um extrator conjunto teria que recuperar traces consistentes de todos os
 segmentos sob o mesmo oracle e, deles, a entrada financeira. Somar erros de
 soundness de segmentos não constrói esse extrator.
 
+Há agora uma etapa executável separada no circuito Booleano experimental:
+[recuperação privada de oráculos completos](../../experiments/pq128/constraints/ORACLE_RECOVERY.md).
+Ela recupera todos os wires a partir das linhas de booleanidade, confere todos
+os segmentos contra o mesmo vetor e reconstrói um witness financeiro válido.
+O ensaio sintético percorre 6.125.342 linhas em 5.982 segmentos. Sua hipótese
+é receber os oráculos privados inteiros; ela não obtém esses dados de um prover
+quântico ou de uma receipt e não vincula os dados ao compromisso de uma prova.
+Portanto, implementa um componente de recuperação sob acesso completo, sem
+instanciar o extrator de conhecimento exigido pelo teorema para o SDK.
+
 ## Privacidade: o simulador completo permanece ausente
 
 A [documentação da versão exata 3.1.0](https://github.com/risc0/risc0/blob/v3.1.0/website/api/security-model.md)

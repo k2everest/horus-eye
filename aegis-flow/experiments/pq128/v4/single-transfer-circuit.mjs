@@ -4,7 +4,7 @@
 // Private bit assignments must never be serialized, logged or returned.
 import {assertFinancialStatement512,financialStatementDigest512} from '../financial/relation.mjs';
 import {createHash} from 'node:crypto';
-import {writeFileSync,rmSync} from 'node:fs';
+import {writeFileSync} from 'node:fs';
 import {isAbsolute} from 'node:path';
 import {compileTransferConstraints512,assignTransferConstraints512,checkTransferConstraints512} from '../constraints/transfer.mjs';
 import {bitCircuitDigest512,bitConstraintCount,bitCircuitPublicProgramBinary,snapshotBitWitness} from '../constraints/bit-circuit.mjs';
@@ -53,7 +53,8 @@ export function checkOneInOneOutWitnessLocally(manifest,witness){
   let valid=false;
   try{
     const assignment=assignTransferConstraints512(relation,witness);
-    valid=checkTransferConstraints512(relation,assignment);
+    try{valid=checkTransferConstraints512(relation,assignment);}
+    finally{assignment.values.fill(0);}
   }catch{valid=false;}
   return Object.freeze({
     local_constraints_satisfied:valid,
@@ -98,8 +99,9 @@ export function writeOneInOneOutPrivateAssignment512(manifest,witness,path){
   if(!relation||!isAbsolute(path))throw new TypeError('trusted circuit and absolute private path required');
   const assigned=assignTransferConstraints512(relation,witness);
   if(!checkTransferConstraints512(relation,assigned))throw new Error('INVALID_PRIVATE_SINGLE_TRANSFER');
-  const bits=snapshotBitWitness(relation.circuit,assigned);
+  let bits;
   try{
+    bits=snapshotBitWitness(relation.circuit,assigned);
     writeFileSync(path,Buffer.from(bits),{mode:0o600,flag:'wx'});
     return Object.freeze({
       schema:'AEGIS_V4_PRIVATE_WIRING_MATERIAL_V1',
@@ -109,5 +111,8 @@ export function writeOneInOneOutPrivateAssignment512(manifest,witness,path){
       cryptographic_proof:false,
       production_ready:false,
     });
-  }finally{bits.fill(0);}
+  }finally{
+    bits?.fill(0);
+    assigned.values.fill(0);
+  }
 }

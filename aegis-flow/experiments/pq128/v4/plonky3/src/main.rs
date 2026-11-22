@@ -274,6 +274,10 @@ fn parameter_report()->serde_json::Value{
 
 fn main(){
     let args:Vec<String>=std::env::args().collect();
+    if args.len()==2&&args[1]=="security-report-financial-balance"{
+        println!("{}",financial::financial_rbr_report());
+        return;
+    }
     if args.len()==4&&args[1]=="prove-financial-balance"{
         let ok=fs::read(&args[2]).ok().filter(|b|b.len()<=262144)
             .and_then(|b|catch_unwind(AssertUnwindSafe(||financial::prove_financial(&b,Path::new(&args[3])))).ok())

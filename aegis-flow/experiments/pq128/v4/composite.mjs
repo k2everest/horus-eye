@@ -2,6 +2,7 @@
 // hashes. No actual alternative STARK SDK is installed here. Every successful
 // result is RESEARCH-ONLY; acceptance by a mocked adapter is NOT a proof.
 // RISC Zero's existing SHA-256/Poseidon2 receipts MUST NOT be passed as V4.
+import {createHash} from 'node:crypto';
 import {assertFinancialStatement512,financialStatementDigest512} from '../financial/relation.mjs';
 import {ascii,bytes512,digestV4,uint32BE,segmentClaimDigestV4,journalDigestV4} from './hash512.mjs';
 
@@ -11,11 +12,11 @@ export const V4_CANDIDATE='AEGIS_V4_TRANSPARENT_STARK_CANDIDATE_ONLY';
 const RESEARCH={aegis_target_met:false,production_ready:false,cryptographic_soundness_demonstrated:false};
 const bad=reason=>({structurally_consistent:false,reason,...RESEARCH});
 function canonicalProof(proof){
-  if(typeof proof!=='string'||proof.length<4||proof.length>1_398_104||
+  if(typeof proof!=='string'||proof.length<4||proof.length>16*1024*1024+64||
     !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(proof))
     throw new TypeError('canonical bounded base64 required');
   const bytes=Buffer.from(proof,'base64');
-  if(bytes.length===0||bytes.length>1024*1024||bytes.toString('base64')!==proof)
+  if(bytes.length===0||bytes.length>12*1024*1024||bytes.toString('base64')!==proof)
     throw new TypeError('invalid proof encoding');
   return bytes;
 }
@@ -59,7 +60,13 @@ export async function reviewCompositeV4({statement,expected,segments,backend}={}
       if(final?require64(claim.journal_digest)!==journal:claim.journal_digest!==null)
         return bad('JOURNAL_NOT_BOUND');
       state=require64(claim.post_state);
-      const proofCommitment=digestV4('AEGIS_V4_SEGMENT_PROOF',[proofBytes]);
+      // Full-size proof bytes are committed with an explicit 64-bit length and
+      // the SHA-512 fingerprint; the standard hash frame limits components
+      // to 1 MiB. This prevents hashing only a truncated proof prefix.
+      const length=Buffer.alloc(8);
+      length.writeBigUInt64BE(BigInt(proofBytes.length));
+      const proofHash=createHash('sha512').update(proofBytes).digest();
+      const proofCommitment=digestV4('AEGIS_V4_SEGMENT_PROOF',[length,proofHash]);
       segmentDigests.push(segmentClaimDigestV4({
         network_id:expected.network_id,program_id:program,index,segment_count:segments.length,
         pre_state:claim.pre_state,post_state:claim.post_state,proof_commitment:proofCommitment}));

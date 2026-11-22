@@ -166,3 +166,55 @@ Reproduce local **structural** tests:
 ```sh
 node --test aegis-flow/experiments/pq128/v4/*.test.mjs
 ```
+
+
+## M1: native hiding FRI with degree-8 challenges (22 November 2026)
+
+This branch now replaces the `new_benchmark` non-hiding configuration in the
+isolated Plonky3 research binary with an explicit candidate profile:
+- BabyBear, irreducible binomial extension degree **8**; challenge-field
+  cardinality has a conservative floor of **247 bits**;
+- `HidingFriPcs`, **both** input and challenge Merkle MMCSs salted with
+  independently OS-seeded cryptographic RNGs, **8 salt field elements**;
+- 8 independent random codewords (at least the extension dimension);
+  a 4096-row trace with budget reservation for 320 queries and up to
+  8 opened points, enforcing `4096 >= 2*(320 + 8*8)`;
+- explicit FRI blowup 8 (log-blowup 3), binary folding, 320 queries,
+  no unearned grinding bits. All verifier parameters are constants in
+  the trusted Rust binary; proof data cannot override them;
+- 512-bit SHA-512 Merkle digests, with domain-separated leaf, node,
+  transcript, program image and public claims;
+- separate proof scheme `AEGIS_V4_P3_HIDING_EXT8_LAB_V1` and a
+  bounded proof envelope. Earlier benchmark proofs cannot be interpreted
+  as this suite.
+
+`security-report` uses the exact AIR shape and the
+`p3-security` 0.8.0 `ProvenSecurity` *interactive round-by-round*
+calculator. The input hash collision resistance (**170 bits**) is a
+conservative **ideal-function hypothesis**, not a quantum cryptanalysis
+of concrete SHA-512. The research gate compares the measured RBR result
+with a separately labelled strict residual target of `2^-128`
+distributed across `H=2^32` attempted receipts, `64` segments and
+four first-bad-event categories: **168 bits per segment** in this
+conditional allocation. A passing arithmetic screen does not prove that
+this allocation applies to quantum Fiat–Shamir or actual Composite proofs.
+
+**Outstanding mandatory dependencies:** complete financial AIR with
+SHA-512 note/ownership/nullifier/inclusion and values; a proof of common
+witness and private transcript simulation; quantum QROM compiler
+applicable to the exact implementation; event reduction from fake entire
+receipts, source/binary reproducibility, independent review and a
+versioned migration. `security-report` keeps
+`aegis_target_met:false` and `production_ready:false` regardless of
+the RBR value.
+
+Local evaluation:
+
+```sh
+cargo run --release --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml -- security-report > aegis-v4-p3-rbr.json
+node aegis-flow/experiments/pq128/v4/rbr-gate.mjs aegis-v4-p3-rbr.json > aegis-v4-p3-m1-screen.json
+```
+
+The native integration CI is the decisive compiler/proof validation. It
+must report a genuine successful build and verified proof; an in-flight or
+failed job is not a success.

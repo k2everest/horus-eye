@@ -319,7 +319,7 @@ mod tests{
         let data=ProverData::from_instances(&config,&inst).unwrap();
         let proof=prove_batch(&config,&inst,&data).unwrap();
         let public=air.public_values();
-        verify_batch(&config,&[air],&proof,&[public],&data.common).unwrap();
+        verify_batch(&config,&[air.clone()],&proof,&[public],&data.common).unwrap();
     }
     #[test]
     fn adversarial_gate_row_rebinding_is_rejected_by_logup(){
@@ -336,7 +336,7 @@ mod tests{
             let data=ProverData::from_instances(&config,&inst).unwrap();
             match prove_batch(&config,&inst,&data){
                 Ok(p)=>{let public=air.public_values();
-                    verify_batch(&config,&[air],&p,&[public],&data.common).is_err()},
+                    verify_batch(&config,&[air.clone()],&p,&[public],&data.common).is_err()},
                 Err(_)=>true,
             }
         }));

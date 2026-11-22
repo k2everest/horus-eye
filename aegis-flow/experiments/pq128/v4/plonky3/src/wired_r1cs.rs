@@ -150,7 +150,8 @@ impl<T:Field> BaseAir<T> for WiredAir{
     }
 }
 impl<AB> Air<AB> for WiredAir
-where AB:AirBuilder+PermutationAirBuilder+InteractionBuilder{
+where AB:AirBuilder+PermutationAirBuilder+InteractionBuilder,
+      AB::F:Field{
     fn eval(&self,builder:&mut AB){
         // The program's SHA-512 is absorbed into Fiat-Shamir as public
         // values. The AIR also constrains them to the verifier's program,

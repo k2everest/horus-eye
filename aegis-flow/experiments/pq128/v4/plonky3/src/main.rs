@@ -8,7 +8,7 @@ use p3_air::{Air,AirBuilder,BaseAir,WindowAccess};
 use p3_air::symbolic::AirLayout;
 use p3_baby_bear::BabyBear;
 use p3_challenger::{HashChallenger,SerializingChallenger32};
-use p3_commit::{ExtensionMmcs,Pcs};
+use p3_commit::{ExtensionMmcs,Pcs as PolynomialCommitmentScheme};
 use p3_dft::Radix2Bowers;
 use p3_field::{extension::BinomialExtensionField,PrimeCharacteristicRing};
 use p3_fri::{FriParameters,HidingFriPcs};
@@ -237,7 +237,7 @@ fn parameter_report()->serde_json::Value{
     let config=config();
     let air=BalanceAir{claim:[0;WORDS]};
     let layout=AirLayout{main_width:WIDTH,..Default::default()};
-    let trace_domain=<Pcs as Pcs<E,Chall>>::natural_domain_for_degree(config.pcs(),ROWS*2);
+    let trace_domain=<Pcs as PolynomialCommitmentScheme<E,Chall>>::natural_domain_for_degree(config.pcs(),ROWS*2);
     let security=StarkSecurityParams::from_air::<F,E,_>(
         params,&air,layout,trace_domain,
         EXTENSION_FIELD_FLOOR_BITS,IDEAL_HASH_COLLISION_BITS,1,

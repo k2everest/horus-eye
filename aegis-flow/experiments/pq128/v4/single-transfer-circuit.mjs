@@ -3,8 +3,11 @@
 // network. This local checker is NOT an STARK proof and is NEVER a verifier.
 // Private bit assignments must never be serialized, logged or returned.
 import {assertFinancialStatement512,financialStatementDigest512} from '../financial/relation.mjs';
+import {createHash} from 'node:crypto';
+import {writeFileSync,rmSync} from 'node:fs';
+import {isAbsolute} from 'node:path';
 import {compileTransferConstraints512,assignTransferConstraints512,checkTransferConstraints512} from '../constraints/transfer.mjs';
-import {bitCircuitDigest512,bitConstraintCount} from '../constraints/bit-circuit.mjs';
+import {bitCircuitDigest512,bitConstraintCount,bitCircuitPublicProgramBinary,snapshotBitWitness} from '../constraints/bit-circuit.mjs';
 
 const trusted=new WeakMap();
 export function compileOneInOneOut512({statement,expectedStatementDigest}={}){
@@ -63,4 +66,48 @@ export function checkOneInOneOutWitnessLocally(manifest,witness){
     aegis_target_met:false,
     production_ready:false,
   });
+}
+
+// Generate a verifier-owned, deterministic public program. In production this
+// must be rebuilt from a statement authenticated by an independent node;
+// a program file sent by the prover is untrusted, even with a self-hash.
+export function writeOneInOneOutPublicProgram512(manifest,path){
+  const relation=trusted.get(manifest);
+  if(!relation||!isAbsolute(path))throw new TypeError('trusted public program and absolute destination required');
+  const bytes=bitCircuitPublicProgramBinary(relation.circuit);
+  const programSha512=createHash('sha512').update(bytes).digest('hex');
+  writeFileSync(path,bytes,{mode:0o600,flag:'wx'});
+  return Object.freeze({
+    schema:'AEGIS_V4_SINGLE_TRANSFER_NATIVE_PUBLIC_PROGRAM_V1',
+    program_sha512:programSha512,
+    canonical_circuit_digest512:manifest.boolean_circuit_sha512,
+    statement_digest:manifest.statement_digest,
+    byte_length:bytes.length,
+    gate_count:manifest.gate_count,
+    private_witness_written:false,
+    pq128_demonstrated:false,
+    production_ready:false,
+  });
+}
+
+// Keep raw wire assignments private. This is ONLY a prover-side helper;
+// successful local preflight is NOT the proof. Native verifier must
+// independently validate the public program and the LogUp STARK.
+export function writeOneInOneOutPrivateAssignment512(manifest,witness,path){
+  const relation=trusted.get(manifest);
+  if(!relation||!isAbsolute(path))throw new TypeError('trusted circuit and absolute private path required');
+  const assigned=assignTransferConstraints512(relation,witness);
+  if(!checkTransferConstraints512(relation,assigned))throw new Error('INVALID_PRIVATE_SINGLE_TRANSFER');
+  const bits=snapshotBitWitness(relation.circuit,assigned);
+  try{
+    writeFileSync(path,Buffer.from(bits),{mode:0o600,flag:'wx'});
+    return Object.freeze({
+      schema:'AEGIS_V4_PRIVATE_WIRING_MATERIAL_V1',
+      private_assignment_file_created:true,
+      byte_length:bits.length,
+      scope:'local-prover-only',
+      cryptographic_proof:false,
+      production_ready:false,
+    });
+  }finally{bits.fill(0);}
 }

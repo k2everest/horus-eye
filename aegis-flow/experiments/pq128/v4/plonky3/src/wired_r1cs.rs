@@ -147,7 +147,7 @@ where AB:AirBuilder+PermutationAirBuilder+InteractionBuilder{
         let use_count:AB::Expr=c[9].into();
         let pin_zero:AB::Expr=c[10].into();
         let pin_one:AB::Expr=c[11].into();
-        for bit in [&a,&b,&z,&wire]{
+        for bit in [a.clone(),b.clone(),z.clone(),wire.clone()]{
             builder.assert_zero(bit.clone()*(bit.clone()-AB::Expr::ONE));
         }
         let ab=a.clone()*b.clone();

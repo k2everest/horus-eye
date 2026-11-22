@@ -308,3 +308,69 @@ AEGIS_V4_P3_INTEGRATION=1 AEGIS_V4_P3_BINARY="$PWD/aegis-flow/experiments/pq128/
   node --test aegis-flow/experiments/pq128/v4/single-transfer.integration.test.mjs
 node --test aegis-flow/experiments/pq128/v4/single-transfer-circuit.test.mjs
 ```
+
+
+## Native Plonky3 LogUp bridge for the full one-in/one-out R1CS
+
+The V4 branch now includes a **native Boolean R1CS Plonky3 batch-STARK
+bridge** at `plonky3/src/wired_r1cs.rs`. This is distinct from the
+older `sha512_gates.rs` toy and the `financial.rs` balance-only AIR:
+
+- A fixed, independently rebuilt *public* Boolean program defines all
+  AND/XOR/NOT/EQUAL instructions and every wire index. The canonical
+  encoding is `AEGIS_V4_BOOLEAN_PROGRAM_V1\\0`, 32-bit big-endian
+  wire/gate counts, then exactly 13 bytes per gate: opcode and three
+  32-bit wire indices. The native decoder checks bounds, unique gate
+  outputs, the fixed zero/one pins and canonical sizes.
+- Its opcode selectors, index triples, use-multiplicities and constant
+  pins are deterministic Plonky3 public **periodic columns**, not
+  prover-controlled witness columns or randomized preprocessed
+  commitments. The whole program's SHA-512 digest is also constrained
+  as **32 public field values absorbed by Fiat-Shamir**.
+- The private trace has three gate operand values and one canonical bit
+  per indexed wire. Plonky3 LogUp balances the three gate-side
+  lookups with the one-row-per-wire table using program-fixed
+  multiplicities, while Boolean constraints enforce AND, XOR, NOT,
+  EQUAL and the constant pins. This is what prevents a malicious prover
+  changing one wire's value between two SHA-512 gates.
+- `prove-wired <trusted-public-program.bin> <private-wire-assignment.bin>
+  <proof.json>` constructs an isolated hiding-FRI batch-STARK.
+  `verify-wired <reconstructed-public-program.bin> <proof.json>
+  <expected-program-sha512>` recomputes the program and verifies the
+  actual STARK; **the expected hash must be supplied by the verifier**
+  and may not originate from the proof.
+- `single-transfer-circuit.mjs` now exposes
+  `writeOneInOneOutPublicProgram512` and
+  `writeOneInOneOutPrivateAssignment512`: they compile the entire
+  existing six-SHA-512 Boolean financial program and give the native
+  prover a private bit assignment from a single validated witness.
+  `verify-one-in-one-out.mjs` rebuilds the statement-specific program,
+  checks an independently pinned Rust binary SHA-512 and the actual
+  LogUp proof before it can report financial relation satisfaction.
+- A small genuine native LogUp proof and tampered-wiring test are
+  added to `wired-r1cs.integration.test.mjs`. A separate **opt-in**
+  `full-single-transfer.integration.test.mjs` generates a real six-hash
+  1x1 proof; it is deliberately outside the ordinary CI until its
+  high-memory resource profile is established.
+
+**Qualification gates:** the existence of source code does not mean
+its current commit compiled or that the million-gate full one-in/one-out
+proof has finished. The small LogUp test and the resource-intensive full
+test must both pass before describing this as an operational full
+financial proof. The lookup argument's non-asymptotic soundness,
+randomness/zero-knowledge properties, Fiat-Shamir/QROM, knowledge
+extraction, hash assumptions, and lifetime composition remain
+unqualified. Consensus and network admission must remain unchanged;
+`aegis_target_met=false` and `production_ready=false` are mandatory.
+
+Local lab:
+
+```sh
+cargo build --release --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
+AEGIS_V4_P3_INTEGRATION=1 AEGIS_V4_P3_BINARY="$PWD/aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab" \
+  node --test aegis-flow/experiments/pq128/v4/wired-r1cs.integration.test.mjs
+
+# Resource-intensive full six-SHA-512 research verification (opt-in)
+AEGIS_V4_FULL_WIRED_SHA512=1 AEGIS_V4_P3_BINARY="$PWD/aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab" \
+  node --test aegis-flow/experiments/pq128/v4/full-single-transfer.integration.test.mjs
+```

@@ -63,6 +63,15 @@ test('native Plonky3 LogUp STARK proves a fixed Boolean program and rejects tamp
     assert.equal(JSON.parse(run('verify-wired',otherFile,proofFile,digest)).valid,false);
     const wrongWitness=join(dir,'wrong-private.bin');
     writeFileSync(wrongWitness,Buffer.from([0,1,1,0,1,1]));
-    assert.throws(()=>run('prove-wired',programFile,wrongWitness,join(dir,'wrong-proof.json')));
+    // A release prover need not detect unsatisfied constraints locally;
+    // if it emits bytes anyway, the independent verifier MUST reject them.
+    const wrongProof=join(dir,'wrong-proof.json');
+    try{
+      run('prove-wired',programFile,wrongWitness,wrongProof);
+      assert.equal(JSON.parse(run('verify-wired',programFile,wrongProof,digest)).valid,false);
+    }catch(error){
+      if(error?.code==='ERR_ASSERTION')throw error;
+      if(!error?.status)throw error;
+    }
   }finally{rmSync(dir,{recursive:true,force:true});}
 });

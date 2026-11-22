@@ -227,6 +227,30 @@ export function snapshotBitWitness(circuit,witness){
   return copy;
 }
 
+// Versioned, PRIVATE-DATA-FREE program for the Plonky3 LogUp R1CS AIR.
+// Each public instruction is exactly 13 bytes: opcode, a, b, z (u32BE).
+// The native verifier MUST regenerate this independently from an authenticated
+// public statement; a prover-supplied circuit is never an authority.
+export function bitCircuitPublicProgramBinary(circuit){
+  const data=state(circuit);
+  if(data.gateCount<1||data.gateCount>MAX_GATES||
+     data.wireCount<2||data.wireCount>12_000_000)throw new RangeError('bounded R1CS program required');
+  const magic=Buffer.from('AEGIS_V4_BOOLEAN_PROGRAM_V1\\0','ascii');
+  const encoded=Buffer.alloc(magic.length+8+13*data.gateCount);
+  magic.copy(encoded,0);
+  encoded.writeUInt32BE(data.wireCount,magic.length);
+  encoded.writeUInt32BE(data.gateCount,magic.length+4);
+  let offset=magic.length+8;
+  for(let i=0;i<data.gateCount;i++){
+    encoded[offset]=data.ops[i];
+    encoded.writeUInt32BE(data.a[i],offset+1);
+    encoded.writeUInt32BE(data.b[i],offset+5);
+    encoded.writeUInt32BE(data.z[i],offset+9);
+    offset+=13;
+  }
+  return encoded;
+}
+
 // Canonical streaming program identity, not a signature or proof. The gate
 // semantics are bound explicitly so a later change of equations needs a new
 // descriptor/version. All lengths/counts/indices are unsigned big-endian u32;

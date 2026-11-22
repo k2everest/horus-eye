@@ -18,6 +18,7 @@ p3-matrix = "=0.8.0"
 p3-merkle-tree = "=0.8.0"
 p3-symmetric = "=0.8.0"
 p3-uni-stark = "=0.8.0"
+p3-security = "=0.8.0"
 sha2 = "0.10"
 hex = "0.4"
 serde = { version = "1", features = ["derive"] }

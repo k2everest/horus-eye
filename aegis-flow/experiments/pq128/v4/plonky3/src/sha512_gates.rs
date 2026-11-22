@@ -48,7 +48,9 @@ impl<AB:AirBuilder> Air<AB> for Sha512BooleanGateAir{
 pub fn gate_trace()->RowMajorMatrix<F>{
     let mut values=Vec::with_capacity(ROWS*WIDTH);
     for i in 0..ROWS{
-        let a=(i&1) as u32,b=((i>>1)&1) as u32,c=((i>>2)&1) as u32;
+        let a=(i&1) as u32;
+        let b=((i>>1)&1) as u32;
+        let c=((i>>2)&1) as u32;
         let x=a^b;
         let row=[a,b,c,x,a&b,x^c,(a&b)|(x&c),(a&b)|((1-a)&c)];
         values.extend(row.into_iter().map(F::from_u32));

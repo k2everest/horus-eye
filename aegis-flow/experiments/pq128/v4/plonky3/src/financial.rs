@@ -112,7 +112,7 @@ impl<AB:AirBuilder> Air<AB> for FinancialAmountAir{
             }
             if i==8{
                 for k in 0..VALUE_BITS {
-                    let required=F::from_u64(self.fee>>k&1);
+                    let required=AB::Expr::from_u32((self.fee>>k&1) as u32);
                     builder.assert_eq(local[VALUES_START+i*VALUE_BITS+k],required);
                 }
             }else{
@@ -259,7 +259,7 @@ mod tests{
     fn limbs_and_53bit_overflow_bounds(){
         assert_eq!(WIDTH,535);
         assert!(ROWS>=4096);
-        assert!((4u64*MAX_VALUE as u128) < (1u128<<64));
+        assert!((4u128*MAX_VALUE as u128) < (1u128<<64));
         assert!((5*65535+7)<2_013_265_921u64);
         let air=FinancialAmountAir{expected_digest:[1;WORDS],fee:10,inputs:1,outputs:2};
         let m=trace(&air,[100,0,0,0,40,50,0,0,10]);

@@ -102,7 +102,7 @@ jobs:
         env:
           AEGIS_V4_P3_INTEGRATION: '1'
           AEGIS_V4_P3_BINARY: ${{ github.workspace }}/aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab
-        run: node --test aegis-flow/experiments/pq128/v4/plonky3.integration.test.mjs aegis-flow/experiments/pq128/v4/financial53.integration.test.mjs aegis-flow/experiments/pq128/v4/single-transfer.integration.test.mjs
+        run: node --test aegis-flow/experiments/pq128/v4/plonky3.integration.test.mjs aegis-flow/experiments/pq128/v4/financial53.integration.test.mjs aegis-flow/experiments/pq128/v4/single-transfer.integration.test.mjs aegis-flow/experiments/pq128/v4/wired-r1cs.integration.test.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: v4-plonky3-lab-lock-${{ github.sha }}

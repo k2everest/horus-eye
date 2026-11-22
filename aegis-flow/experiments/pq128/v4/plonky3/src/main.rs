@@ -4,6 +4,7 @@
 //! NON-ZK; no PQ128 qualification or consensus activation.
 mod financial;
 mod sha512_gates;
+mod wired_r1cs;
 use std::{fs,panic::{catch_unwind,AssertUnwindSafe},path::Path};
 use base64::{engine::general_purpose::STANDARD as B64,Engine};
 use p3_air::{Air,AirBuilder,BaseAir,WindowAccess};

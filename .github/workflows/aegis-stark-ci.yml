@@ -91,6 +91,7 @@ jobs:
         run: |
           aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab security-report > aegis-v4-p3-rbr.json
           node -e "const r=require('./aegis-v4-p3-rbr.json'); if(r.aegis_target_met!==false||r.production_ready!==false||r.financial_air_complete!==false||r.quantum_fiat_shamir_qrom_proved!==false||r.fri_queries!==320||r.challenge_extension_degree!==8)process.exit(1)"
+          node aegis-flow/experiments/pq128/v4/rbr-gate.mjs aegis-v4-p3-rbr.json > aegis-v4-p3-m1-screen.json
       - name: Prove and verify a real bounded-balance proof (NOT a financial receipt)
         env:
           AEGIS_V4_P3_INTEGRATION: '1'
@@ -102,6 +103,7 @@ jobs:
           path: |
             aegis-flow/experiments/pq128/v4/plonky3/Cargo.lock
             aegis-v4-p3-rbr.json
+            aegis-v4-p3-m1-screen.json
           if-no-files-found: error
           retention-days: 3
 

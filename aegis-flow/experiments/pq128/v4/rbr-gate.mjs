@@ -3,6 +3,8 @@
 // The report is an unauthenticated artifact of a local lab build and is
 // NEVER proof of post-quantum Fiat-Shamir, witness knowledge or privacy.
 import {readFileSync} from 'node:fs';
+import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
 
 const integer=(value,name,min,max)=>{
   if(!Number.isSafeInteger(value)||value<min||value>max)
@@ -59,7 +61,7 @@ export function assessV4Rbr(report,{receipts=1n<<32n,maxSegments=64,
     decision:'HOLD_M1_QUANTUM_SOUNDNESS_UNPROVED',
   });
 }
-if(import.meta.url===new URL(process.argv[1]??'', 'file:///').href){
+if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){
   if(process.argv.length!==3)throw new Error('pass exactly one native JSON report');
   const parsed=JSON.parse(readFileSync(process.argv[2],'utf8'));
   process.stdout.write(JSON.stringify(assessV4Rbr(parsed),null,2)+'\n');

@@ -253,3 +253,58 @@ prover-side Rust/JS preflight. Also reject any altered spend secret,
 nullifier, Merkle sibling, anchor, recipient output or public fee.
 End-to-end PQ128 additionally requires the prior M1/QROM, knowledge
 and privacy proofs.
+
+
+## 1x1 single-leaf transfer vertical slice
+
+The current one-in/one-out path is separated into **two trust boundaries**:
+
+1. **Native Plonky3 subset:** `prove-single-transfer` and
+   `verify-single-transfer` use the existing 53-bit amount-conservation
+   `FinancialAmountAir` with one input, one output and a public fee.
+   For an anchor consisting of **exactly one leaf**, the native verifier
+   independently recomputes the public Merkle leaf/root hash using the
+   input commitment and network identifier. This new verifier-side
+   public check does not require a Merkle proof or disclose private note
+   data. A unit test constructs a *genuine balanced Plonky3 proof*
+   against a fake root; the generic balance verifier accepts it but the
+   new strict one-leaf verifier rejects it.
+2. **Full SHA-512 Boolean relation (not yet a Plonky3 proof):**
+   `single-transfer-circuit.mjs` explicitly selects exactly one input,
+   one output and one leaf, independently pins the public SHA-512
+   financial-statement digest, and compiles the already existing
+   `constraints/transfer.mjs` into a deterministic program. The
+   returned manifest binds the *public program* with
+   `bitCircuitDigest512`, gate/wire counts and all six required SHA-512
+   relations (owner, input note, nullifier, leaf, tree root, output note).
+   The one private assignment checks ownership, positive 53-bit note
+   values, note commitments, nullifier, exact Merkle root and
+   `sum(input) == sum(output)+fee`, with adversarial tests.
+   A local Boolean checker is **not** a post-quantum STARK proof.
+
+The native result intentionally exposes
+`valid_balance` and `public_single_leaf_membership_verified` but
+**always returns** `private_note_commitment_proved:false`,
+`private_ownership_proved:false`, `private_nullifier_proved:false`,
+`financial_relation_proved:false`, `production_ready:false` and
+`aegis_target_met:false`.
+
+**Remaining missing bridge:** translate the entire canonical Boolean
+SHA-512 program, including its wire-index consistency (e.g. secure
+cross-row lookups/LogUp), into one hiding Plonky3 AIR/IOP. Prove the
+result under a verifier-rebuilt and independently authenticated program.
+Without lookup/wiring constraints, proving individual SHA-512 gates
+would be unsound: a prover can substitute arbitrary values between
+gate rows. An R1CS/QAP host check or an additional unlinked proof is
+not a substitute for a common cryptographically bound witness.
+The one-leaf public membership shortcut does not generalize to hidden
+multi-leaf Merkle inclusion.
+
+Reproducible native integration:
+
+```sh
+cargo test --release --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
+AEGIS_V4_P3_INTEGRATION=1 AEGIS_V4_P3_BINARY="$PWD/aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab" \
+  node --test aegis-flow/experiments/pq128/v4/single-transfer.integration.test.mjs
+node --test aegis-flow/experiments/pq128/v4/single-transfer-circuit.test.mjs
+```

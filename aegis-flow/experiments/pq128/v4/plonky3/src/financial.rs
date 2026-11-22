@@ -6,13 +6,19 @@
 use std::{fs,path::Path,panic::{catch_unwind,AssertUnwindSafe}};
 use base64::{engine::general_purpose::STANDARD as B64,Engine};
 use p3_air::{Air,AirBuilder,BaseAir,WindowAccess};
+use p3_air::symbolic::AirLayout;
+use p3_commit::Pcs as PcsTrait;
+use p3_security::fri::FriRegime;
+use p3_uni_stark::{StarkSecurityParams,StarkGenericConfig,OpeningShape,GrindingSites,ProvenSecurity,ConjecturedSecurity};
 use p3_field::{Field,PrimeCharacteristicRing};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::{prove,verify,Proof};
 use serde::{Deserialize,Serialize};
 use serde_json::Value;
 use sha2::{Digest,Sha512};
-use crate::{F,Config,config,ROWS,MAX_PROOF,WORDS};
+use crate::{F,E,Chall,Pcs,Config,config,ROWS,LOG_BLOWUP,QUERIES,EXT_DIM,
+    RANDOM_CODEWORDS,SALT_ELEMS,MAX_PROOF,WORDS,
+    EXTENSION_FIELD_FLOOR_BITS,IDEAL_HASH_COLLISION_BITS};
 
 const SCHEME:&str="AEGIS_V4_P3_FINANCIAL_AMOUNT53_PARTIAL_V1";
 const MAX_VALUE:u64=(1u64<<53)-1;
@@ -187,6 +193,49 @@ fn trace(air:&FinancialAmountAir,amounts:[u64;NOTE_COUNT])->RowMajorMatrix<F>{
     for _ in 0..ROWS{data.extend_from_slice(&row);}
     RowMajorMatrix::new(data,WIDTH)
 }
+// This uses the EXACT financial amount AIR shape, not the prior 16-bit
+// smoke AIR. It is an interactive RBR sizing diagnostic with a HYPOTHETICAL
+// ideal hash collision parameter, not a QROM/Fiat-Shamir proof.
+pub(crate) fn financial_rbr_report()->serde_json::Value{
+    let regime=FriRegime{log_blowup:LOG_BLOWUP,log_final_poly_len:0,
+        max_log_arity:1,num_queries:QUERIES,commit_pow_bits:0,query_pow_bits:0};
+    let config=config();
+    let air=FinancialAmountAir{expected_digest:[0;WORDS],fee:0,inputs:1,outputs:1};
+    let layout=AirLayout{main_width:WIDTH,..Default::default()};
+    let domain=<Pcs as PcsTrait<E,Chall>>::natural_domain_for_degree(config.pcs(),ROWS*2);
+    let params=StarkSecurityParams::from_air::<F,E,_>(regime,&air,layout,domain,
+        EXTENSION_FIELD_FLOOR_BITS,IDEAL_HASH_COLLISION_BITS,1,
+        OpeningShape::hiding(RANDOM_CODEWORDS),GrindingSites::NONE);
+    let proven=ProvenSecurity::compute_from_proof(ROWS.ilog2() as usize+1,&params);
+    let conjecture=ConjecturedSecurity::compute_from_params(&params,ROWS.ilog2() as usize+1);
+    serde_json::json!({
+        "schema":"AEGIS_V4_AMOUNT53_RBR_RESEARCH_V1",
+        "sdk":"Plonky3 0.8.0",
+        "air":"amount-conservation-53bit-only",
+        "air_width":WIDTH,
+        "trace_rows":ROWS,
+        "fri_queries":QUERIES,
+        "log_blowup":LOG_BLOWUP,
+        "challenge_extension_degree":EXT_DIM,
+        "random_codewords":RANDOM_CODEWORDS,
+        "salt_elements":SALT_ELEMS,
+        "field_cardinality_floor_bits":EXTENSION_FIELD_FLOOR_BITS,
+        "ideal_sha512_collision_bits_assumed":IDEAL_HASH_COLLISION_BITS,
+        "air_constraints_derived":params.num_constraints,
+        "air_constraint_degree_derived":params.air_max_constraint_degree,
+        "batch_openings_derived":params.num_batched_functions,
+        "quotient_chunks_derived":params.num_quotient_chunks,
+        "rbr_unique_decoding_bits":proven.unique_decoding_bits,
+        "rbr_list_decoding_bits":proven.list_decoding_bits,
+        "rbr_best_bits":proven.security_bits(),
+        "conjectured_bits":conjecture.security_bits,
+        "all_sha512_hashes_constrained":false,
+        "financial_air_complete":false,
+        "quantum_fiat_shamir_qrom_proved":false,
+        "aegis_target_met":false,"production_ready":false
+    })
+}
+
 #[derive(Serialize,Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ProofBundle{scheme:String,statement:Statement,proof:String}

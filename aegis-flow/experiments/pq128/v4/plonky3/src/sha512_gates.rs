@@ -69,6 +69,18 @@ mod tests {
         }}}
     }
     #[test]
+    fn corrupted_boolean_gate_is_not_accepted_by_real_verifier(){
+        let air=Sha512BooleanGateAir;
+        let mut trace=gate_trace();
+        // Row 0 has a=b=c=0 and must have sum=0. Force the full-adder
+        // output to 1 while preserving all other witness columns.
+        trace.values[5]=F::ONE;
+        match prove(&config(),&air,trace,&[]){
+            Ok(proof)=>assert!(verify(&config(),&air,&proof,&[]).is_err()),
+            Err(_)=>{}, // fail-closed prover rejection is also correct
+        }
+    }
+    #[test]
     fn real_hiding_plonky3_boolean_core_proof_verifies(){
         let air=Sha512BooleanGateAir;
         let proof=prove(&config(),&air,gate_trace(),&[]).unwrap();

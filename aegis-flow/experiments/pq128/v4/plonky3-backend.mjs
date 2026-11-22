@@ -14,7 +14,7 @@ const fields=['network_id','program_id','index','segment_count','pre_state','pos
 const exact=(o,keys)=>o&&typeof o==='object'&&!Array.isArray(o)&&
   Object.keys(o).sort().join(',')===[...keys].sort().join(',');
 const reject=()=>({valid:false});
-export const P3_V4_SMOKE_SCHEME='AEGIS_V4_P3_BALANCE_SMOKE_V1';
+export const P3_V4_SMOKE_SCHEME='AEGIS_V4_P3_HIDING_EXT8_LAB_V1';
 
 export class NativePlonky3V4Verifier {
   #binary;#expectedProgramId;#expectedSha512;#timeout;
@@ -45,7 +45,7 @@ export class NativePlonky3V4Verifier {
       const {proofBytes,programId,networkId,statementDigest,segmentIndex,segmentCount}=options;
       this.#check();
       if(!(proofBytes instanceof Uint8Array)||proofBytes.byteLength<16||
-        proofBytes.byteLength>1_500_000||programId!==this.#expectedProgramId||
+        proofBytes.byteLength>12*1024*1024||programId!==this.#expectedProgramId||
         typeof networkId!=='string'||!/^[A-Za-z0-9_-]{1,64}$/.test(networkId)||
         !Number.isSafeInteger(segmentIndex)||!Number.isSafeInteger(segmentCount)||
         segmentCount<1||segmentCount>64||segmentIndex<0||segmentIndex>=segmentCount)
@@ -57,7 +57,7 @@ export class NativePlonky3V4Verifier {
         !exact(bundle.claim,fields)||bundle.claim.network_id!==networkId||
         bundle.claim.program_id!==programId||bundle.claim.index!==segmentIndex||
         bundle.claim.segment_count!==segmentCount||
-        typeof bundle.proof!=='string'||bundle.proof.length>1_398_104)
+        typeof bundle.proof!=='string'||bundle.proof.length>11_184_812)
         return reject();
       for(const k of ['pre_state','post_state'])bytes512(bundle.claim[k]);
       if(segmentIndex===segmentCount-1)bytes512(bundle.claim.journal_digest);
@@ -74,7 +74,7 @@ export class NativePlonky3V4Verifier {
       });
       const result=JSON.parse(stdout);
       if(!exact(result,['valid','authenticated','engine','aegis_target_met','production_ready'])||
-        result.valid!==true||result.engine!=='PLONKY3-0.8.0-RESEARCH-ONLY'||
+        result.valid!==true||result.engine!=='PLONKY3-0.8.0-HIDING-EXT8-LAB'||
         result.aegis_target_met!==false||result.production_ready!==false||
         !exact(result.authenticated,fields)||
         JSON.stringify(result.authenticated)!==JSON.stringify(bundle.claim))

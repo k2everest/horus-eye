@@ -138,7 +138,7 @@ impl<AB:AirBuilder> Air<AB> for FinancialAmountAir{
                 ins+=limbs[i][j].clone();outs+=limbs[4+i][j].clone();
             }
             let (ci_next,co_next)=if j<CARRY_ROWS{
-                let carry=|side:usize|{
+                let mut carry=|side:usize|{
                     let mut acc=AB::Expr::ZERO;
                     for k in 0..CARRY_BITS{
                         let value:AB::Expr=local[CARRY_START+side*CARRY_ROWS*CARRY_BITS+
@@ -169,7 +169,8 @@ fn trace(air:&FinancialAmountAir,amounts:[u64;NOTE_COUNT])->RowMajorMatrix<F>{
             row.push(F::from_u32(bits).inverse());
         }else{row.push(F::ZERO);}
     }
-    let mut ins_carries=[0u64;CARRY_ROWS],outs_carries=[0u64;CARRY_ROWS];
+    let mut ins_carries=[0u64;CARRY_ROWS];
+    let mut outs_carries=[0u64;CARRY_ROWS];
     let mut ci=0u64;let mut co=0u64;
     for j in 0..CARRY_ROWS{
         let ins=ci+(0..4).map(|i|amounts[i]>>(16*j)&65535).sum::<u64>();

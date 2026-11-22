@@ -36,7 +36,7 @@ test('real Plonky3 native balance proof verifies a SHA-512-bound public claim; t
       execFileSync(binary,['prove',inFile,proofFile],{timeout:90000,stdio:['ignore','pipe','pipe']});
       const bundle=readFileSync(proofFile);
       const parsed=JSON.parse(bundle);
-      assert.equal(parsed.scheme,'AEGIS_V4_P3_BALANCE_SMOKE_V1');
+      assert.equal(parsed.scheme,'AEGIS_V4_P3_HIDING_EXT8_LAB_V1');
       assert.equal(Object.hasOwn(parsed,'amounts'),false);
       const parameters={proofBytes:bundle,programId:program,networkId:statement.network_id,
         statementDigest:financialStatementDigest512(statement),segmentIndex:0,segmentCount:1};

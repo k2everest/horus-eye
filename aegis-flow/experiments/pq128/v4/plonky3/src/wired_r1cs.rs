@@ -29,7 +29,11 @@ const MAX_GATES:usize=8_000_000;
 // rows * 2 * 8 <= 2^27, so <= 2^23 trace rows.
 const MAX_WIRES:usize=8_388_608;
 const MIN_ROWS:usize=4096;
-const GATE_WIDTH:usize=4;
+// Four private-wire columns plus 12 program-metadata columns. Every
+// metadata column is constrained equal to an independently reconstructed
+// public periodic column; LogUp reads main trace columns only because the
+// v0.8.0 lookup witness evaluator does not receive periodic data.
+const GATE_WIDTH:usize=4+PREP_WIDTH;
 // columns: gate active; four one-hot op flags; gate (a,b,z) indices;
 // wire-table index; wire use-count; constant-0/1 pin flags.
 const PREP_WIDTH:usize=12;
@@ -104,6 +108,19 @@ impl PublicProgram{
 pub(crate) struct WiredAir{program:Arc<PublicProgram>}
 impl WiredAir{
     pub(crate) fn new(program:PublicProgram)->Self{Self{program:Arc::new(program)}}
+    fn program_row(&self,i:usize)->[u32;PREP_WIDTH]{
+        let g=self.program.gates.get(i);
+        let op=g.map(|x|x.op).unwrap_or(0);
+        let a=g.map(|x|x.a).unwrap_or(0);
+        let b=g.map(|x|x.b).unwrap_or(0);
+        let z=g.map(|x|x.z).unwrap_or(0);
+        [
+            u32::from(g.is_some()),u32::from(op==1),u32::from(op==2),
+            u32::from(op==3),u32::from(op==4),a,b,z,
+            i as u32,self.program.use_counts.get(i).copied().unwrap_or(0),
+            u32::from(i==0),u32::from(i==1),
+        ]
+    }
     pub(crate) fn trace(&self,bits:&[u8])->Result<RowMajorMatrix<F>,()>{
         if bits.len()!=self.program.wire_count||
             bits.iter().any(|&b|b>1)||bits[0]!=0||bits[1]!=1{return Err(());}
@@ -112,8 +129,9 @@ impl WiredAir{
             let (a,b,z)=if let Some(g)=self.program.gates.get(i){
                 (bits[g.a as usize],bits[g.b as usize],bits[g.z as usize])
             }else{(0,0,0)};
-            let w=bits.get(i).copied().unwrap_or(0);
-            trace.extend([a,b,z,w].map(|x|F::from_u32(x as u32)));
+            let wire=bits.get(i).copied().unwrap_or(0);
+            trace.extend([a,b,z,wire].map(|x|F::from_u32(x as u32)));
+            trace.extend(self.program_row(i).map(F::from_u32));
         }
         Ok(RowMajorMatrix::new(trace,GATE_WIDTH))
     }
@@ -131,18 +149,7 @@ impl<T:Field> BaseAir<T> for WiredAir{
         let mut columns:Vec<Vec<T>>=(0..PREP_WIDTH)
             .map(|_|Vec::with_capacity(self.program.rows)).collect();
         for i in 0..self.program.rows{
-            let g=self.program.gates.get(i);
-            let op=g.map(|x|x.op).unwrap_or(0);
-            let a=g.map(|x|x.a).unwrap_or(0);
-            let b=g.map(|x|x.b).unwrap_or(0);
-            let z=g.map(|x|x.z).unwrap_or(0);
-            let row=[
-                u32::from(g.is_some()),u32::from(op==1),u32::from(op==2),
-                u32::from(op==3),u32::from(op==4),a,b,z,
-                i as u32,self.program.use_counts.get(i).copied().unwrap_or(0),
-                u32::from(i==0),u32::from(i==1),
-            ];
-            for (j,value) in row.into_iter().enumerate(){
+            for (j,value) in self.program_row(i).into_iter().enumerate(){
                 columns[j].push(T::from_u32(value));
             }
         }
@@ -166,7 +173,15 @@ where AB:AirBuilder+PermutationAirBuilder+InteractionBuilder,
         let b:AB::Expr=s[1].into();
         let z:AB::Expr=s[2].into();
         let wire:AB::Expr=s[3].into();
-        let c=builder.periodic_values().to_vec();
+        let public_metadata=builder.periodic_values().to_vec();
+        // Gate instruction columns come from the MAIN trace so the
+        // LogUp prover can resolve all (wire_id, value) lookups. Their
+        // equality to canonical PUBLIC program values is an AIR
+        // constraint at every single row, not a prover-side check.
+        for j in 0..PREP_WIDTH{
+            builder.assert_eq(s[4+j],public_metadata[j]);
+        }
+        let c=s[4..4+PREP_WIDTH].to_vec();
         let active:AB::Expr=c[0].into();
         let op_and:AB::Expr=c[1].into();
         let op_xor:AB::Expr=c[2].into();

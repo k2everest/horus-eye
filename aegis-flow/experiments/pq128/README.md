@@ -27,6 +27,12 @@ uma derivação finita de claw no modelo ideal e o viés iid do sampler. Limites
 ausentes de soundness, conhecimento e privacidade ficam `null`. Essa análise
 não certifica o motor e não executa um ataque contra SHA-256.
 
+O [escopo de qualificação](../../docs/planning/pq128-scope-2026-11-21.md)
+avalia os caminhos aceitos e candidatos e define entregáveis para a nova versão.
+A [busca combinatória](quantitative/parameter-search.mjs) compara 180 combinações
+abstratas com aritmética exata. Resultados favoráveis continuam condicionais:
+não geram proofs, métodos criptográficos inéditos ou aprovação PQ128.
+
 ## Componentes executáveis
 
 `bindings.mjs` usa SHA-512 completo para commitments genéricos, folhas/nós Merkle,

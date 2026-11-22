@@ -65,3 +65,6 @@ O gate/runtime de produção permanece bloqueado até esses critérios serem ate
 
 Execução e limites: [carteira/recuperação](../operations/pow-wallet-recovery.md).
 Estado criptográfico: [parâmetros STARK](../security/stark-parameters.md).
+
+Escopo detalhado para substituir e qualificar a construção:
+[PQ128: avaliação, decisões e critérios por marco](pq128-scope-2026-11-21.md).

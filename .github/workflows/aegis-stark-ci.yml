@@ -22,6 +22,10 @@ jobs:
         run: node --test aegis-flow/experiments/pq128/*.test.mjs aegis-flow/experiments/pq128/fri/*.test.mjs aegis-flow/experiments/pq128/financial/*.test.mjs aegis-flow/experiments/pq128/constraints/*.test.mjs aegis-flow/experiments/pq128/quantitative/*.test.mjs aegis-flow/experiments/pq128/v4/*.test.mjs aegis-flow/experiments/pq128/native/backend.test.mjs
       - name: Record finite query-model obligations without approving the complete protocol
         run: node aegis-flow/experiments/pq128/quantitative/demo.mjs > pq128-quantitative-research.json
+      - name: Explore bounded parameter combinations under two explicit conditional targets
+        run: |
+          node aegis-flow/experiments/pq128/quantitative/parameter-search-demo.mjs > pq128-parameter-search.json
+          node aegis-flow/experiments/pq128/quantitative/parameter-search-demo.mjs --target-failure-bits 128 > pq128-parameter-search-residual.json
       - name: Report the SHA-512 outer-binding QROM ideal-screen for V4 only
         run: node aegis-flow/experiments/pq128/v4/demo.mjs > pq128-v4-outer-screen.json
       - name: Check the private transfer constraint assignment without publishing it
@@ -48,6 +52,8 @@ jobs:
             pq128-quantitative-research.json
             pq128-v4-outer-screen.json
             pq128-private-oracle-recovery.json
+            pq128-parameter-search.json
+            pq128-parameter-search-residual.json
           retention-days: 3
           if-no-files-found: error
 

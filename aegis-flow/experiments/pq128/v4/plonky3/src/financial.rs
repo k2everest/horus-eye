@@ -328,6 +328,12 @@ mod tests{
             fee:"10".into(),transaction_binding:"ee".repeat(64),
         };
         assert!(s.valid());
+        // Independent Python/JavaScript FIPS-180-4 framing vector. The guest
+        // serializes the same canonical public-field order.
+        let words=binding(&s).unwrap();
+        let observed=words.iter().map(|w|format!("{w:04x}")).collect::<String>();
+        assert_eq!(observed,
+            "e5092b32a2f6f300743d5df5329a4622485cbb1f28acf507d7df47ee48e4f9975aef09359e7530f8e55fcfcfc96ee6c9e0f8915eaf3709d8c7450d9731a5d740");
         let air=FinancialAmountAir{expected_digest:binding(&s).unwrap(),
             fee:10,inputs:1,outputs:1};
         let proof=prove(&config(),&air,trace(&air,[100,0,0,0,90,0,0,0,10]),&[]).unwrap();

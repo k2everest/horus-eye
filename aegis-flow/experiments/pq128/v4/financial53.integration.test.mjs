@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import {mkdtempSync,readFileSync,writeFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -53,7 +52,7 @@ test('Plonky3 proves 53-bit conservation and binds a canonical SHA512 public sta
       writeFileSync(alteredPath,JSON.stringify(tampered));
       assert.equal(JSON.parse(run('verify-financial-balance',alteredPath,files.publicPath)).valid,false);
       for(const [j,mutate] of [
-        x=>{x.fee='1';},
+        x=>{x.fee=x.fee==='1'?'2':'1';},
         x=>{x.output_commitments[0]='aa'.repeat(64);},
         x=>{x.nullifiers[0]='bb'.repeat(64);},
         x=>{x.anchor_root='cc'.repeat(64);},

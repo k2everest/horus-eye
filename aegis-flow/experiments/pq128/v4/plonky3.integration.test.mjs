@@ -20,6 +20,20 @@ test('real Plonky3 native balance proof verifies a SHA-512-bound public claim; t
     const backend=new NativePlonky3V4Verifier({binaryPath:binary,expectedProgramId:program,
       expectedBinarySha512:crypto.createHash('sha512').update(bytes).digest('hex')});
     assert.equal(backend.available(),true);
+    const report=JSON.parse(execFileSync(binary,['security-report'],{timeout:30000,encoding:'utf8'}));
+    assert.equal(report.schema,'AEGIS_V4_PLONKY3_RBR_LAB_REPORT_V1');
+    assert.equal(report.fri_queries,320);
+    assert.equal(report.challenge_extension_degree,8);
+    assert.equal(report.log_blowup,3);
+    assert.equal(report.random_codewords,8);
+    assert.equal(report.salt_elements,8);
+    assert.equal(report.financial_air_complete,false);
+    assert.equal(report.quantum_fiat_shamir_qrom_proved,false);
+    assert.equal(report.aegis_target_met,false);
+    assert.equal(report.production_ready,false);
+    assert.ok(Number.isInteger(report.rbr_best_bits));
+    assert.ok(report.rbr_best_bits>0);
+    assert.ok(report.batch_openings_derived>100);
     const {statement}=native512Fixture({leafCount:1});
     const claim={
       network_id:statement.network_id,program_id:program,index:0,segment_count:1,

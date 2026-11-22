@@ -11,9 +11,12 @@
 //! confirmation of financial PQ128 or a benchmark of the 6-SHA-512 program.
 //! A financial verifier must derive the program from an independently
 //! authenticated statement before constructing a verifier instance.
-use std::{borrow::Cow,sync::Arc};
+use std::{borrow::Cow,path::Path,fs,sync::Arc,panic::{catch_unwind,AssertUnwindSafe}};
+use base64::{engine::general_purpose::STANDARD as B64,Engine};
+use serde::{Serialize,Deserialize};
+use sha2::{Digest,Sha512};
 use p3_air::{Air,AirBuilder,BaseAir,PermutationAirBuilder,WindowAccess};
-use p3_batch_stark::{ProverData,StarkInstance,prove_batch,verify_batch};
+use p3_batch_stark::{BatchProof,ProverData,StarkInstance,prove_batch,verify_batch};
 use p3_field::{Field,PrimeCharacteristicRing};
 use p3_lookup::{Count,InteractionBuilder,LookupBus};
 use p3_matrix::dense::RowMajorMatrix;
@@ -168,6 +171,88 @@ where AB:AirBuilder+PermutationAirBuilder+InteractionBuilder{
         BUS.lookup_key(builder,[z_id,z],Count::bounded(active,1));
         BUS.table_entry(builder,[wire_id,wire],use_count);
     }
+}
+
+// A general-purpose STARK proof of a *fixed Boolean program*. This is
+// not by itself a financial proof: the verifier must independently rebuild
+// and authenticate the complete program for the relevant public statement.
+const WIRED_SCHEME:&str="AEGIS_V4_PLONKY3_WIRED_LOGUP_RESEARCH_V1";
+const MAX_PROGRAM_BYTES:usize=110_000_128;
+const MAX_WIRED_PROOF:usize=32*1024*1024;
+const MAX_WIRED_BUNDLE:usize=44*1024*1024;
+#[derive(Debug,Serialize,Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WiredBundle{scheme:String,program_sha512:String,proof:String}
+#[derive(Debug,Serialize)]
+pub(crate) struct WiredVerdict{
+    valid:bool,program_sha512:Option<String>,
+    boolean_gate_relations_proved:bool,
+    cross_row_wire_consistency_proved:bool,
+    financial_relation_proved:bool,
+    knowledge_demonstrated:bool,
+    quantum_soundness_proved:bool,
+    aegis_target_met:bool,production_ready:bool,
+}
+fn rejected()->WiredVerdict{
+    WiredVerdict{valid:false,program_sha512:None,
+        boolean_gate_relations_proved:false,cross_row_wire_consistency_proved:false,
+        financial_relation_proved:false,knowledge_demonstrated:false,
+        quantum_soundness_proved:false,aegis_target_met:false,production_ready:false}
+}
+fn public_program(bytes:&[u8])->Result<(PublicProgram,String),()>{
+    if bytes.len()>MAX_PROGRAM_BYTES{return Err(());}
+    let digest=hex::encode(Sha512::digest(bytes));
+    let program=PublicProgram::from_bytes(bytes)?;
+    Ok((program,digest))
+}
+pub(crate) fn prove_wired(program_bytes:&[u8],assignment:&[u8],output:&Path)->Result<(),()>{
+    let (program,sha)=public_program(program_bytes)?;
+    let air=WiredAir::new(program);
+    let trace=air.trace(assignment)?;
+    let config=config(); // fresh unpredictable secrets for private witness
+    let instances=[StarkInstance::<Config,_>{air:&air,trace:&trace,public_values:vec![]}];
+    let prover_data=ProverData::from_instances(&config,&instances).map_err(|_|())?;
+    let proof=prove_batch(&config,&instances,&prover_data).map_err(|_|())?;
+    let encoded=postcard::to_allocvec(&proof).map_err(|_|())?;
+    if encoded.is_empty()||encoded.len()>MAX_WIRED_PROOF{return Err(());}
+    let bundle=WiredBundle{scheme:WIRED_SCHEME.to_owned(),program_sha512:sha,
+        proof:B64.encode(encoded)};
+    fs::write(output,serde_json::to_vec(&bundle).map_err(|_|())?).map_err(|_|())
+}
+pub(crate) fn verify_wired(program_bytes:&[u8],bundle_bytes:&[u8],expected_program_sha512:&str)->WiredVerdict{
+    let perform=||->Result<String,()>{
+        if bundle_bytes.len()>MAX_WIRED_BUNDLE||
+           expected_program_sha512.len()!=128||
+           !expected_program_sha512.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)){
+            return Err(());
+        }
+        let (program,digest)=public_program(program_bytes)?;
+        if digest!=expected_program_sha512{return Err(());}
+        let bundle:WiredBundle=serde_json::from_slice(bundle_bytes).map_err(|_|())?;
+        if bundle.scheme!=WIRED_SCHEME||bundle.program_sha512!=digest{return Err(());}
+        let encoded=B64.decode(&bundle.proof).map_err(|_|())?;
+        if encoded.is_empty()||encoded.len()>MAX_WIRED_PROOF||
+           B64.encode(&encoded)!=bundle.proof{return Err(());}
+        let proof:BatchProof<Config>=postcard::from_bytes(&encoded).map_err(|_|())?;
+        let air=WiredAir::new(program);
+        let config=config();
+        // The verifier derives every gate/index/constant pin and every
+        // multiplicity from the externally trusted public program.
+        // No private wire assignment or prover-supplied preprocessed
+        // commitment can influence this setup.
+        let log_degree=air.rows().ilog2() as usize+config.is_zk();
+        let data=ProverData::<Config>::from_airs_and_degrees(&config,
+            &[air.clone()],&[log_degree]).map_err(|_|())?;
+        verify_batch(&config,&[air],&proof,&[vec![]],&data.common).map_err(|_|())?;
+        Ok(digest)
+    };
+    let result=catch_unwind(AssertUnwindSafe(perform)).ok().and_then(Result::ok);
+    if let Some(program_sha512)=result{
+        WiredVerdict{valid:true,program_sha512:Some(program_sha512),
+            boolean_gate_relations_proved:true,cross_row_wire_consistency_proved:true,
+            financial_relation_proved:false,knowledge_demonstrated:false,
+            quantum_soundness_proved:false,aegis_target_met:false,production_ready:false}
+    }else{rejected()}
 }
 
 /// End-to-end proof is only for a **trusted public program**. Callers must

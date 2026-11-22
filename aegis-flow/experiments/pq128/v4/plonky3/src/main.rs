@@ -10,23 +10,33 @@ use p3_challenger::{HashChallenger,SerializingChallenger32};
 use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2Bowers;
 use p3_field::{extension::BinomialExtensionField,PrimeCharacteristicRing};
-use p3_fri::{FriParameters,TwoAdicFriPcs};
+use p3_fri::{FriParameters,HidingFriPcs};
 use p3_matrix::{dense::RowMajorMatrix,Matrix};
-use p3_merkle_tree::MerkleTreeMmcs;
+use p3_merkle_tree::MerkleTreeHidingMmcs;
 use p3_symmetric::{CompressionFunctionFromHasher,CryptographicHasher,SerializingHasher};
 use p3_uni_stark::{prove,verify,Proof,StarkConfig};
 use serde::{Deserialize,Serialize};
+use rand::{SeedableRng,rngs::StdRng};
 use sha2::{Digest,Sha512};
 
-const SCHEME:&str="AEGIS_V4_P3_BALANCE_SMOKE_V1";
-const MAX_PROOF:usize=1024*1024;
-const ROWS:usize=8;
+const SCHEME:&str="AEGIS_V4_P3_HIDING_EXT8_LAB_V1";
+const MAX_PROOF:usize=8*1024*1024;
+// Research profile: not a PQ128 certification. Budget is verified for one or
+// more OOD openings before the proof is constructed. The verifier fixes every
+// parameter; nothing is supplied by the untrusted proof.
+const ROWS:usize=4096;
+const LOG_BLOWUP:usize=3;
+const QUERIES:usize=320;
+const EXT_DIM:usize=8;
+const RANDOM_CODEWORDS:usize=8;
+const SALT_ELEMS:usize=8;
+const MAX_OPENING_POINTS:usize=8;
 const WORDS:usize=32;
 const AMOUNTS:usize=9;
 const BITS:usize=16;
 const WIDTH:usize=WORDS+AMOUNTS+AMOUNTS*BITS;
 type F=BabyBear;
-type E=BinomialExtensionField<F,4>;
+type E=BinomialExtensionField<F,8>;
 
 #[derive(Clone,Copy,Debug)]
 struct Sha512Hash(&'static [u8]);
@@ -66,20 +76,37 @@ impl CryptographicHasher<u64,[u64;8]> for Sha512Words {
 }
 type FH=SerializingHasher<Sha512Words>;
 type Compress=CompressionFunctionFromHasher<Sha512Words,2,8>;
-type Mmcs=MerkleTreeMmcs<F,u64,FH,Compress,2,8>;
+type Mmcs=MerkleTreeHidingMmcs<F,u64,FH,Compress,StdRng,2,8,SALT_ELEMS>;
 type EMmcs=ExtensionMmcs<F,E,Mmcs>;
 type Chall=SerializingChallenger32<F,HashChallenger<u8,Sha512Hash,64>>;
-type Pcs=TwoAdicFriPcs<F,Radix2Bowers,Mmcs,EMmcs>;
+type Pcs=HidingFriPcs<F,Radix2Bowers,Mmcs,EMmcs,StdRng>;
 type Config=StarkConfig<Pcs,E,Chall>;
 
 fn config()->Config{
-    let leaf=Sha512Words(b"AEGIS_V4_P3_LEAF_SHA512_V1\0");
-    let node=Sha512Words(b"AEGIS_V4_P3_NODE_SHA512_V1\0");
-    let chal_hash=Sha512Hash(b"AEGIS_V4_P3_TRANSCRIPT_SHA512_V1\0");
-    let mmcs=Mmcs::new(FH::new(leaf),Compress::new(node),3);
-    let fri=FriParameters::new_benchmark(EMmcs::new(mmcs.clone()));
-    let pcs=Pcs::new(Radix2Bowers::default(),mmcs,fri);
-    let challenger=Chall::new(HashChallenger::new(b"AEGIS_V4_P3_BALANCE_SMOKE_V1".to_vec(),chal_hash));
+    // HidingFriPcs upstream requires N >= 2*(queries + DIMENSION*points)
+    // AND both MMCS instances must be hiding; mere HidingFriPcs wrapping is
+    // insufficient. Salt entropy uses 8 independent BabyBear elements.
+    assert!(ROWS >= 2*(QUERIES+EXT_DIM*MAX_OPENING_POINTS));
+    assert!(RANDOM_CODEWORDS >= EXT_DIM);
+    assert!(SALT_ELEMS >= 5);
+    let leaf=Sha512Words(b"AEGIS_V4_P3_LEAF_SHA512_V2\0");
+    let node=Sha512Words(b"AEGIS_V4_P3_NODE_SHA512_V2\0");
+    let chal_hash=Sha512Hash(b"AEGIS_V4_P3_TRANSCRIPT_SHA512_V2\0");
+    let val_mmcs=Mmcs::new(FH::new(leaf),Compress::new(node),3,StdRng::from_os_rng());
+    let fri=FriParameters{
+        log_blowup:LOG_BLOWUP,
+        log_final_poly_len:0,
+        max_log_arity:1,
+        num_queries:QUERIES,
+        batch_proof_of_work_bits:0,
+        commit_proof_of_work_bits:0,
+        query_proof_of_work_bits:0,
+        mmcs:EMmcs::new(val_mmcs.clone()),
+    };
+    let pcs=Pcs::new(Radix2Bowers::default(),val_mmcs,fri,
+        RANDOM_CODEWORDS,StdRng::from_os_rng());
+    let challenger=Chall::new(HashChallenger::new(
+        b"AEGIS_V4_P3_HIDING_EXT8_LAB_V1".to_vec(),chal_hash));
     Config::new(pcs,challenger)
 }
 
@@ -180,7 +207,7 @@ fn generate(input:ProveInput,path:&Path)->Result<(),()>{
     fs::write(path,serde_json::to_vec(&bundle).map_err(|_|())?).map_err(|_|())
 }
 fn check(bundle:&[u8],expected:&[u8])->Result<Claim,()>{
-    if bundle.len()>1_500_000||expected.len()>4096{return Err(());}
+    if bundle.len()>11_200_000||expected.len()>4096{return Err(());}
     let b:Bundle=serde_json::from_slice(bundle).map_err(|_|())?;
     let e:Claim=serde_json::from_slice(expected).map_err(|_|())?;
     if b.scheme!=SCHEME||b.claim!=e||!e.valid(){return Err(());}
@@ -210,7 +237,7 @@ fn main(){
     let result=fs::read(&args[2]).ok().and_then(|bundle|fs::read(&args[3]).ok()
         .and_then(|expected|check(&bundle,&expected).ok()));
     let status=Verdict{valid:result.is_some(),authenticated:result,
-        engine:"PLONKY3-0.8.0-RESEARCH-ONLY",aegis_target_met:false,production_ready:false};
+        engine:"PLONKY3-0.8.0-HIDING-EXT8-LAB",aegis_target_met:false,production_ready:false};
     println!("{}",serde_json::to_string(&status).unwrap());
 }
 #[cfg(test)]
@@ -227,6 +254,8 @@ mod tests{
     }
     #[test]
     fn trace_shape(){
+        assert!(ROWS >= 2*(QUERIES+EXT_DIM*MAX_OPENING_POINTS));
+        assert!(SALT_ELEMS*30 >= 128);
         let m=make_trace([1;WORDS],[0;AMOUNTS]);
         assert_eq!(m.width(),WIDTH);
         assert_eq!(m.height(),ROWS);

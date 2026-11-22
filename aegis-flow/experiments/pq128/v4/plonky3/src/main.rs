@@ -280,7 +280,7 @@ fn main(){
     // and its expected SHA-512. The prover cannot select the circuit here.
     if args.len()==5&&args[1]=="prove-wired"{
         let result=fs::read(&args[2]).ok().zip(fs::read(&args[3]).ok())
-            .filter(|(p,w)|p.len()<=110_000_128&&w.len()<=12_000_000)
+            .filter(|(p,w)|p.len()<=110_000_128&&w.len()<=8_388_608)
             .and_then(|(p,w)|catch_unwind(AssertUnwindSafe(||
                 wired_r1cs::prove_wired(&p,&w,Path::new(&args[4])))).ok())
             .is_some_and(|r|r.is_ok());

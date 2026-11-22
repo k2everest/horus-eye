@@ -378,6 +378,7 @@ pub(crate) fn verify_single_transfer(bundle:&[u8],expected:&[u8])->SingleTransfe
 #[cfg(test)]
 mod tests{
     use super::*;
+    use p3_matrix::Matrix;
     #[test]
     fn rejects_noncanonical_and_out_of_range_values(){
         for value in ["0","01","","-1","9007199254740992","+1"]{
@@ -431,7 +432,7 @@ mod tests{
         // ownership or note preimages. Construct one such counterexample
         // to forbid future callers from interpreting valid_balance as
         // "valid private transaction" without an AIR SHA-512 gadget.
-        let fake=s.clone();
+        let mut fake=s.clone();
         let commitment=hex::decode(&fake.input_commitments[0]).unwrap();
         let leaf=framed_sha512(b"FINANCIAL_TREE_LEAF",
             &[fake.network_id.as_bytes(),&commitment]);

@@ -234,7 +234,7 @@ export function snapshotBitWitness(circuit,witness){
 export function bitCircuitPublicProgramBinary(circuit){
   const data=state(circuit);
   if(data.gateCount<1||data.gateCount>MAX_GATES||
-     data.wireCount<2||data.wireCount>12_000_000)throw new RangeError('bounded R1CS program required');
+     data.wireCount<2||data.wireCount>8_388_608)throw new RangeError('bounded R1CS program required');
   const magic=Buffer.from('AEGIS_V4_BOOLEAN_PROGRAM_V1\0','ascii');
   const encoded=Buffer.alloc(magic.length+8+13*data.gateCount);
   magic.copy(encoded,0);

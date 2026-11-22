@@ -5,6 +5,7 @@ import {mkdtempSync,readFileSync,writeFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {native512Fixture} from '../native/fixtures.mjs';
+import {financialStatementDigest512} from '../financial/relation.mjs';
 
 const enabled=process.env.AEGIS_V4_P3_INTEGRATION==='1';
 const binary=process.env.AEGIS_V4_P3_BINARY;
@@ -39,6 +40,8 @@ test('Plonky3 proves 53-bit conservation and binds a canonical SHA512 public sta
       assert.equal(JSON.stringify(bundle).includes(f.witness.inputs[0].note.randomness),false);
       const verdict=JSON.parse(run('verify-financial-balance',files.proofPath,files.publicPath));
       assert.equal(verdict.valid,true,'genuine Plonky3 native amount proof must verify');
+      assert.equal(verdict.statement_digest,financialStatementDigest512(f.statement),
+        'native canonical SHA512 public statement framing must match JavaScript');
       assert.equal(verdict.amount_conservation_proved,true);
       assert.equal(verdict.financial_relation_proved,false);
       assert.equal(verdict.sha512_preimages_arithmetized,false);

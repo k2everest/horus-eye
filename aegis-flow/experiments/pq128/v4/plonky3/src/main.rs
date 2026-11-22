@@ -276,6 +276,25 @@ fn parameter_report()->serde_json::Value{
 
 fn main(){
     let args:Vec<String>=std::env::args().collect();
+    // The verifier must receive a trusted, independently rebuilt program
+    // and its expected SHA-512. The prover cannot select the circuit here.
+    if args.len()==5&&args[1]=="prove-wired"{
+        let result=fs::read(&args[2]).ok().zip(fs::read(&args[3]).ok())
+            .filter(|(p,w)|p.len()<=110_000_128&&w.len()<=12_000_000)
+            .and_then(|(p,w)|catch_unwind(AssertUnwindSafe(||
+                wired_r1cs::prove_wired(&p,&w,Path::new(&args[4])))).ok())
+            .is_some_and(|r|r.is_ok());
+        if !result{eprintln!("WIRED_BOOLEAN_PROOF_GENERATION_FAILED");std::process::exit(1);}
+        return;
+    }
+    if args.len()==5&&args[1]=="verify-wired"{
+        let status=match (fs::read(&args[2]),fs::read(&args[3])){
+            (Ok(program),Ok(bundle))=>wired_r1cs::verify_wired(&program,&bundle,&args[4]),
+            _=>wired_r1cs::verify_wired(b"",b"",&args[4]),
+        };
+        println!("{}",serde_json::to_string(&status).unwrap());
+        return;
+    }
     if args.len()==4&&args[1]=="prove-single-transfer"{
         let ok=fs::read(&args[2]).ok().filter(|b|b.len()<=262144)
             .and_then(|b|catch_unwind(AssertUnwindSafe(||

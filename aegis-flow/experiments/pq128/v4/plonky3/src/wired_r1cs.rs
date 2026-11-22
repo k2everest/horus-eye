@@ -25,7 +25,9 @@ use crate::{F,Config,config};
 
 const PROGRAM_MAGIC:&[u8]=b"AEGIS_V4_BOOLEAN_PROGRAM_V1\0";
 const MAX_GATES:usize=8_000_000;
-const MAX_WIRES:usize=12_000_000;
+// BabyBear 2-adicity is 27. Hiding doubles the 8x FRI domain:
+// rows * 2 * 8 <= 2^27, so <= 2^23 trace rows.
+const MAX_WIRES:usize=8_388_608;
 const MIN_ROWS:usize=4096;
 const GATE_WIDTH:usize=4;
 // columns: gate active; four one-hot op flags; gate (a,b,z) indices;
@@ -75,6 +77,7 @@ impl PublicProgram{
         let hash:[u8;64]=digest.finalize().into();
         let words=std::array::from_fn(|i|
             u16::from_be_bytes([hash[2*i],hash[2*i+1]]));
+        if rows>(1usize<<23){return Err(());}
         Ok(Self{gates:gates.into(),use_counts:counts.into(),wire_count,rows,
             public_digest_words:words})
     }

@@ -427,6 +427,32 @@ mod tests{
         assert!(!strict.valid_balance);
         assert!(!strict.public_single_leaf_membership_verified);
         assert!(!strict.financial_relation_proved);
+        // A correct PUBLIC one-leaf anchor still does NOT prove private
+        // ownership or note preimages. Construct one such counterexample
+        // to forbid future callers from interpreting valid_balance as
+        // "valid private transaction" without an AIR SHA-512 gadget.
+        let fake=s.clone();
+        let commitment=hex::decode(&fake.input_commitments[0]).unwrap();
+        let leaf=framed_sha512(b"FINANCIAL_TREE_LEAF",
+            &[fake.network_id.as_bytes(),&commitment]);
+        fake.anchor_root=hex::encode(framed_sha512(b"FINANCIAL_TREE_ROOT",
+            &[fake.network_id.as_bytes(),&1u32.to_be_bytes(),&leaf]));
+        let fake_air=FinancialAmountAir{expected_digest:binding(&fake).unwrap(),
+            fee:10,inputs:1,outputs:1};
+        let fake_proof=prove(&config(),&fake_air,
+            trace(&fake_air,[100,0,0,0,90,0,0,0,10]),&[]).unwrap();
+        let forged=ProofBundle{scheme:SCHEME.into(),statement:fake.clone(),
+            proof:B64.encode(postcard::to_allocvec(&fake_proof).unwrap())};
+        let forged_bytes=serde_json::to_vec(&forged).unwrap();
+        let fake_public=serde_json::to_vec(&fake).unwrap();
+        let still_incomplete=verify_single_transfer(&forged_bytes,&fake_public);
+        assert!(still_incomplete.valid_balance);
+        assert!(still_incomplete.public_single_leaf_membership_verified);
+        assert!(!still_incomplete.private_ownership_proved);
+        assert!(!still_incomplete.private_note_commitment_proved);
+        assert!(!still_incomplete.private_nullifier_proved);
+        assert!(!still_incomplete.financial_relation_proved);
+        assert!(!still_incomplete.production_ready);
         // No private note preimage, owner, nullifier or path was needed.
         // This success is specifically an INCOMPLETE proof, not financial validity.
     }

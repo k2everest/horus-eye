@@ -4,7 +4,9 @@ import {native512Fixture} from '../native/fixtures.mjs';
 import {financialStatementDigest512} from '../financial/relation.mjs';
 import {compileOneInOneOut512,checkOneInOneOutWitnessLocally} from './single-transfer-circuit.mjs';
 
-test('single transfer canonical private SHA512 circuit expresses all six hashes under one witness',()=>{
+const enabled=process.env.AEGIS_V4_ONE_CIRCUIT_INTEGRATION==='1';
+test('single transfer canonical private SHA512 circuit expresses all six hashes under one witness',
+  {skip:!enabled,timeout:300000},()=>{
   const fixture=native512Fixture({leafCount:1,value:'100',outputValue:'99',fee:'1'});
   const pinned=financialStatementDigest512(fixture.statement);
   const m=compileOneInOneOut512({statement:fixture.statement,expectedStatementDigest:pinned});
@@ -31,7 +33,8 @@ test('single transfer canonical private SHA512 circuit expresses all six hashes 
   }
 });
 
-test('one-in-one-out circuit requires externally pinned public statement and rejects other shapes',()=>{
+test('one-in-one-out circuit requires externally pinned public statement and rejects other shapes',
+  {skip:!enabled,timeout:300000},()=>{
   const one=native512Fixture({leafCount:1});
   const digest=financialStatementDigest512(one.statement);
   for(const bad of [

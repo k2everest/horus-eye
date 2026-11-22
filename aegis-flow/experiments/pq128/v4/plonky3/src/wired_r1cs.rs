@@ -1,8 +1,8 @@
 //! Plonky3 0.8.0 R1CS Boolean gate wiring via a LogUp permutation bus.
 //!
 //! The public circuit is a FIXED program, not a prover-chosen circuit.
-//! Its instruction table and fixed pin values live in the PREPROCESSED
-//! columns committed by batch-STARK.  Each gate references a unique wire
+//! Its instruction table and fixed pin values live in DETERMINISTIC PUBLIC
+//! PERIODIC columns derived from the independently authenticated program.  Each gate references a unique wire
 //! table using (wire_index, wire_bit) messages on a common LogUp bus.
 //! The wire table contributes exactly the program-fixed use multiplicity.
 //! This prevents a malicious prover assigning two values to one wire.
@@ -11,7 +11,7 @@
 //! confirmation of financial PQ128 or a benchmark of the 6-SHA-512 program.
 //! A financial verifier must derive the program from an independently
 //! authenticated statement before constructing a verifier instance.
-use std::sync::Arc;
+use std::{borrow::Cow,sync::Arc};
 use p3_air::{Air,AirBuilder,BaseAir,PermutationAirBuilder,WindowAccess};
 use p3_batch_stark::{ProverData,StarkInstance,prove_batch,verify_batch};
 use p3_field::{Field,PrimeCharacteristicRing};
@@ -102,11 +102,11 @@ impl WiredAir{
 }
 impl<T:Field> BaseAir<T> for WiredAir{
     fn width(&self)->usize{GATE_WIDTH}
-    fn preprocessed_width(&self)->usize{PREP_WIDTH}
+    fn num_periodic_columns(&self)->usize{PREP_WIDTH}
     fn main_next_row_columns(&self)->Vec<usize>{vec![]}
-    fn preprocessed_next_row_columns(&self)->Vec<usize>{vec![]}
-    fn preprocessed_trace(&self)->Option<RowMajorMatrix<T>>{
-        let mut v=Vec::with_capacity(self.program.rows*PREP_WIDTH);
+    fn periodic_columns(&self)->Cow<'_,[Vec<T>]>{
+        let mut columns:Vec<Vec<T>>=(0..PREP_WIDTH)
+            .map(|_|Vec::with_capacity(self.program.rows)).collect();
         for i in 0..self.program.rows{
             let g=self.program.gates.get(i);
             let op=g.map(|x|x.op).unwrap_or(0);
@@ -119,9 +119,11 @@ impl<T:Field> BaseAir<T> for WiredAir{
                 i as u32,self.program.use_counts.get(i).copied().unwrap_or(0),
                 u32::from(i==0),u32::from(i==1),
             ];
-            v.extend(row.map(T::from_u32));
+            for (j,value) in row.into_iter().enumerate(){
+                columns[j].push(T::from_u32(value));
+            }
         }
-        Some(RowMajorMatrix::new(v,PREP_WIDTH))
+        Cow::Owned(columns)
     }
 }
 impl<AB> Air<AB> for WiredAir
@@ -133,8 +135,7 @@ where AB:AirBuilder+PermutationAirBuilder+InteractionBuilder{
         let b:AB::Expr=s[1].into();
         let z:AB::Expr=s[2].into();
         let wire:AB::Expr=s[3].into();
-        let prep=builder.preprocessed();
-        let c=prep.current_slice();
+        let c=builder.periodic_values();
         let active:AB::Expr=c[0].into();
         let op_and:AB::Expr=c[1].into();
         let op_xor:AB::Expr=c[2].into();

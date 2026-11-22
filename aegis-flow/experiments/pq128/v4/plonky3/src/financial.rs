@@ -3,7 +3,7 @@
 //! checked by the host ONLY, using aegis-financial512-guest. They are NOT
 //! arithmetized here: a valid STARK does NOT prove the financial relation.
 //! No consensus activation or PQ128 claim is possible from this module.
-use std::{fs,path::Path,panic::{catch_unwind,AssertUnwindSafe}};
+use std::{fs,path::Path,collections::HashSet,panic::{catch_unwind,AssertUnwindSafe}};
 use base64::{engine::general_purpose::STANDARD as B64,Engine};
 use p3_air::{Air,AirBuilder,BaseAir,WindowAccess};
 use p3_air::symbolic::AirLayout;
@@ -65,7 +65,11 @@ impl Statement{
         (1..=4).contains(&self.output_commitments.len())&&
         self.nullifiers.len()==self.input_commitments.len()&&
         self.input_commitments.iter().chain(self.output_commitments.iter())
-          .chain(self.nullifiers.iter()).all(|v|hex64(v))
+          .chain(self.nullifiers.iter()).all(|v|hex64(v))&&
+        self.input_commitments.iter().collect::<HashSet<_>>().len()==self.input_commitments.len()&&
+        self.output_commitments.iter().collect::<HashSet<_>>().len()==self.output_commitments.len()&&
+        self.nullifiers.iter().collect::<HashSet<_>>().len()==self.nullifiers.len()&&
+        self.input_commitments.iter().all(|v|!self.output_commitments.contains(v))
     }
 }
 fn binding(statement:&Statement)->Result<[u16;WORDS],()>{

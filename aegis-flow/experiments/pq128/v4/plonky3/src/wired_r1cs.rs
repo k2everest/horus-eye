@@ -42,6 +42,7 @@ pub(crate) struct PublicProgram{
     use_counts:Arc<[u32]>,
     wire_count:usize,
     rows:usize,
+    public_digest_words:[u16;32],
 }
 impl PublicProgram{
     pub(crate) fn from_gates(gates:Vec<Gate>,wire_count:usize)->Result<Self,()>{
@@ -63,7 +64,19 @@ impl PublicProgram{
         // The LogUp height bound includes 3 queries per active gate.
         if 3u64*gates.len() as u64>=2_013_265_921{return Err(());}
         let rows=gates.len().max(wire_count).max(MIN_ROWS).checked_next_power_of_two().ok_or(())?;
-        Ok(Self{gates:gates.into(),use_counts:counts.into(),wire_count,rows})
+        let mut digest=Sha512::new();
+        digest.update(PROGRAM_MAGIC);
+        digest.update((wire_count as u32).to_be_bytes());
+        digest.update((gates.len() as u32).to_be_bytes());
+        for gate in &gates{
+            digest.update([gate.op]);
+            for id in [gate.a,gate.b,gate.z]{digest.update(id.to_be_bytes());}
+        }
+        let hash:[u8;64]=digest.finalize().into();
+        let words=std::array::from_fn(|i|
+            u16::from_be_bytes([hash[2*i],hash[2*i+1]]));
+        Ok(Self{gates:gates.into(),use_counts:counts.into(),wire_count,rows,
+            public_digest_words:words})
     }
     pub(crate) fn from_bytes(bytes:&[u8])->Result<Self,()>{
         let prefix=PROGRAM_MAGIC.len();
@@ -102,9 +115,13 @@ impl WiredAir{
         Ok(RowMajorMatrix::new(trace,GATE_WIDTH))
     }
     pub(crate) fn rows(&self)->usize{self.program.rows}
+    pub(crate) fn public_values(&self)->Vec<F>{
+        self.program.public_digest_words.iter().copied().map(F::from_u16).collect()
+    }
 }
 impl<T:Field> BaseAir<T> for WiredAir{
     fn width(&self)->usize{GATE_WIDTH}
+    fn num_public_values(&self)->usize{32}
     fn num_periodic_columns(&self)->usize{PREP_WIDTH}
     fn main_next_row_columns(&self)->Vec<usize>{vec![]}
     fn periodic_columns(&self)->Cow<'_,[Vec<T>]>{
@@ -132,6 +149,13 @@ impl<T:Field> BaseAir<T> for WiredAir{
 impl<AB> Air<AB> for WiredAir
 where AB:AirBuilder+PermutationAirBuilder+InteractionBuilder{
     fn eval(&self,builder:&mut AB){
+        // The program's SHA-512 is absorbed into Fiat-Shamir as public
+        // values. The AIR also constrains them to the verifier's program,
+        // preventing a prover-controlled self-description.
+        let pins=builder.public_values();
+        for (i,word) in self.program.public_digest_words.iter().enumerate(){
+            builder.assert_eq(pins[i],AB::Expr::from_u16(*word));
+        }
         let row=builder.main();
         let s=row.current_slice();
         let a:AB::Expr=s[0].into();
@@ -210,7 +234,7 @@ pub(crate) fn prove_wired(program_bytes:&[u8],assignment:&[u8],output:&Path)->Re
     let air=WiredAir::new(program);
     let trace=air.trace(assignment)?;
     let config=config(); // fresh unpredictable secrets for private witness
-    let instances=[StarkInstance::<Config,_>{air:&air,trace:&trace,public_values:vec![]}];
+    let instances=[StarkInstance::<Config,_>{air:&air,trace:&trace,public_values:air.public_values()}];
     let prover_data=ProverData::from_instances(&config,&instances).map_err(|_|())?;
     let proof=prove_batch(&config,&instances,&prover_data).map_err(|_|())?;
     let encoded=postcard::to_allocvec(&proof).map_err(|_|())?;
@@ -243,7 +267,8 @@ pub(crate) fn verify_wired(program_bytes:&[u8],bundle_bytes:&[u8],expected_progr
         let log_degree=air.rows().ilog2() as usize+config.is_zk();
         let data=ProverData::<Config>::from_airs_and_degrees(&config,
             &[air.clone()],&[log_degree]).map_err(|_|())?;
-        verify_batch(&config,&[air],&proof,&[vec![]],&data.common).map_err(|_|())?;
+        let public=air.public_values();
+        verify_batch(&config,&[air],&proof,&[public],&data.common).map_err(|_|())?;
         Ok(digest)
     };
     let result=catch_unwind(AssertUnwindSafe(perform)).ok().and_then(Result::ok);
@@ -286,10 +311,11 @@ mod tests{
         let air=circuit();
         let trace=air.trace(&[0,1,1,1,1,1]).unwrap();
         let config=config();
-        let inst=[StarkInstance::<Config,_>{air:&air,trace:&trace,public_values:vec![]}];
+        let inst=[StarkInstance::<Config,_>{air:&air,trace:&trace,public_values:air.public_values()}];
         let data=ProverData::from_instances(&config,&inst).unwrap();
         let proof=prove_batch(&config,&inst,&data).unwrap();
-        verify_batch(&config,&[air],&proof,&[vec![]],&data.common).unwrap();
+        let public=air.public_values();
+        verify_batch(&config,&[air],&proof,&[public],&data.common).unwrap();
     }
     #[test]
     fn adversarial_gate_row_rebinding_is_rejected_by_logup(){
@@ -305,7 +331,8 @@ mod tests{
         let run=std::panic::catch_unwind(std::panic::AssertUnwindSafe(||{
             let data=ProverData::from_instances(&config,&inst).unwrap();
             match prove_batch(&config,&inst,&data){
-                Ok(p)=>verify_batch(&config,&[air],&p,&[vec![]],&data.common).is_err(),
+                Ok(p)=>{let public=air.public_values();
+                    verify_batch(&config,&[air],&p,&[public],&data.common).is_err()},
                 Err(_)=>true,
             }
         }));

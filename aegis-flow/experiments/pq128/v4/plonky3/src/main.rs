@@ -275,6 +275,22 @@ fn parameter_report()->serde_json::Value{
 
 fn main(){
     let args:Vec<String>=std::env::args().collect();
+    if args.len()==4&&args[1]=="prove-single-transfer"{
+        let ok=fs::read(&args[2]).ok().filter(|b|b.len()<=262144)
+            .and_then(|b|catch_unwind(AssertUnwindSafe(||
+                financial::prove_single_transfer(&b,Path::new(&args[3])))).ok())
+            .is_some_and(|r|r.is_ok());
+        if !ok{eprintln!("SINGLE_TRANSFER_PROOF_GENERATION_FAILED");std::process::exit(1);}
+        return;
+    }
+    if args.len()==4&&args[1]=="verify-single-transfer"{
+        let status=match (fs::read(&args[2]),fs::read(&args[3])){
+            (Ok(bundle),Ok(expected))=>financial::verify_single_transfer(&bundle,&expected),
+            _=>financial::verify_single_transfer(b"",b""),
+        };
+        println!("{}",serde_json::to_string(&status).unwrap());
+        return;
+    }
     if args.len()==2&&args[1]=="security-report-financial-balance"{
         println!("{}",financial::financial_rbr_report());
         return;

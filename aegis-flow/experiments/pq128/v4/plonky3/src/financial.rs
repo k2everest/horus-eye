@@ -245,7 +245,8 @@ pub(crate) fn financial_rbr_report()->serde_json::Value{
 struct ProofBundle{scheme:String,statement:Statement,proof:String}
 #[derive(Serialize)]
 pub(crate) struct Verdict{
-    valid:bool,amount_conservation_proved:bool,financial_relation_proved:bool,
+    valid:bool,statement_digest:Option<String>,
+    amount_conservation_proved:bool,financial_relation_proved:bool,
     sha512_preimages_arithmetized:bool,knowledge_demonstrated:bool,
     aegis_target_met:bool,production_ready:bool,
 }
@@ -276,9 +277,10 @@ pub(crate) fn prove_financial(input:&[u8],output:&Path)->Result<(),()>{
     fs::write(output,serde_json::to_vec(&bundle).map_err(|_|())?).map_err(|_|())
 }
 pub(crate) fn verify_financial(bundle:&[u8],expected:&[u8])->Verdict{
-    let fail=||Verdict{valid:false,amount_conservation_proved:false,financial_relation_proved:false,
+    let fail=||Verdict{valid:false,statement_digest:None,
+        amount_conservation_proved:false,financial_relation_proved:false,
         sha512_preimages_arithmetized:false,knowledge_demonstrated:false,aegis_target_met:false,production_ready:false};
-    let check=||->Result<(),()>{
+    let check=||->Result<[u16;WORDS],()>{ 
         if bundle.len()>11_200_000||expected.len()>16_384{return Err(());}
         let payload:ProofBundle=serde_json::from_slice(bundle).map_err(|_|())?;
         let exp:Statement=serde_json::from_slice(expected).map_err(|_|())?;
@@ -286,15 +288,18 @@ pub(crate) fn verify_financial(bundle:&[u8],expected:&[u8])->Verdict{
         let proof_bytes=B64.decode(&payload.proof).map_err(|_|())?;
         if proof_bytes.is_empty()||proof_bytes.len()>MAX_PROOF||B64.encode(&proof_bytes)!=payload.proof{return Err(());}
         let proof:Proof<Config>=postcard::from_bytes(&proof_bytes).map_err(|_|())?;
-        let air=FinancialAmountAir{expected_digest:binding(&exp)?,
+        let digest=binding(&exp)?;
+        let air=FinancialAmountAir{expected_digest:digest,
             fee:decimal(&exp.fee,true)?,
             inputs:exp.input_commitments.len(),outputs:exp.output_commitments.len()};
         catch_unwind(AssertUnwindSafe(||verify(&config(),&air,&proof,&[])))
             .map_err(|_|())?.map_err(|_|())?;
-        Ok(())
+        Ok(digest)
     };
-    if check().is_err(){return fail();}
-    Verdict{valid:true,amount_conservation_proved:true,
+    let digest=match check(){Ok(d)=>d,Err(_)=>return fail()};
+    let statement_digest=digest.iter().map(|w|format!("{w:04x}")).collect::<String>();
+    Verdict{valid:true,statement_digest:Some(statement_digest),
+        amount_conservation_proved:true,
         financial_relation_proved:false,sha512_preimages_arithmetized:false,
         knowledge_demonstrated:false,aegis_target_met:false,production_ready:false}
 }

@@ -8,6 +8,8 @@ publish = false
 # Reproducibility requires checking in Cargo.lock after a successful build.
 [dependencies]
 p3-air = "=0.8.0"
+p3-batch-stark = "=0.8.0"
+p3-lookup = "=0.8.0"
 p3-baby-bear = "=0.8.0"
 p3-challenger = "=0.8.0"
 p3-commit = "=0.8.0"

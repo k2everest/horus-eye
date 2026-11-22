@@ -414,6 +414,19 @@ mod tests{
             fee:10,inputs:1,outputs:1};
         let proof=prove(&config(),&air,trace(&air,[100,0,0,0,90,0,0,0,10]),&[]).unwrap();
         assert!(verify(&config(),&air,&proof,&[]).is_ok());
+        // Stronger adversarial check: syntactically valid fake Merkle roots
+        // were previously accepted for any balanced witness. The strict
+        // one-leaf verifier checks that entirely PUBLIC relationship,
+        // independently of the malicious prover.
+        let b=ProofBundle{scheme:SCHEME.into(),statement:s.clone(),
+            proof:B64.encode(postcard::to_allocvec(&proof).unwrap())};
+        let raw=serde_json::to_vec(&b).unwrap();
+        let public=serde_json::to_vec(&s).unwrap();
+        assert!(verify_financial(&raw,&public).valid);
+        let strict=verify_single_transfer(&raw,&public);
+        assert!(!strict.valid_balance);
+        assert!(!strict.public_single_leaf_membership_verified);
+        assert!(!strict.financial_relation_proved);
         // No private note preimage, owner, nullifier or path was needed.
         // This success is specifically an INCOMPLETE proof, not financial validity.
     }

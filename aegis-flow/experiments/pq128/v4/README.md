@@ -218,3 +218,38 @@ node aegis-flow/experiments/pq128/v4/rbr-gate.mjs aegis-v4-p3-rbr.json > aegis-v
 The native integration CI is the decisive compiler/proof validation. It
 must report a genuine successful build and verified proof; an in-flight or
 failed job is not a success.
+
+
+## M3: SHA-512 arithmetic gates within the native Plonky3 AIR
+
+An initial **native, real Plonky3 AIR** is now added under
+`plonky3/src/sha512_gates.rs`. It constrains Boolean inputs,
+`AND`, `XOR`, the SHA-512 choice operation and a full-adder
+`sum,carry` output with explicit polynomial equalities over BabyBear.
+The module has a real hiding STARK `prove/verify` test, and an
+adversarial test which mutates one addend result and requires the
+prover/verifier to reject it.
+
+**Incomplete SHA-512:** this is one combinational Boolean gate per row,
+not the 80-round SHA-512 compression algorithm. It does not yet constrain
+the message schedule, rotation, state chaining, padding, domain-separated
+lengths, note commitment, owner secret, nullifier, or the Merkle path.
+Rows are independent and no SHA-512 digest is yet constrained against
+the 53-bit note values. The completed JS `constraints/sha512.mjs`
+and `constraints/note-hashes.mjs` are symbolic reference gadgets,
+not an AIR backend.
+
+The native `financial.rs` already implements 53-bit limb arithmetic,
+positive active notes, 4-in/4-out and public fee conservation. The
+missing requirement is to create one **common** Plonky3 AIR witness
+tying that arithmetic to private SHA-512 preimages and Merkle openings
+and to the trusted public statement. Until then,
+`financial_relation_proved=false` and `production_ready=false`
+remain mandatory. No user or consensus path imports these modules.
+
+M3 proof acceptance criterion: a valid amount-balanced fake commitment
+must be rejected **by the native verifier**, not merely by the
+prover-side Rust/JS preflight. Also reject any altered spend secret,
+nullifier, Merkle sibling, anchor, recipient output or public fee.
+End-to-end PQ128 additionally requires the prior M1/QROM, knowledge
+and privacy proofs.

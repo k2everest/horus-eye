@@ -289,9 +289,11 @@ The native result intentionally exposes
 `financial_relation_proved:false`, `production_ready:false` and
 `aegis_target_met:false`.
 
-**Remaining missing bridge:** translate the entire canonical Boolean
-SHA-512 program, including its wire-index consistency (e.g. secure
-cross-row lookups/LogUp), into one hiding Plonky3 AIR/IOP. Prove the
+**Implemented bridge, still unqualified:** the native batch-STARK LogUp
+R1CS adapter now translates the complete canonical Boolean SHA-512 program
+into a hiding Plonky3 AIR/IOP, including cross-row wire-index consistency.
+Its native smoke proof and full six-hash proof must still pass end-to-end
+CI before treating this translation as validated. Prove the
 result under a verifier-rebuilt and independently authenticated program.
 Without lookup/wiring constraints, proving individual SHA-512 gates
 would be unsound: a prover can substitute arbitrary values between

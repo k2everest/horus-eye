@@ -18,7 +18,7 @@ use p3_merkle_tree::MerkleTreeHidingMmcs;
 use p3_symmetric::{CompressionFunctionFromHasher,CryptographicHasher,SerializingHasher};
 use p3_uni_stark::{prove,verify,Proof,StarkConfig,StarkSecurityParams,StarkGenericConfig,OpeningShape,GrindingSites,ProvenSecurity,ConjecturedSecurity};
 use serde::{Deserialize,Serialize};
-use rand::{SeedableRng,rngs::StdRng};
+use rand::{SeedableRng,rngs::{StdRng,SysRng}};
 use sha2::{Digest,Sha512};
 
 const SCHEME:&str="AEGIS_V4_P3_HIDING_EXT8_LAB_V1";
@@ -98,7 +98,7 @@ fn config()->Config{
     let leaf=Sha512Words(b"AEGIS_V4_P3_LEAF_SHA512_V2\0");
     let node=Sha512Words(b"AEGIS_V4_P3_NODE_SHA512_V2\0");
     let chal_hash=Sha512Hash(b"AEGIS_V4_P3_TRANSCRIPT_SHA512_V2\0");
-    let val_mmcs=Mmcs::new(FH::new(leaf),Compress::new(node),3,StdRng::from_os_rng());
+    let val_mmcs=Mmcs::new(FH::new(leaf),Compress::new(node),3,StdRng::try_from_rng(&mut SysRng).expect("cryptographically secure OS RNG required"));
     let fri=FriParameters{
         log_blowup:LOG_BLOWUP,
         log_final_poly_len:0,
@@ -110,7 +110,7 @@ fn config()->Config{
         mmcs:EMmcs::new(val_mmcs.clone()),
     };
     let pcs=Pcs::new(Radix2Bowers::default(),val_mmcs,fri,
-        RANDOM_CODEWORDS,StdRng::from_os_rng());
+        RANDOM_CODEWORDS,StdRng::try_from_rng(&mut SysRng).expect("cryptographically secure OS RNG required"));
     let challenger=Chall::new(HashChallenger::new(
         b"AEGIS_V4_P3_HIDING_EXT8_LAB_V1".to_vec(),chal_hash));
     Config::new(pcs,challenger)

@@ -331,7 +331,7 @@ mod tests{
         trace.values[0]=F::ZERO;
         trace.values[2]=F::ZERO;
         let config=config();
-        let inst=[StarkInstance::<Config,_>{air:&air,trace:&trace,public_values:vec![]}];
+        let inst=[StarkInstance::<Config,_>{air:&air,trace:&trace,public_values:air.public_values()}];
         let run=std::panic::catch_unwind(std::panic::AssertUnwindSafe(||{
             let data=ProverData::from_instances(&config,&inst).unwrap();
             match prove_batch(&config,&inst,&data){

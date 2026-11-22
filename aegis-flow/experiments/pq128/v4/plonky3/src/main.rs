@@ -2,6 +2,7 @@
 //! not an SHA-512 financial note, membership or ownership AIR.
 //! 16-bit amount arithmetic and full-width public claim binding only.
 //! NON-ZK; no PQ128 qualification or consensus activation.
+mod financial;
 use std::{fs,panic::{catch_unwind,AssertUnwindSafe},path::Path};
 use base64::{engine::general_purpose::STANDARD as B64,Engine};
 use p3_air::{Air,AirBuilder,BaseAir,WindowAccess};
@@ -273,6 +274,20 @@ fn parameter_report()->serde_json::Value{
 
 fn main(){
     let args:Vec<String>=std::env::args().collect();
+    if args.len()==4&&args[1]=="prove-financial-balance"{
+        let ok=fs::read(&args[2]).ok().filter(|b|b.len()<=262144)
+            .and_then(|b|catch_unwind(AssertUnwindSafe(||financial::prove_financial(&b,Path::new(&args[3])))).ok())
+            .is_some_and(|r|r.is_ok());
+        if !ok{eprintln!("FINANCIAL53_PROOF_GENERATION_FAILED");std::process::exit(1);}
+        return;
+    }
+    if args.len()==4&&args[1]=="verify-financial-balance"{
+        let result=fs::read(&args[2]).ok().and_then(|proof|fs::read(&args[3]).ok()
+            .map(|public|financial::verify_financial(&proof,&public)));
+        let status=result.unwrap_or_else(||financial::verify_financial(b"",b""));
+        println!("{}",serde_json::to_string(&status).unwrap());
+        return;
+    }
     if args.len()==2&&args[1]=="security-report"{
         println!("{}",parameter_report());
         return;

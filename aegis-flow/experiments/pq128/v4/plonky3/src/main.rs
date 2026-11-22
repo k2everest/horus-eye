@@ -5,16 +5,18 @@
 use std::{fs,panic::{catch_unwind,AssertUnwindSafe},path::Path};
 use base64::{engine::general_purpose::STANDARD as B64,Engine};
 use p3_air::{Air,AirBuilder,BaseAir,WindowAccess};
+use p3_air::symbolic::AirLayout;
 use p3_baby_bear::BabyBear;
 use p3_challenger::{HashChallenger,SerializingChallenger32};
-use p3_commit::ExtensionMmcs;
+use p3_commit::{ExtensionMmcs,Pcs};
 use p3_dft::Radix2Bowers;
 use p3_field::{extension::BinomialExtensionField,PrimeCharacteristicRing};
 use p3_fri::{FriParameters,HidingFriPcs};
+use p3_security::fri::FriRegime;
 use p3_matrix::{dense::RowMajorMatrix,Matrix};
 use p3_merkle_tree::MerkleTreeHidingMmcs;
 use p3_symmetric::{CompressionFunctionFromHasher,CryptographicHasher,SerializingHasher};
-use p3_uni_stark::{prove,verify,Proof,StarkConfig};
+use p3_uni_stark::{prove,verify,Proof,StarkConfig,StarkSecurityParams,StarkGenericConfig,OpeningShape,GrindingSites,ProvenSecurity,ConjecturedSecurity};
 use serde::{Deserialize,Serialize};
 use rand::{SeedableRng,rngs::StdRng};
 use sha2::{Digest,Sha512};
@@ -31,6 +33,10 @@ const EXT_DIM:usize=8;
 const RANDOM_CODEWORDS:usize=8;
 const SALT_ELEMS:usize=8;
 const MAX_OPENING_POINTS:usize=8;
+// SHA-512 assumed ideal 170-bit chosen-collision resistance is an *input* to
+// the classical p3-security estimator, NOT a concrete quantum proof.
+const IDEAL_HASH_COLLISION_BITS:usize=170;
+const EXTENSION_FIELD_FLOOR_BITS:usize=247;
 const WORDS:usize=32;
 const AMOUNTS:usize=9;
 const BITS:usize=16;
@@ -220,10 +226,59 @@ fn check(bundle:&[u8],expected:&[u8])->Result<Claim,()>{
     }
     Ok(e)
 }
+// Reproduce the *classical round-by-round* p3-security terms using the exact
+// AIR and configuration; there is NO quantum Fiat-Shamir/QROM compiler theorem
+// or full financial-statement relation here. Do not promote this number.
+fn parameter_report()->serde_json::Value{
+    let params=FriRegime{
+        log_blowup:LOG_BLOWUP,log_final_poly_len:0,max_log_arity:1,
+        num_queries:QUERIES,commit_pow_bits:0,query_pow_bits:0,
+    };
+    let config=config();
+    let air=BalanceAir{claim:[0;WORDS]};
+    let layout=AirLayout{main_width:WIDTH,..Default::default()};
+    let trace_domain=<Pcs as Pcs<E,Chall>>::natural_domain_for_degree(config.pcs(),ROWS*2);
+    let security=StarkSecurityParams::from_air::<F,E,_>(
+        params,&air,layout,trace_domain,
+        EXTENSION_FIELD_FLOOR_BITS,IDEAL_HASH_COLLISION_BITS,1,
+        OpeningShape::hiding(RANDOM_CODEWORDS),GrindingSites::NONE);
+    let measured=ProvenSecurity::compute_from_proof(ROWS.ilog2() as usize+1,&security);
+    let conjectured=ConjecturedSecurity::compute_from_params(&security,ROWS.ilog2() as usize+1);
+    serde_json::json!({
+        "schema":"AEGIS_V4_PLONKY3_RBR_LAB_REPORT_V1",
+        "sdk":"Plonky3 0.8.0",
+        "air":"balance-16bit-smoke-only",
+        "trace_rows":ROWS,"log_blowup":LOG_BLOWUP,
+        "fri_queries":QUERIES,"challenge_extension_degree":EXT_DIM,
+        "field_cardinality_floor_bits":EXTENSION_FIELD_FLOOR_BITS,
+        "ideal_sha512_collision_bits_assumed":IDEAL_HASH_COLLISION_BITS,
+        "random_codewords":RANDOM_CODEWORDS,"salt_elements":SALT_ELEMS,
+        "max_opening_points_budget":MAX_OPENING_POINTS,
+        "air_constraints_derived":security.num_constraints,
+        "air_constraint_degree_derived":security.air_max_constraint_degree,
+        "batch_openings_derived":security.num_batched_functions,
+        "quotient_chunks_derived":security.num_quotient_chunks,
+        "rbr_unique_decoding_bits":measured.unique_decoding_bits,
+        "rbr_list_decoding_bits":measured.list_decoding_bits,
+        "rbr_best_bits":measured.security_bits(),
+        "conjectured_bits":conjectured.security_bits,
+        "hash_model_assumptions_proved":false,
+        "quantum_fiat_shamir_qrom_proved":false,
+        "financial_air_complete":false,"soundness_composition_proved":false,
+        "knowledge_demonstrated":false,"privacy_full_receipt_demonstrated":false,
+        "demonstrated_post_quantum_bits":null,
+        "aegis_target_met":false,"production_ready":false
+    })
+}
+
 fn main(){
     let args:Vec<String>=std::env::args().collect();
+    if args.len()==2&&args[1]=="security-report"{
+        println!("{}",parameter_report());
+        return;
+    }
     if args.len()!=4||!matches!(args[1].as_str(),"prove"|"verify"){
-        eprintln!("usage: v4-p3-lab <prove|verify> <input> <output-or-expected>");
+        eprintln!("usage: v4-p3-lab <prove|verify> <input> <output-or-expected> | security-report");
         std::process::exit(2);
     }
     if args[1]=="prove"{

@@ -15,6 +15,7 @@ import {
   compileOneInOneOut512,writeOneInOneOutPublicProgram512,
   writeOneInOneOutPrivateAssignment512,
 } from './single-transfer-circuit.mjs';
+import {verifyOneInOneOutNative512} from './verify-one-in-one-out.mjs';
 
 const enabled=process.env.AEGIS_V4_FULL_WIRED_SHA512==='1';
 const binary=process.env.AEGIS_V4_P3_BINARY;
@@ -53,6 +54,26 @@ test('complete 1x1 SHA512 circuit produces Plonky3 proof with LogUp wire consist
     assert.equal(verified.financial_relation_proved,false);
     assert.equal(verified.aegis_target_met,false);
     assert.equal(verified.production_ready,false);
+    // Verify the real financial facade using a binary pin independent
+    // from the proof and a program freshly compiled from public inputs.
+    const binaryDigest=createHash('sha512').update(readFileSync(binary)).digest('hex');
+    const admitted=verifyOneInOneOutNative512({
+      statement:f.statement,expectedStatementDigest:digest,
+      binaryPath:binary,expectedBinarySha512:binaryDigest,proofPath,
+    });
+    assert.equal(admitted.valid,true);
+    assert.equal(admitted.financial_relation_proved,true);
+    assert.equal(admitted.aegis_target_met,false);
+    assert.equal(admitted.production_ready,false);
+    assert.equal(verifyOneInOneOutNative512({
+      statement:f.statement,expectedStatementDigest:digest,
+      binaryPath:binary,expectedBinarySha512:'00'.repeat(64),proofPath,
+    }).valid,false);
+    const forgedPublic={...f.statement,fee:'2'};
+    assert.equal(verifyOneInOneOutNative512({
+      statement:forgedPublic,expectedStatementDigest:digest,
+      binaryPath:binary,expectedBinarySha512:binaryDigest,proofPath,
+    }).valid,false);
     const other=native512Fixture({leafCount:1,value:'101',outputValue:'100',fee:'1'});
     const altered=compileOneInOneOut512({statement:other.statement,
       expectedStatementDigest:financialStatementDigest512(other.statement)});

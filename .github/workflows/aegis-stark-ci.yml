@@ -20,6 +20,10 @@ jobs:
           node-version: '24'
       - name: Test experimental SHA-512 bindings and conditional standalone FRI arithmetic
         run: node --test aegis-flow/experiments/pq128/*.test.mjs aegis-flow/experiments/pq128/fri/*.test.mjs aegis-flow/experiments/pq128/financial/*.test.mjs aegis-flow/experiments/pq128/constraints/*.test.mjs aegis-flow/experiments/pq128/quantitative/*.test.mjs aegis-flow/experiments/pq128/v4/*.test.mjs aegis-flow/experiments/pq128/native/backend.test.mjs
+      - name: Verify fixed one-input/one-output six-SHA512 Boolean circuit in isolated memory budget
+        env:
+          AEGIS_V4_ONE_CIRCUIT_INTEGRATION: '1'
+        run: node --test --test-concurrency=1 aegis-flow/experiments/pq128/v4/single-transfer-circuit.test.mjs
       - name: Record finite query-model obligations without approving the complete protocol
         run: node aegis-flow/experiments/pq128/quantitative/demo.mjs > pq128-quantitative-research.json
       - name: Explore bounded parameter combinations under two explicit conditional targets

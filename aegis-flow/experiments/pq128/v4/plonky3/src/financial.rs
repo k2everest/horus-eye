@@ -72,6 +72,31 @@ impl Statement{
         self.input_commitments.iter().all(|v|!self.output_commitments.contains(v))
     }
 }
+// For a one-leaf tree the commitment-to-anchor inclusion check uses
+// PUBLIC values only: it is safe and cheaper to perform it directly in the
+// verifier. This does NOT prove that the private note hashes to the public
+// commitment or that the prover knows the spend secret.
+fn framed_sha512(domain:&[u8],parts:&[&[u8]])->[u8;64]{
+    let mut h=Sha512::new();
+    h.update(PREFIX);
+    h.update((SUITE.len() as u32).to_be_bytes());h.update(SUITE);
+    h.update((domain.len() as u32).to_be_bytes());h.update(domain);
+    h.update((parts.len() as u32).to_be_bytes());
+    for part in parts{h.update((part.len() as u32).to_be_bytes());h.update(part);}
+    h.finalize().into()
+}
+fn public_single_leaf_anchor(st:&Statement)->Result<(),()>{
+    if !st.valid()||st.anchor_leaf_count!=1||st.input_commitments.len()!=1||
+      st.output_commitments.len()!=1||st.nullifiers.len()!=1{return Err(());}
+    let commitment=hex::decode(&st.input_commitments[0]).map_err(|_|())?;
+    if commitment.len()!=64{return Err(());}
+    let leaf=framed_sha512(b"FINANCIAL_TREE_LEAF",&[st.network_id.as_bytes(),&commitment]);
+    let root=framed_sha512(b"FINANCIAL_TREE_ROOT",
+        &[st.network_id.as_bytes(),&1u32.to_be_bytes(),&leaf]);
+    if hex::encode(root)!=st.anchor_root{return Err(());}
+    Ok(())
+}
+
 fn binding(statement:&Statement)->Result<[u16;WORDS],()>{
     if !statement.valid(){return Err(());}
     let body=serde_json::to_vec(statement).map_err(|_|())?;
@@ -302,6 +327,52 @@ pub(crate) fn verify_financial(bundle:&[u8],expected:&[u8])->Verdict{
         amount_conservation_proved:true,
         financial_relation_proved:false,sha512_preimages_arithmetized:false,
         knowledge_demonstrated:false,aegis_target_met:false,production_ready:false}
+}
+
+// One-in/one-out + exactly one Merkle leaf: self-contained, public-only
+// anchor verification + a real Plonky3 53-bit balance proof. This is a
+// PARTIAL financial receipt, not a private ownership/nullifier proof.
+#[derive(Serialize)]
+pub(crate) struct SingleTransferResult{
+    valid_balance:bool,
+    public_single_leaf_membership_verified:bool,
+    statement_digest:Option<String>,
+    private_note_commitment_proved:bool,
+    private_ownership_proved:bool,
+    private_nullifier_proved:bool,
+    financial_relation_proved:bool,
+    aegis_target_met:bool,
+    production_ready:bool,
+}
+fn rejected_single()->SingleTransferResult{
+    SingleTransferResult{valid_balance:false,public_single_leaf_membership_verified:false,
+        statement_digest:None,private_note_commitment_proved:false,
+        private_ownership_proved:false,private_nullifier_proved:false,
+        financial_relation_proved:false,aegis_target_met:false,production_ready:false}
+}
+pub(crate) fn prove_single_transfer(input:&[u8],output:&Path)->Result<(),()>{
+    // Full SHA-512 witness relation is checked exclusively as a local
+    // prover-side preflight. The native STARK only proves value balance.
+    let journal=aegis_financial512_guest::verify_witness_json(input).map_err(|_|())?;
+    let statement:Statement=serde_json::from_slice(&journal).map_err(|_|())?;
+    public_single_leaf_anchor(&statement)?;
+    prove_financial(input,output)
+}
+pub(crate) fn verify_single_transfer(bundle:&[u8],expected:&[u8])->SingleTransferResult{
+    let parse=||->Result<(),()>{
+        if expected.len()>16_384{return Err(());}
+        let st:Statement=serde_json::from_slice(expected).map_err(|_|())?;
+        public_single_leaf_anchor(&st)
+    };
+    if parse().is_err(){return rejected_single();}
+    let verified=verify_financial(bundle,expected);
+    if !verified.valid{return rejected_single();}
+    SingleTransferResult{valid_balance:true,
+        public_single_leaf_membership_verified:true,
+        statement_digest:verified.statement_digest,
+        private_note_commitment_proved:false,
+        private_ownership_proved:false,private_nullifier_proved:false,
+        financial_relation_proved:false,aegis_target_met:false,production_ready:false}
 }
 
 #[cfg(test)]

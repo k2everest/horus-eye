@@ -114,6 +114,34 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
+
+  # Deliberately isolated high-memory experiment; never enables consensus.
+  # A failed full-size prover is a research result, not a green PQ128 check.
+  plonky3-v4-full-sha512-research:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.number == 5 }}
+    needs: [plonky3-v4-laboratory]
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Compile actual Plonky3 LogUp proof engine
+        run: |
+          cargo generate-lockfile --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
+          cargo build --locked --release --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
+      - name: Attempt complete 1-in-1-out six-SHA512 proof under hard resource budget
+        env:
+          AEGIS_V4_FULL_WIRED_SHA512: '1'
+          AEGIS_V4_P3_BINARY: ${{ github.workspace }}/aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab
+          NODE_OPTIONS: '--max-old-space-size=8192'
+        run: |
+          /usr/bin/time -v timeout --signal=TERM --kill-after=30s 1200s node --test --test-concurrency=1 aegis-flow/experiments/pq128/v4/full-single-transfer.integration.test.mjs
+
+
   liboqs-interoperability-laboratory:
     runs-on: ubuntu-latest
     timeout-minutes: 20

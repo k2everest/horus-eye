@@ -256,6 +256,32 @@ mod tests{
         }
         assert_eq!(decimal("9007199254740991",false),Ok(MAX_VALUE));
     }
+
+    // Deliberate adversarial counterexample: a balanced 53-bit witness and
+    // arbitrary syntactically valid 512-bit public note hashes CAN produce
+    // a STARK. Until SHA-512 is arithmetized, DO NOT treat proof.valid as
+    // proof of ownership, membership or commitment. This test locks the
+    // intentionally narrow scope and guards against accidental promotion.
+    #[test]
+    fn balanced_values_with_fake_note_hashes_are_not_financial_proofs(){
+        let s=Statement{
+            version:"AEGIS_EXPERIMENT_RELATION512_V1".into(),
+            network_id:"v4-adversarial-lab".into(),
+            asset_id:"QUEER".into(),
+            anchor_root:"dd".repeat(64),anchor_leaf_count:1,
+            input_commitments:vec!["aa".repeat(64)],
+            output_commitments:vec!["bb".repeat(64)],
+            nullifiers:vec!["cc".repeat(64)],
+            fee:"10".into(),transaction_binding:"ee".repeat(64),
+        };
+        assert!(s.valid());
+        let air=FinancialAmountAir{expected_digest:binding(&s).unwrap(),
+            fee:10,inputs:1,outputs:1};
+        let proof=prove(&config(),&air,trace(&air,[100,0,0,0,90,0,0,0,10]),&[]).unwrap();
+        assert!(verify(&config(),&air,&proof,&[]).is_ok());
+        // No private note preimage, owner, nullifier or path was needed.
+        // This success is specifically an INCOMPLETE proof, not financial validity.
+    }
     #[test]
     fn limbs_and_53bit_overflow_bounds(){
         assert_eq!(WIDTH,535);

@@ -152,7 +152,7 @@ where AB:AirBuilder+PermutationAirBuilder+InteractionBuilder{
         // The program's SHA-512 is absorbed into Fiat-Shamir as public
         // values. The AIR also constrains them to the verifier's program,
         // preventing a prover-controlled self-description.
-        let pins=builder.public_values();
+        let pins=builder.public_values().to_vec();
         for (i,word) in self.program.public_digest_words.iter().enumerate(){
             builder.assert_eq(pins[i],AB::Expr::from_u16(*word));
         }
@@ -162,7 +162,7 @@ where AB:AirBuilder+PermutationAirBuilder+InteractionBuilder{
         let b:AB::Expr=s[1].into();
         let z:AB::Expr=s[2].into();
         let wire:AB::Expr=s[3].into();
-        let c=builder.periodic_values();
+        let c=builder.periodic_values().to_vec();
         let active:AB::Expr=c[0].into();
         let op_and:AB::Expr=c[1].into();
         let op_xor:AB::Expr=c[2].into();

@@ -5,7 +5,9 @@ import {mkdtempSync,readFileSync,writeFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {native512Fixture} from '../native/fixtures.mjs';
-import {financialStatementDigest512} from '../financial/relation.mjs';
+import {financialStatementDigest512,RELATION_VERSION} from '../financial/relation.mjs';
+import {createSpendIdentity512,createNote512,noteCommitment512,nullifier512} from '../financial/notes.mjs';
+import {buildNoteTree512} from '../financial/membership.mjs';
 
 const enabled=process.env.AEGIS_V4_P3_INTEGRATION==='1';
 const binary=process.env.AEGIS_V4_P3_BINARY;
@@ -18,6 +20,31 @@ const makeFiles=(dir,fixture)=>{
   return {privatePath,publicPath,proofPath};
 };
 
+// Private multi-note fixture; all values stay within 53 bits, while
+// their total can exceed 53 bits. Each input has a separate spend secret
+// and inclusion proof in one common root.
+function multiFixture(){
+  const networkId='native512-laboratory';
+  const inputOwners=Array.from({length:4},()=>createSpendIdentity512({networkId}));
+  const outputOwners=Array.from({length:4},()=>createSpendIdentity512({networkId}));
+  const value='9007199254740991',fee='100';
+  const inputs=inputOwners.map(o=>createNote512({networkId,ownerTag:o.owner_tag,value}));
+  const outputs=outputOwners.map((o,i)=>createNote512({networkId,ownerTag:o.owner_tag,
+    value:i===3?(BigInt(value)-BigInt(fee)).toString():value}));
+  const commitments=inputs.map(noteCommitment512);
+  const tree=buildNoteTree512({networkId,commitments});
+  const statement={
+    version:RELATION_VERSION,network_id:networkId,asset_id:'QUEER',
+    anchor_root:tree.root,anchor_leaf_count:commitments.length,
+    input_commitments:commitments,output_commitments:outputs.map(noteCommitment512),
+    nullifiers:inputs.map((note,i)=>nullifier512({note,spendSecret:inputOwners[i].spend_secret})),
+    fee,transaction_binding:'ef'.repeat(64)};
+  return {statement,witness:{
+    inputs:inputs.map((note,i)=>({note,spend_secret:inputOwners[i].spend_secret,membership:tree.proof(i)})),
+    outputs,
+  }};
+}
+
 test('Plonky3 proves 53-bit conservation and binds a canonical SHA512 public statement, not SHA512 preimages',
 {skip:!enabled,timeout:120000},()=>{
   assert.ok(binary?.startsWith('/'));
@@ -26,9 +53,10 @@ test('Plonky3 proves 53-bit conservation and binds a canonical SHA512 public sta
     for(const [index,opts] of [
       {leafCount:1},
       {leafCount:7,index:6},
-      {leafCount:1,value:'9007199254740991',outputValue:'9007199254740990',fee:'1'}
+      {leafCount:1,value:'9007199254740991',outputValue:'9007199254740990',fee:'1'},
+      {multi:true}
     ].entries()){
-      const f=native512Fixture(opts),files=makeFiles(d,f);
+      const f=opts.multi?multiFixture():native512Fixture(opts),files=makeFiles(d,f);
       // Overwrite private files without revealing inputs in logs.
       run('prove-financial-balance',files.privatePath,files.proofPath);
       const bundle=JSON.parse(readFileSync(files.proofPath,'utf8'));

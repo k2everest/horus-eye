@@ -158,6 +158,94 @@ adaptativa do transcript. A extensão de desafio
 BabyBear⁸ continua com ~247.26 bits; aumentar o sal
 não aumenta esse campo nem certifica Fiat–Shamir/QROM.
 
+## Lema L4 — barreira quantitativa da redução QROM BCS comprovada
+
+A referência *Succinct Arguments in the Quantum Random Oracle Model*
+(Chiesa–Manohar–Spooner, ePrint 2019/834, Teorema 3 informal)
+prova para a transformação **BCS de um IOP público-coin RBR sound** uma
+cota da forma
+
+```
+Adv_QROM(Q) = O(Q² * epsilon_RBR + Q³ / 2^lambda).
+```
+
+**Ressalvas obrigatórias**: o teorema requer aderência ao protocolo
+BCS, oráculos e compromissos, propriedades *round-by-round*,
+transcript e hipóteses de extração. Essas hipóteses NÃO foram
+demonstradas para o `p3-batch-stark` e `HidingFriPcs`
+da Aegis; as constantes escondidas em `O()` não foram
+instanciadas. Essa análise testa uma rota de certificação,
+não fornece a certificação.
+
+Existe um limite **mais forte e específico** para o LogUp
+no `p3-security 0.8.0` (`security/src/logup.rs`):
+
+```
+epsilon_LogUp <= N*(W+2)/|E|,
+N = fractions_per_row * trace_rows.
+```
+
+Ele inclui explicitamente desafios que anulam denominadores.
+Para a configuração Aegis, `fractions_per_row=4`,
+`W=2`, `trace_rows=2^23`, `|E|=2013265921^8`,
+o numerador é `2^27` e `epsilon_LogUp`
+é `<2^-220.255` na hipótese de desafios uniformes interativos.
+
+Com orçamento global `Q=2^128`, `H=2^32`,
+64 segmentos e quatro famílias de eventos, a substituição
+numérica **otimista** (`O()` com coeficientes iguais a 1)
+produz
+
+```
+Q² * H * 64 * 4 * epsilon_LogUp
+   <= 2^296 * (2^27 / 2013265921^8)
+   = 2^75.744875...   [COTA VACUA, >1].
+```
+
+**Consequência formal:** sob essa rota do teorema,
+o perfil BabyBear grau 8 NÃO PODE ser qualificado para G1
+apenas por suas cotas disponíveis. Isso **não prova um
+ataque** contra a Aegis. Nenhum aumento do número de
+consultas FRI altera essa desigualdade do LogUp.
+
+Para essa mesma aproximação quantitativa otimista,
+o mínimo teórico de extensão BabyBear é **grau 11**
+para G1 e **grau 15** para G2 no subtermo LogUp
+(`E > 2*H*64*4*Q²*2^27` para G1). Esses graus
+não são todos suportados pela implementação
+`BinomialExtensionField<BabyBear,D>` fixada; não
+basta alterar a constante `D`. É necessário
+provar irredutibilidade do polinômio de extensão,
+compatibilidade da PCS, serialização canônica,
+amostragem uniforme e eficiência. Grau 12 ou 16
+ofereceria margem para custos de redução, se
+implementado e analisado corretamente.
+
+No termo de hash ideal com coeficiente unitário:
+`Q³ * H*64*4 /2^512 = 2^-88`. Suficiente
+para G1 nesse subtermo, mas **não** G2.
+G2 demandaria saída ideal de pelo menos
+552 bits nessa fórmula, mais margem para a
+constante escondida e para todos os demais
+eventos. O ataque à segurança real do SHA-512
+não é inferido de nenhuma dessas contas.
+
+O [estudo clássico de Fiat–Shamir de FRI](https://eprint.iacr.org/2023/1071)
+obtém uma fórmula com perda linear em `Q` no
+ROM **clássico** para FRI. Essa fórmula não
+substitui automaticamente o teorema QROM
+contra consultas em superposição.
+
+Script reprodutível: `experiments/pq128/v4/cms-qrom-gate.mjs`,
+com testes que exigem `aegis_target_met=false`.
+
+**Decisão M1:** preservar Plonky3 como framework,
+mas substituir/demonstrar um campo de desafios
+e um perfil FRI suficientes para o teorema QROM
+realmente aplicável. O perfil BabyBear⁸ do
+protocolo atual deve permanecer como laboratório;
+não há no presente commit certificação PQ128.
+
 ## Composição que falta (não substituir por um mínimo de estimativas)
 
 Uma demonstração de soundness para uma receipt financeira exigiria

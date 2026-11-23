@@ -165,6 +165,7 @@ jobs:
       - name: Attempt complete 1-in-1-out six-SHA512 proof under hard resource budget
         env:
           AEGIS_V4_FULL_WIRED_SHA512: '1'
+          AEGIS_V4_P3_PROFILE: '1'
           AEGIS_V4_P3_BINARY: ${{ github.workspace }}/aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab
           NODE_OPTIONS: '--max-old-space-size=8192'
         run: |

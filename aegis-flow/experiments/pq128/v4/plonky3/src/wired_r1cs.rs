@@ -325,19 +325,35 @@ fn public_program(bytes:&[u8])->Result<(PublicProgram,String),()>{
     let program=PublicProgram::from_bytes(bytes)?;
     Ok((program,digest))
 }
+// Never logs witnesses, secret bits, note values or financial metadata.
+fn lab_phase(label:&str,start:std::time::Instant,rows:usize){
+    if std::env::var("AEGIS_V4_P3_PROFILE").as_deref()!=Ok("1"){return;}
+    let rss=fs::read_to_string("/proc/self/status").ok()
+        .and_then(|s|s.lines().find(|l|l.starts_with("VmRSS:")).map(str::to_string))
+        .unwrap_or_else(||"VmRSS: unavailable".to_string());
+    eprintln!("AEGIS_WIRED_PROVER_PHASE={} elapsed_ms={} rows={} {}",
+        label,start.elapsed().as_millis(),rows,rss);
+}
 pub(crate) fn prove_wired(program_bytes:&[u8],assignment:&[u8],output:&Path)->Result<(),()>{
+    let start=std::time::Instant::now();
     let (program,sha)=public_program(program_bytes)?;
     let air=WiredAir::new(program);
+    lab_phase("public-program-validated",start,air.rows());
     let trace=air.trace(assignment)?;
+    lab_phase("private-trace-built",start,air.rows());
     let config=config(); // fresh unpredictable secrets for private witness
     let instances=[StarkInstance::<Config,_>{air:&air,trace:&trace,public_values:air.public_values()}];
     let prover_data=ProverData::from_instances(&config,&instances).map_err(|_|())?;
+    lab_phase("public-preprocessed-committed",start,air.rows());
     let proof=prove_batch(&config,&instances,&prover_data).map_err(|_|())?;
+    lab_phase("batch-stark-complete",start,air.rows());
     let encoded=postcard::to_allocvec(&proof).map_err(|_|())?;
     if encoded.is_empty()||encoded.len()>MAX_WIRED_PROOF{return Err(());}
     let bundle=WiredBundle{scheme:WIRED_SCHEME.to_owned(),program_sha512:sha,
         proof:B64.encode(encoded)};
-    fs::write(output,serde_json::to_vec(&bundle).map_err(|_|())?).map_err(|_|())
+    fs::write(output,serde_json::to_vec(&bundle).map_err(|_|())?).map_err(|_|())?;
+    lab_phase("public-proof-saved",start,air.rows());
+    Ok(())
 }
 pub(crate) fn verify_wired(program_bytes:&[u8],bundle_bytes:&[u8],expected_program_sha512:&str)->WiredVerdict{
     let perform=||->Result<String,()>{

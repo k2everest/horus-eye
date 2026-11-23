@@ -19,19 +19,28 @@ import {verifyOneInOneOutNative512} from './verify-one-in-one-out.mjs';
 
 const enabled=process.env.AEGIS_V4_FULL_WIRED_SHA512==='1';
 const binary=process.env.AEGIS_V4_P3_BINARY;
+// Prover phase timings are safe to print: no witness bits, amounts or
+// preimages are emitted. stderr is inherited so cancelled CI jobs retain
+// the last completed native stage instead of losing all diagnostics.
 const run=(...args)=>execFileSync(binary,args,{encoding:'utf8',
-  timeout:1_500_000,maxBuffer:1024*1024,stdio:['ignore','pipe','pipe']});
+  timeout:1_500_000,maxBuffer:1024*1024,stdio:['ignore','pipe','inherit']});
+const stage=(name,start)=>process.stderr.write(
+  'AEGIS_FULL_SHA512_STAGE='+name+' elapsed_ms='+Math.round(performance.now()-start)+
+  ' node_rss_mb='+Math.round(process.memoryUsage().rss/1048576)+'\n');
 
 test('complete 1x1 SHA512 circuit produces Plonky3 proof with LogUp wire consistency (resource experiment)',
   {skip:!enabled,timeout:1_700_000},()=>{
   assert.ok(binary?.startsWith('/'),'explicit pinned native prover/verifier');
+  const started=performance.now();
   const dir=mkdtempSync(join(tmpdir(),'aegis-v4-full-1x1-'));
+  stage('fixture-start',started);
   try{
     const f=native512Fixture({leafCount:1,value:'100',outputValue:'99',fee:'1'});
     const digest=financialStatementDigest512(f.statement);
     const manifest=compileOneInOneOut512({statement:f.statement,expectedStatementDigest:digest});
     assert.equal(manifest.hash_calls,6);
     assert.ok(manifest.gate_count>1_000_000);
+    stage('six-sha512-public-circuit-compiled',started);
     const programPath=join(dir,'trusted-public-program.bin');
     const witnessPath=join(dir,'private-assignment.bin');
     const proofPath=join(dir,'public-proof.json');
@@ -41,12 +50,15 @@ test('complete 1x1 SHA512 circuit produces Plonky3 proof with LogUp wire consist
     const privateStatus=writeOneInOneOutPrivateAssignment512(manifest,f.witness,witnessPath);
     assert.equal(privateStatus.private_assignment_file_created,true);
     assert.equal(privateStatus.byte_length,manifest.wire_count);
+    stage('private-witness-generated',started);
     run('prove-wired',programPath,witnessPath,proofPath);
+    stage('plonky3-native-proof-created',started);
     const proof=JSON.parse(readFileSync(proofPath,'utf8'));
     assert.equal(proof.program_sha512,pub.program_sha512);
     assert.equal(JSON.stringify(proof).includes(f.witness.inputs[0].spend_secret),false);
     const verified=JSON.parse(run('verify-wired',programPath,proofPath,pub.program_sha512));
     assert.equal(verified.valid,true);
+    stage('native-plonky3-proof-verified',started);
     assert.equal(verified.boolean_gate_relations_proved,true);
     assert.equal(verified.cross_row_wire_consistency_proved,true);
     // Financial promotion must be performed only by an audited, trusted
@@ -62,6 +74,7 @@ test('complete 1x1 SHA512 circuit produces Plonky3 proof with LogUp wire consist
       binaryPath:binary,expectedBinarySha512:binaryDigest,proofPath,
     });
     assert.equal(admitted.valid,true);
+    stage('independently-recompiled-financial-verifier-accepted',started);
     assert.equal(admitted.financial_relation_proved,true);
     assert.equal(admitted.aegis_target_met,false);
     assert.equal(admitted.production_ready,false);
@@ -74,12 +87,17 @@ test('complete 1x1 SHA512 circuit produces Plonky3 proof with LogUp wire consist
       statement:forgedPublic,expectedStatementDigest:digest,
       binaryPath:binary,expectedBinarySha512:binaryDigest,proofPath,
     }).valid,false);
-    const other=native512Fixture({leafCount:1,value:'101',outputValue:'100',fee:'1'});
-    const altered=compileOneInOneOut512({statement:other.statement,
-      expectedStatementDigest:financialStatementDigest512(other.statement)});
+    // Modify ONLY the statement-binding bytes: the SHA-512 Boolean
+    // instructions remain byte-for-byte identical. A real STARK proof
+    // MUST be rejected for the other financial statement.
+    const changedProgram=Buffer.from(readFileSync(programPath));
+    const header=Buffer.from('AEGIS_V4_BOOLEAN_PROGRAM_V2\0','ascii').length+8;
+    changedProgram[header]^=1;
     const otherProgram=join(dir,'other-public-program.bin');
-    const otherPub=writeOneInOneOutPublicProgram512(altered,otherProgram);
-    assert.notEqual(otherPub.program_sha512,pub.program_sha512);
-    assert.equal(JSON.parse(run('verify-wired',otherProgram,proofPath,otherPub.program_sha512)).valid,false);
+    writeFileSync(otherProgram,changedProgram);
+    const otherProgramSha=createHash('sha512').update(changedProgram).digest('hex');
+    assert.notEqual(otherProgramSha,pub.program_sha512);
+    assert.equal(JSON.parse(run('verify-wired',otherProgram,proofPath,otherProgramSha)).valid,false);
+    stage('statement-rebinding-rejected',started);
   }finally{rmSync(dir,{recursive:true,force:true});}
 });

@@ -22,7 +22,7 @@ export function assessV4Rbr(report,{receipts=1n<<32n,maxSegments=64,
   integer(residualBits,'residual bits',1,256);
   const fields={
     challenge_extension_degree:8,log_blowup:3,fri_queries:320,
-    random_codewords:8,salt_elements:8,field_cardinality_floor_bits:247,
+    random_codewords:8,salt_elements:16,field_cardinality_floor_bits:247,
     ideal_sha512_collision_bits_assumed:170,max_opening_points_budget:8
   };
   for(const [key,expected] of Object.entries(fields))

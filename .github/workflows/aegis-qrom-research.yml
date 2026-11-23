@@ -53,6 +53,29 @@ jobs:
               JSON.stringify(report,null,2));
           }
           JS
+      - name: Record conditional ALI-DEEP root-bound and late-quotient counterexample
+        run: |
+          node --input-type=module - <<'JS'
+          import {writeFileSync} from 'node:fs';
+          import {
+            conditionalAliDeepBudget,demonstrateLateQuotientAttack,
+          } from './aegis-flow/experiments/pq128/qrom-research/ali-deep-ood-lemma.mjs';
+          const budget=conditionalAliDeepBudget({
+            traceRows:4096,constraintCount:1000,
+            foldedConstraintDegreeCeiling:12000,
+            quotientDegreeCeiling:12000,extensionDegree:8,
+          });
+          const attack=demonstrateLateQuotientAttack();
+          if(budget.pq128_demonstrated!==false||
+             budget.round_by_round_knowledge_proved!==false||
+             budget.verifier_owned_degree_constraints_proved!==false||
+             attack.successful_post_zeta_forgery_count!==13)
+            process.exit(1);
+          writeFileSync('pq128-qrom-modular-ali-ood-conditional.json',
+            JSON.stringify({schema:'AEGIS_PQ128_ALI_OOD_RESEARCH_ONLY_V1',
+              assumed_example_degrees_not_from_real_compiler:true,budget,attack,
+              pq128_demonstrated:false},null,2));
+          JS
       - uses: actions/upload-artifact@v4
         with:
           name: pq128-qrom-modular-research

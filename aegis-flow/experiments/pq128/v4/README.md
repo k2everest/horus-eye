@@ -376,3 +376,62 @@ AEGIS_V4_P3_INTEGRATION=1 AEGIS_V4_P3_BINARY="$PWD/aegis-flow/experiments/pq128/
 AEGIS_V4_FULL_WIRED_SHA512=1 AEGIS_V4_P3_BINARY="$PWD/aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab" \
   node --test aegis-flow/experiments/pq128/v4/full-single-transfer.integration.test.mjs
 ```
+
+
+## QROM elimination test — BabyBear degree 8 is not sufficient for the CMS20 theorem path
+
+The proof-theoretic bottleneck is now quantified, not guessed.
+Chiesa–Manohar–Spooner, *Succinct Arguments in the Quantum Random
+Oracle Model* (ePrint 2019/834, informal Theorem 3), gives for BCS
+compiled from a suitable round-by-round sound public-coin IOP an
+error `O(Q²*epsilon_RBR + Q³/2^lambda)`. This theorem has NOT yet
+been instantiated for the exact Aegis `p3-batch-stark` implementation;
+it is a **necessary-parameter screen for that candidate proof route**.
+
+Using the more precise upstream Plonky3 `p3-security::logup`
+fingerprint bound `N*(W+2)/|E|` with four LogUp interactions,
+message width 2, a 2^23-row ceiling, and BabyBear degree 8, the
+interactive bound is `2^-220.255`. At Q=2^128 the quadratic
+term alone is `2^35.745` (completely vacuous), even BEFORE
+multiplying by the optional research horizon H or composition events.
+No increase in FRI queries changes this lookup fingerprint term.
+
+With the hypothesis of H=2^32 receipts, 64 segments and four
+first-bad-event categories, the optimistic unit-constant numerical
+screen requires at least a challenge field of **greater than 324
+bits**, corresponding to BabyBear extension degree **>=11**
+for G1. This is a minimum arithmetic condition, not sufficient
+to qualify: the theorem's hidden constants, proof shape, RBR
+composite, and quantum-adaptive extraction must all be checked.
+G2 is stronger and requires at least degree 15 under the same
+unit-constant subterm. The SHA-512 ideal Q³ hash term is
+approximately 2^-88 under the same horizon, sufficient for G1
+as a component but not G2.
+
+**Upstream field support is not interchangeable with cardinality:**
+Plonky3 0.8.0 implements BabyBear binomial extensions of degree
+4, 5, and 8; Goldilocks supplies degree 2 and 5 binomial
+extensions, with the quintic field at approximately 320 bits,
+slightly short of the conservative worst-case G1 budget at
+this row/horizon shape. Thus merely replacing `EXT_DIM`
+with 11 or 16 cannot compile or establish an extension
+field. A larger, irreducible challenge field with audited
+arithmetic and suitable `HidingFriPcs`, transcript and
+serialization support must be implemented, OR an applicable
+QROM theorem with a tighter *proved* concrete reduction must
+be identified. The framework Plonky3 may remain in place.
+
+Use `cms-qrom-gate.mjs` for the exact BigInt screen and
+`logup-qrom-branches.mjs` for explicit separation between an
+unproved linear branch and the known BCS quadratic-loss route.
+Neither is a PQ128 proof. CI must retain `pq128_demonstrated=false`,
+`production_ready=false`, and no consensus upgrade.
+
+A native `security-report-wired <trusted-program.bin>` command
+now evaluates the **actual lookup-aware WiredAir** constraint
+degree, quotient chunks, FRI and LogUp (still interactive),
+unlike `security-report` which measures only the toy
+balance AIR. This command is tested with the small authenticated
+Boolean program; no full million-gate native proof or audit
+is yet verified.
+

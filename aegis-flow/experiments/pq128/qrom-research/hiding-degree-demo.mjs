@@ -15,11 +15,20 @@ function json(path){
   return JSON.parse(readFileSync(path,'utf8'));
 }
 const sources=auditHidingDegreeSources(options.metadata?{cargoMetadata:json(options.metadata)}:{sourceRoot:options.sourceRoot});
+function diagnostic(message){
+  if(process.env.GITHUB_ACTIONS==='true'){
+    const escaped=message.replaceAll('%','%25').replaceAll('\r','%0D').replaceAll('\n','%0A');
+    console.error('::error title=Hiding degree audit::'+escaped);
+  }else console.error(message);
+}
 if(!sources.source_profile_verified){
+  diagnostic('DEGREE_SOURCE_PROFILE_MISMATCH '+JSON.stringify(sources.checks.filter(c=>c.status!=='match')));
   console.log(JSON.stringify({sources,pq128_demonstrated:false,production_ready:false},null,2));
   process.exitCode=1;
 }else{
-  const profile=matchNativeHidingDegreeReport(json(options.report));
+  let profile;
+  try{profile=matchNativeHidingDegreeReport(json(options.report));}
+  catch(error){diagnostic('NATIVE_DEGREE_PROFILE_MISMATCH '+error.message);throw error;}
   console.log(JSON.stringify({schema:'AEGIS_HIDING_DEGREE_SOURCE_SHAPE_AUDIT_V1',
     sources,degree_profile:{...profile,source_profile_verified:true},
     interpretation:'Source identity and native shape match the deterministic degree derivation. Adversarial low-degree extraction, FRI soundness and QROM are not proved.',

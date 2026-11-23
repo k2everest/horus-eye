@@ -59,6 +59,15 @@ test('actual selector degree is accounted separately from the quotient-sizing he
   assert.equal(larger.ood.constraint_polynomial_degree_inclusive,6*8191);
   assert.equal(larger.ood.residual_polynomial_degree_inclusive,6*8191);
 });
+test('the maximum admitted trace is not rejected by an unrelated 50M polynomial cap',()=>{
+  const n=2**23,p=deriveHidingDegreeProfile({...options,traceRows:n,
+    symbolicConstraintDegree:4,constraintFullSelectorDegree:5});
+  assert.equal(p.committed_degree_geometry.quotient_chunks,8);
+  assert.equal(p.ood.quotient_recomposed_degree_inclusive,9*n-1);
+  assert.equal(p.ood.residual_polynomial_degree_inclusive,10*n-1);
+  assert.equal(p.fri.rounds.length,24);
+  assert.equal(p.ood.conditional_budget.degree_caps_independently_proved,false);
+});
 
 // Independent small-field polynomial identities. They validate the algebraic
 // steps; they do not simulate cryptographic hiding or prove PCS extraction.

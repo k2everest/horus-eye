@@ -4,14 +4,18 @@
 const P=2013265921n;
 const int=(n,low,high)=>Number.isSafeInteger(n)&&n>=low&&n<=high;
 const limit = 50_000_000;
+// This is a research arithmetic bound, not an engine resource increase.
+// At the admitted N=2^23, masked chunk recomposition already exceeds 50M.
+// Cover the source-derived polynomial caps while retaining finite integers.
+const polynomialDegreeLimit = 2**31-1;
 export function conditionalAliOodBudget({
   fieldDegree=8,traceRows,airConstraintComponents,
   constraintPolynomialDegreeCap=null,quotientPolynomialDegreeCap=null,
 }={}){
   if(!int(fieldDegree,1,32)||!int(traceRows,1,2**23)||
      !int(airConstraintComponents,1,limit)||
-     (constraintPolynomialDegreeCap!==null&&!int(constraintPolynomialDegreeCap,0,limit))||
-     (quotientPolynomialDegreeCap!==null&&!int(quotientPolynomialDegreeCap,0,limit)))
+     (constraintPolynomialDegreeCap!==null&&!int(constraintPolynomialDegreeCap,0,polynomialDegreeLimit))||
+     (quotientPolynomialDegreeCap!==null&&!int(quotientPolynomialDegreeCap,0,polynomialDegreeLimit)))
     throw new TypeError('INVALID_OR_MISSING_WIRED_DEGREE_BUDGET');
   const fieldSize=P**BigInt(fieldDegree);
   const ali=BigInt(airConstraintComponents-1);

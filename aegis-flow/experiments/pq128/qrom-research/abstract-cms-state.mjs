@@ -15,7 +15,7 @@ export function evaluateAbstractCmsState(schedule,eventIds,{
   finalVerifierAccepted=null,
 }={}){
   const audit=validateWiredTranscriptPrefix(schedule,eventIds);
-  const permitted=new Set(schedule.verifier_challenges);
+  const permitted=new Set(schedule.cms_round_completion_ids);
   // Predicates below are mathematical inputs, not proof-supplied data.
   const witness=normalizedSet(preChallengeWitnessAvailableAt,permitted,'K_PREDICATE');
   const exceptional=normalizedSet(exceptionalChallengeAt,permitted,'B_PREDICATE');

@@ -26,7 +26,7 @@ test('real Plonky3 native balance proof verifies a SHA-512-bound public claim; t
     assert.equal(report.challenge_extension_degree,8);
     assert.equal(report.log_blowup,3);
     assert.equal(report.random_codewords,8);
-    assert.equal(report.salt_elements,8);
+    assert.equal(report.salt_elements,16);
     assert.equal(report.financial_air_complete,false);
     assert.equal(report.quantum_fiat_shamir_qrom_proved,false);
     assert.equal(report.aegis_target_met,false);

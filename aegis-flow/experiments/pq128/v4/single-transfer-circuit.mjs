@@ -75,11 +75,13 @@ export function checkOneInOneOutWitnessLocally(manifest,witness){
 export function writeOneInOneOutPublicProgram512(manifest,path){
   const relation=trusted.get(manifest);
   if(!relation||!isAbsolute(path))throw new TypeError('trusted public program and absolute destination required');
-  const bytes=bitCircuitPublicProgramBinary(relation.circuit);
+  const bytes=bitCircuitPublicProgramBinary(relation.circuit,{
+    financialStatementDigest512:manifest.statement_digest,
+  });
   const programSha512=createHash('sha512').update(bytes).digest('hex');
   writeFileSync(path,bytes,{mode:0o600,flag:'wx'});
   return Object.freeze({
-    schema:'AEGIS_V4_SINGLE_TRANSFER_NATIVE_PUBLIC_PROGRAM_V1',
+    schema:'AEGIS_V4_SINGLE_TRANSFER_NATIVE_PUBLIC_PROGRAM_V2',
     program_sha512:programSha512,
     canonical_circuit_digest512:manifest.boolean_circuit_sha512,
     statement_digest:manifest.statement_digest,

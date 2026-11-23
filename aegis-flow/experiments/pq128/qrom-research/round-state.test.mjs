@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  wiredRoundSchedule,validateWiredTranscriptPrefix,checkCandidateStateTrace,
+  wiredRoundSchedule,validateWiredTranscriptPrefix,validateMaskedWiredTranscript,checkCandidateStateTrace,
 } from './round-state.mjs';
 
 const make=()=>wiredRoundSchedule({friLogArities:[1,1,1],friQueries:320});
@@ -92,4 +92,18 @@ test('rejecting terminal prefix at state 0 is allowed only for this supplied tra
   const r=checkCandidateStateTrace(s,a,states,{accepted:false});
   assert.equal(r.local_trace_axioms_pass,true);
   assert.equal(r.universal_quantification_proved,false);
+});
+
+test('strong RBR holes can mark verifier challenges only, never prover messages',()=>{
+  const s=make(),a=ids(s),masked=[...a];
+  masked[masked.indexOf('lookup_alpha')]=null;
+  masked[masked.indexOf('fri_fold_challenge_0')]=null;
+  const audit=validateMaskedWiredTranscript(s,masked);
+  assert.deepEqual(audit.verifier_bottom_holes,['lookup_alpha','fri_fold_challenge_0']);
+  assert.equal(audit.strong_rbr_state_invariance_proved,false);
+  masked[0]=null;
+  assert.throws(()=>validateMaskedWiredTranscript(s,masked),/BOTTOM_ONLY/);
+  masked[0]=a[0];
+  masked[1]='forged';
+  assert.throws(()=>validateMaskedWiredTranscript(s,masked),/NONCANONICAL/);
 });

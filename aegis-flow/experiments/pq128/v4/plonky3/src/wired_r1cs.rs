@@ -231,6 +231,18 @@ where AB:AirBuilder+PermutationAirBuilder+InteractionBuilder,
     }
 }
 
+// The deterministic public-only preprocessing seed is derived from the
+// canonical program digest. Both the prover and verifier reconstruct the
+// same salted preprocessed commitment, while all PRIVATE proof phases use
+// fresh OS-seeded randomness from config().
+fn preprocessing_config(air:&WiredAir)->Config{
+    let mut id=[0u8;64];
+    for (i,word) in air.program.public_digest_words.iter().enumerate(){
+        id[2*i..2*i+2].copy_from_slice(&word.to_be_bytes());
+    }
+    crate::public_preprocessing_config(id)
+}
+
 // Derive a quantitative round-by-round *INTERACTIVE* report for the
 // actual LogUp AIR, not the unrelated balance-only AIR. Constraint count,
 // degrees and quotient chunk size come from p3-batch-stark's own symbolic
@@ -343,7 +355,9 @@ pub(crate) fn prove_wired(program_bytes:&[u8],assignment:&[u8],output:&Path)->Re
     lab_phase("private-trace-built",start,air.rows());
     let config=config(); // fresh unpredictable secrets for private witness
     let instances=[StarkInstance::<Config,_>{air:&air,trace:&trace,public_values:air.public_values()}];
-    let prover_data=ProverData::from_instances(&config,&instances).map_err(|_|())?;
+    let preprocessor_config=preprocessing_config(&air);
+    let prover_data=ProverData::from_instances(&preprocessor_config,&instances)
+        .map_err(|_|())?;
     lab_phase("public-preprocessed-committed",start,air.rows());
     let proof=prove_batch(&config,&instances,&prover_data).map_err(|_|())?;
     lab_phase("batch-stark-complete",start,air.rows());
@@ -377,7 +391,8 @@ pub(crate) fn verify_wired(program_bytes:&[u8],bundle_bytes:&[u8],expected_progr
         // No private wire assignment or prover-supplied preprocessed
         // commitment can influence this setup.
         let log_degree=air.rows().ilog2() as usize+config.is_zk();
-        let data=ProverData::<Config>::from_airs_and_degrees(&config,
+        let preprocessor_config=preprocessing_config(&air);
+        let data=ProverData::<Config>::from_airs_and_degrees(&preprocessor_config,
             &[air.clone()],&[log_degree]).map_err(|_|())?;
         let public=air.public_values();
         verify_batch(&config,&[air],&proof,&[public],&data.common).map_err(|_|())?;
@@ -448,10 +463,18 @@ mod tests{
         let trace=air.trace(&[0,1,1,1,1,1]).unwrap();
         let config=config();
         let inst=[StarkInstance::<Config,_>{air:&air,trace:&trace,public_values:air.public_values()}];
-        let data=ProverData::from_instances(&config,&inst).unwrap();
+        let prep_config=preprocessing_config(&air);
+        let data=ProverData::from_instances(&prep_config,&inst).unwrap();
         let proof=prove_batch(&config,&inst,&data).unwrap();
         let public=air.public_values();
-        verify_batch(&config,&[air.clone()],&proof,&[public],&data.common).unwrap();
+        // Critical: do NOT re-use the prover's preprocessed commitment.
+        // The verifier independently reconstructs it from the public program.
+        let independent_prep=preprocessing_config(&air);
+        let independently_derived=ProverData::<Config>::from_airs_and_degrees(
+            &independent_prep,&[air.clone()],
+            &[air.rows().ilog2() as usize+config.is_zk()]).unwrap();
+        verify_batch(&config,&[air.clone()],&proof,&[public],
+            &independently_derived.common).unwrap();
     }
     #[test]
     fn adversarial_gate_row_rebinding_is_rejected_by_logup(){
@@ -465,7 +488,8 @@ mod tests{
         let config=config();
         let inst=[StarkInstance::<Config,_>{air:&air,trace:&trace,public_values:air.public_values()}];
         let run=std::panic::catch_unwind(std::panic::AssertUnwindSafe(||{
-            let data=ProverData::from_instances(&config,&inst).unwrap();
+            let prep_config=preprocessing_config(&air);
+            let data=ProverData::from_instances(&prep_config,&inst).unwrap();
             match prove_batch(&config,&inst,&data){
                 Ok(p)=>{let public=air.public_values();
                     verify_batch(&config,&[air.clone()],&p,&[public],&data.common).is_err()},

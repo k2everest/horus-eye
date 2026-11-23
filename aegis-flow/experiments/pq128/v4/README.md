@@ -175,7 +175,7 @@ isolated Plonky3 research binary with an explicit candidate profile:
 - BabyBear, irreducible binomial extension degree **8**; challenge-field
   cardinality has a conservative floor of **247 bits**;
 - `HidingFriPcs`, **both** input and challenge Merkle MMCSs salted with
-  independently OS-seeded cryptographic RNGs, **8 salt field elements**;
+  independently OS-seeded cryptographic RNGs, **16 salt field elements**;
 - 8 independent random codewords (at least the extension dimension);
   a 4096-row trace with budget reservation for 320 queries and up to
   8 opened points, enforcing `4096 >= 2*(320 + 8*8)`;

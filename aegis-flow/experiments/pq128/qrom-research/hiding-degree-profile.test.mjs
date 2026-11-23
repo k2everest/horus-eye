@@ -91,6 +91,18 @@ test('correlated quotient masks cancel; independent low-degree chunks attain the
       rawQ.forEach((coefficient,k)=>base[k%n]=mod(base[k%n]+coefficient*pow(s,BigInt(n*Math.floor(k/n)))));
       return add(base,mul(zs[i],masks[i]));
     });
+    // The actual PCS normalizes each coset vanishing polynomial. Check that
+    // rescaling its constants and masks preserves the monic derivation.
+    const normalizedZs=zs.map((z,i)=>scale(z,inv(pow(shifts[i],BigInt(n)))));
+    const normalizedSelectors=shifts.map((s,i)=>{
+      const numerator=normalizedZs.filter((_,j)=>j!==i).reduce(mul,[1n]);
+      return scale(numerator,inv(ev(numerator,s)));
+    });
+    for(let i=0;i<c;i++){
+      assert.deepEqual(normalizedSelectors[i],selectors[i]);
+      const actualMask=scale(masks[i],pow(shifts[i],BigInt(n)));
+      assert.deepEqual(mul(normalizedZs[i],actualMask),mul(zs[i],masks[i]));
+    }
     assert.ok(chunks.every(q=>q.length<=2*n));
     const recomposed=chunks.map((q,i)=>mul(selectors[i],q)).reduce(add,[0n]);
     assert.deepEqual(recomposed,rawQ);

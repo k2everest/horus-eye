@@ -32,7 +32,7 @@ test('altered source bytes are mismatches, not evidence derived from file names'
 test('cargo metadata resolves exact version locations without accepting duplicate identities',()=>{
  const directory=mkdtempSync(join(tmpdir(),'aegis-degree-metadata-'));
  try{
-  const entries=['p3-fri','p3-batch-stark','p3-uni-stark','p3-air'].map(name=>({name,version:'0.8.0',manifest_path:join(directory,name,'Cargo.toml')}));
+  const entries=['p3-fri','p3-batch-stark','p3-uni-stark','p3-air','p3-commit'].map(name=>({name,version:'0.8.0',manifest_path:join(directory,name,'Cargo.toml')}));
   const result=auditHidingDegreeSources({cargoMetadata:{packages:entries}});
   assert.equal(result.source_profile_verified,false);assert.ok(result.checks.every(c=>c.status==='unavailable'));
   assert.throws(()=>auditHidingDegreeSources({cargoMetadata:{packages:[...entries,entries[0]]}}),/duplicate/);

@@ -45,5 +45,5 @@ Every obligation is a hardcoded false in the executable screen. There is no inpu
 
 A [derivação HidingFriPcs](HIDING_COMMITTED_DEGREES.md) distingue domínios
 originais/estendidos, chunks mascarados, recomposição honesta/adversarial e
-cada rodada FRI. A auditoria confere 15 fontes fixados e o relatório nativo;
+cada rodada FRI. A auditoria confere 16 fontes fixados e o relatório nativo;
 isso não substitui extração de baixo grau ou o teorema QROM.

@@ -8,7 +8,7 @@ Esta derivação estabelece limites determinísticos da construção e a corresp
 
 `N` é a altura original do trace; `deg(f)<B` é um limite **estrito**. O limite inclusivo correspondente é `B-1`. `d` é o grau simbólico empregado pelo prover no dimensionamento do quociente. `w` é um grau conservador separado que atribui peso um a todos os seletores, inclusive `IsTransition`.
 
-O [inventário](hiding-degree-sources.json) fixa SHA-256 de 15 arquivos de `p3-air`, `p3-fri`, `p3-batch-stark` e `p3-uni-stark`. [O auditor](hiding-degree-sources.mjs) verifica os arquivos efetivos resolvidos pelo Cargo ou um checkout local, sem aceitar um boolean como substituto. Identidade de fonte não é atestação fonte/binário.
+O [inventário](hiding-degree-sources.json) fixa SHA-256 de 16 arquivos de `p3-air`, `p3-commit`, `p3-fri`, `p3-batch-stark` e `p3-uni-stark`. [O auditor](hiding-degree-sources.mjs) verifica os arquivos efetivos resolvidos pelo Cargo ou um checkout local, sem aceitar um boolean como substituto. Identidade de fonte não é atestação fonte/binário.
 
 As referências abaixo são caminhos nesse commit upstream:
 
@@ -49,6 +49,8 @@ q'_i(X) = q_i(X) + Z_i(X) r_i(X)
 ```
 
 Não usar `X^N-1` para todo chunk: os shifts importam. Os chunks de base e as máscaras têm grau `<N`; assim cada chunk comprometido tem grau `<2N` e sua LDE tem `16N` linhas.
+
+O código em `p3-commit/src/domain.rs` usa a forma **normalizada** `Ztilde_i=(X/s_i)^N-1`, em vez da forma mônica acima. As expressões coincidem reescalando `r_i=t_i/s_i^N` e `c_i=ctilde_i*s_i^N/(produto_j s_j^N)`. Isso preserva os mesmos `L_i`, graus e cancelamento. O inventário inclui essa implementação de domínio; a derivação não supõe silenciosamente um normalizador diferente.
 
 O verificador recompõe `Qhat = soma_i L_i q'_i`. Como `deg(L_i)=(C-1)N`, para chunks gerais de grau `<2N`:
 
@@ -98,12 +100,12 @@ Para N=4096 são **13 rodadas**, começando com 65.536 avaliações e bound estr
 
 O teste Rust positivo de `WiredAir` compara o relatório com a prova **real**: degree bits, preprocessing reconstruído, quantidade/largura dos chunks, compromissos/aberturas em cada rodada FRI e comprimento do polinômio final. Isso evita conferir apenas duas cópias da mesma fórmula. Os testes JS independentes verificam identidades de máscaras/cosets e folding em campo pequeno, inclusive o contraexemplo ao cap honesto.
 
-CI também compara o relatório nativo ao [perfil derivado](hiding-degree-profile.mjs) e confere os 15 fontes efetivamente compilados a partir de `cargo metadata --locked --offline`. Os artefatos contêm somente formas públicas, hashes de fontes e contas; não contêm coeficientes privados, masks, salts ou witness.
+CI também compara o relatório nativo ao [perfil derivado](hiding-degree-profile.mjs) e confere os 16 fontes efetivamente compilados a partir de `cargo metadata --locked` com filtro do host. Metadata pode baixar manifests de dependências de plataformas não usadas no build anterior; a resolução permanece vinculada ao lock. Os artefatos contêm somente formas públicas, hashes de fontes e contas; não contêm coeficientes privados, masks, salts ou witness.
 
 ```sh
 node --test aegis-flow/experiments/pq128/qrom-research/hiding-degree-*.test.mjs
 cargo test --locked --release --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
-cargo metadata --locked --offline --format-version 1 --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml > /tmp/p3-metadata.json
+cargo metadata --locked --filter-platform x86_64-unknown-linux-gnu --format-version 1 --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml > /tmp/p3-metadata.json
 node aegis-flow/experiments/pq128/qrom-research/hiding-degree-demo.mjs --native-report aegis-v4-wired-rbr.json --cargo-metadata /tmp/p3-metadata.json
 ```
 

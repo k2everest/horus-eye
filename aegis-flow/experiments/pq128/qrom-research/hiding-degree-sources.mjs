@@ -6,7 +6,7 @@ import {createHash} from 'node:crypto';
 
 const profile=JSON.parse(readFileSync(new URL('./hiding-degree-sources.json',import.meta.url),'utf8'));
 const COMMIT='a21e3ed42905040ad49c519e402f018381c12d0c';
-const packages=new Set(['p3-fri','p3-batch-stark','p3-uni-stark','p3-air']);
+const packages=new Set(['p3-fri','p3-batch-stark','p3-uni-stark','p3-air','p3-commit']);
 const pathValid=p=>typeof p==='string'&&p.length<512&&/^(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.rs$/.test(p);
 const exact=(v,keys)=>v&&typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).sort().join(',')===keys;
 if(profile.schema!=='AEGIS_HIDING_DEGREE_SOURCE_PROFILE_V1'||profile.upstream_commit!==COMMIT||

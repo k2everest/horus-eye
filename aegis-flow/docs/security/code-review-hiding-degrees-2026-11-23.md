@@ -26,6 +26,6 @@ A nova implementação demonstra integridade de circuitos pequenos em provas nat
 
 ## Entrega principal
 
-A [derivação de graus](../../experiments/pq128/qrom-research/HIDING_COMMITTED_DEGREES.md) cobre trace, preprocessing, LogUp, random codewords, randomização STARK, máscaras/cosets do quociente, recomposição, OOD e todas as rodadas FRI do perfil atual. O auditor verifica 15 fontes exatos de quatro crates. O teste nativo compara formas da prova real à análise.
+A [derivação de graus](../../experiments/pq128/qrom-research/HIDING_COMMITTED_DEGREES.md) cobre trace, preprocessing, LogUp, random codewords, randomização STARK, máscaras/cosets do quociente, recomposição, OOD e todas as rodadas FRI do perfil atual. O auditor verifica 16 fontes exatos de cinco crates. O teste nativo compara formas da prova real à análise.
 
 Essa evidência é de identidade de fontes, geometria e limites condicionais. Não extrai polinômios de compromissos maliciosos e não certifica PQ128. A próxima obrigação matemática continua ser ligar o evento de baixo grau/binding ao estado de conhecimento e demonstrar terminal covering, extração e composição aplicáveis ao protocolo.

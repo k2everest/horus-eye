@@ -191,3 +191,30 @@ Commands:
     node aegis-flow/experiments/pq128/qrom-research/round-state.mjs
 
 Decision: HOLD_NO_GO; pq128_demonstrated=false; production_ready=false.
+
+
+## 7. Conditional ALI/DEEP step installed (2026-11-23)
+
+See ALI_DEEP_OOD_LEMMA.md and ali-deep-ood-lemma.mjs.
+For fixed AIR constraint polynomials C_j before the constraint challenge
+rho, a false trace whose constraints do not all vanish on H has at
+most (m-1)/|E| probability of being hidden by the random constraint
+fold. After the quotient commitment and before independent OOD zeta,
+a nonzero discrepancy D_rho=C_rho-Z_H*Q_rho with degree <=D has
+at most D/|E| root probability; account for at most |H|/|E|
+exceptional domain hits separately.
+
+The resulting **conditional** per-stage estimate is
+
+    kappa_ALI_OOD <= [m-1 + D + |H|]/|E|.
+
+The model checks the chronology and explicit degree assumptions.
+The exact six-SHA512 WiredAir polynomial degree bounds, quantum PCS
+opening extractability, FRI correctness, and actual RBR knowledge
+transition property remain **unproved**. An adaptive quotient attack
+shows any quotient chosen AFTER zeta can forge the OOD check at every
+outside-domain point, so the binding of pre-zeta commitments is a
+security-critical hypothesis, not a minor implementation detail.
+
+These conditional events are candidates for B_constraint_challenge and
+B_zeta in S*, not permissions to switch CMS status flags to true.

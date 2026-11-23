@@ -76,6 +76,36 @@ jobs:
               assumed_example_degrees_not_from_real_compiler:true,budget,attack,
               pq128_demonstrated:false},null,2));
           JS
+      - name: Cross-check ALI/OOD polynomial identity and refuse absent degree caps
+        run: |
+          node --input-type=module - <<'JS'
+          import {writeFileSync} from 'node:fs';
+          import {conditionalAliOodBudget} from './aegis-flow/experiments/pq128/qrom-research/ali-ood-degree-budget.mjs';
+          import {conditionalAliDeepBudget} from './aegis-flow/experiments/pq128/qrom-research/ali-deep-ood-lemma.mjs';
+          const missing=conditionalAliOodBudget({traceRows:4096,airConstraintComponents:1000});
+          if(missing.conditional_combined_bound!==null||
+             missing.needs_actual_compiled_polynomial_degree_caps!==true||
+             missing.pq128_demonstrated!==false) process.exit(1);
+          const conditional=conditionalAliOodBudget({
+            traceRows:4096,airConstraintComponents:1000,
+            constraintPolynomialDegreeCap:12000,
+            quotientPolynomialDegreeCap:12000,
+          });
+          const independent=conditionalAliDeepBudget({
+            traceRows:4096,constraintCount:1000,
+            foldedConstraintDegreeCeiling:12000,
+            quotientDegreeCeiling:12000,
+          });
+          if(conditional.conditional_combined_bound.numerator!==independent.union_bound.numerator||
+             conditional.conditional_combined_bound.denominator!==independent.union_bound.denominator||
+             conditional.degree_caps_independently_proved!==false) process.exit(1);
+          writeFileSync('pq128-qrom-modular-ali-ood-missing-degrees.json',
+            JSON.stringify(missing,null,2));
+          writeFileSync('pq128-qrom-modular-ali-ood-differential.json',
+            JSON.stringify({schema:'AEGIS_ALI_OOD_DIFFERENTIAL_RESEARCH_ONLY_V1',
+              assumed_sample_degrees:true,conditional,independent,
+              pq128_demonstrated:false,production_ready:false},null,2));
+          JS
       - uses: actions/upload-artifact@v4
         with:
           name: pq128-qrom-modular-research

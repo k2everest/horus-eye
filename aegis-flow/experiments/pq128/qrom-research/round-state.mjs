@@ -66,6 +66,11 @@ export function wiredRoundSchedule({
       friLogArities:freeze([...friLogArities]),hasPreprocessed,hiding}),
     steps:freeze(steps),
     verifier_challenges:freeze(steps.filter(x=>x.role==='verifier').map(x=>x.id)),
+    // The two consecutive independent LogUp draws have no interposed
+    // prover message: analyze the pair as ONE logical verifier round.
+    // B_logup(alpha,beta) is observable only when beta is sampled.
+    cms_round_completion_ids:freeze(steps.filter(x=>x.role==='verifier'&&x.id!=='lookup_alpha').map(x=>x.id)),
+    logical_verifier_rounds_grouped:true,
     fri_schedule_proven_from_verifier:false,
     byte_level_fiat_shamir_equivalence_proven:false,
     round_by_round_knowledge_proved:false,pq128_demonstrated:false,production_ready:false,

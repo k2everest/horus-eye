@@ -66,6 +66,13 @@ polynomial. Both are essential to the state transitions.
 The literal 2019 paper's BCS hash chain is **not** assumed byte-identical
 to Plonky3's hierarchical domain-separated Fiat-Shamir transcript.
 
+The 2019 paper's Section 8.6 also analyzes an alternative hash-chain
+compiler using **strong round-by-round security**, where a verifier
+challenge may be the unknown symbol bottom and a state-invariance
+condition is required. validateMaskedWiredTranscript supports those
+positions structurally, but it does NOT prove the stronger state
+condition for the concrete protocol.
+
 ## 3. Candidate mathematical bit-valued state S* (not yet a theorem)
 
 For a partial public-coin IOP transcript tau, define:

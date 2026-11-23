@@ -264,7 +264,7 @@ pub(crate) fn wired_security_report(program_bytes:&[u8])->Result<serde_json::Val
     if log_chunks>=32 {return Err(());}
     let chunks=1usize.checked_shl(log_chunks as u32).ok_or(())?;
     let num_batched=p3_batch_stark::num_batched_openings(
-        GATE_WIDTH,true,PREP_WIDTH,false,chunks,lookups.len(),8,
+        GATE_WIDTH,false,PREP_WIDTH,false,chunks,lookups.len(),8,
         p3_uni_stark::OpeningShape::hiding(8));
     let params=StarkAirParams{
         num_constraints:constraint_layout.total_constraints(),

@@ -435,3 +435,57 @@ balance AIR. This command is tested with the small authenticated
 Boolean program; no full million-gate native proof or audit
 is yet verified.
 
+
+
+## V2 native financial program binding + reproducible public preprocessing
+
+The first full SHA-512 1×1 proof attempt did **not** establish a passing
+financial proof: the previous GitHub runner was cancelled during the
+resource-intensive test before it reported an accepted STARK. Two
+structural fixes were subsequently implemented:
+
+**(1) Full-statement replay binding.** Version 1 of the Boolean native
+program encoded the gate equations but did not necessarily encode
+`transaction_binding`. Two different authenticated public statements
+could therefore compile to the same instruction bytes and program hash.
+The financial path now emits
+`AEGIS_V4_BOOLEAN_PROGRAM_V2\\0`, an 8-byte length header, then
+**64 bytes of the complete canonical statement SHA-512**, then the
+same 13-byte gate instructions. The native parser and public digest
+calculation enforce the exact V2 header. The verifier re-generates
+the complete program from independently pinned public inputs.
+The non-financial tiny circuit keeps V1 for backward-compatible
+laboratory testing. The research verifier **never promotes** V1 to a
+financial proof.
+
+**(2) Public preprocessing versus private witness.** Initially the
+lookup witness evaluator could not access periodic columns, forcing
+12 public instruction columns to be copied into each private main
+trace row, with equality checks. Plonky3 0.8.0 does support
+`preprocessed` columns in `RowEvalContext`. The implementation
+now uses 4 columns for the private trace and 12 immutable
+preprocessed instruction columns committed by the PCS.
+**Independent reproduction of that commitment requires deterministic
+salts**, since the upstream hiding MMCS normally inserts fresh random
+salts even for public preprocessing. The public-only preprocessing
+config derives domain-separated RNG seeds from the canonical program
+SHA-512. The prover and verifier reproduce this public commitment
+independently. All private proof commitments and quotient/FRI masking
+continue to use fresh OS randomness, not the deterministic
+preprocessing seed. The Rust test constructs an independent verifier
+preprocessing commitment to detect incorrect prover-root reuse.
+
+**(3) Measurable full-proof progress.** The full six-SHA-512 test
+emits stage checkpoints (circuit compiled, private assignment built,
+native proof generated, independent verification) and the Rust prover
+optionally reports its stage and process RSS via
+`AEGIS_V4_P3_PROFILE=1`. No witness bits, inputs or secrets are logged.
+The test also mutates the V2 statement hash **without changing any
+gate instruction bytes** and demands native proof rejection.
+
+Until the native job has compiled the revised backend and accepted one
+complete six-hash STARK proof with the independently reconstructed
+preprocessed commitment, the status stays
+`full_financial_relation_native_verified=false`,
+`pq128_demonstrated=false`, `production_ready=false`. Production
+consensus has not been modified.

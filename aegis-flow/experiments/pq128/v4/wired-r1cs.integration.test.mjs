@@ -39,6 +39,15 @@ test('native Plonky3 LogUp STARK proves a fixed Boolean program and rejects tamp
     const digest=createHash('sha512').update(prog).digest('hex');
     writeFileSync(programFile,prog,{mode:0o600});
     writeFileSync(privateFile,Buffer.from([0,1,1,1,1,1]),{mode:0o600});
+    const report=JSON.parse(run('security-report-wired',programFile));
+    assert.equal(report.schema,'AEGIS_V4_WIRED_LOGUP_FRI_RBR_PROVEN_IOP_ONLY_V1');
+    assert.equal(report.program_sha512,digest);
+    assert.equal(report.fri_queries,320);
+    assert.equal(report.hiding_fri,true);
+    assert.ok(Number.isFinite(report.rbr_bits));
+    assert.ok(report.num_lookups>=1);
+    assert.equal(report.qrom_fiat_shamir_reduction_proved,false);
+    assert.equal(report.pq128_demonstrated,false);
     run('prove-wired',programFile,privateFile,proofFile);
     const proof=JSON.parse(readFileSync(proofFile,'utf8'));
     assert.equal(proof.scheme,'AEGIS_V4_PLONKY3_WIRED_LOGUP_RESEARCH_V1');

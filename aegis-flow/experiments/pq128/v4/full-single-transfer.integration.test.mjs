@@ -47,6 +47,17 @@ test('complete 1x1 SHA512 circuit produces Plonky3 proof with LogUp wire consist
     const pub=writeOneInOneOutPublicProgram512(manifest,programPath);
     assert.equal(pub.statement_digest,digest);
     assert.equal(pub.byte_length,readFileSync(programPath).byteLength);
+    const actualRbr=JSON.parse(run('security-report-wired',programPath));
+    assert.equal(actualRbr.rbr_report_is_for_actual_compiled_wired_air,true);
+    assert.ok(actualRbr.rbr_breakdown.udr.terms.some(t=>t.label==='logup-fingerprint'));
+    assert.equal(actualRbr.qrom_fiat_shamir_reduction_proved,false);
+    process.stderr.write('AEGIS_FINANCIAL_RBR_PUBLIC='+JSON.stringify({
+      rows:actualRbr.trace_rows,constraints:actualRbr.constraints,
+      degree:actualRbr.constraint_degree,quotient_chunks:actualRbr.num_quotient_chunks,
+      queries:actualRbr.fri_queries,rbr_bits:actualRbr.rbr_bits,
+      udr:actualRbr.rbr_breakdown.udr.terms.map(t=>t.label),
+    })+'\\n');
+    stage('actual-six-sha512-wired-rbr-computed',started);
     const privateStatus=writeOneInOneOutPrivateAssignment512(manifest,f.witness,witnessPath);
     assert.equal(privateStatus.private_assignment_file_created,true);
     assert.equal(privateStatus.byte_length,manifest.wire_count);

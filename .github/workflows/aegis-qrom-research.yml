@@ -35,6 +35,24 @@ jobs:
              x[1].merkle_only.g2_unit_prefactor!==false||
              x[2].sum_of_these_two_subterms_only.g2_unit_prefactor!==true)process.exit(1);
           JS
+      - name: Reproduce conditional LogUp two-challenge algebraic bounds (not RBR PoK)
+        run: |
+          node --input-type=module - <<'JS'
+          import {writeFileSync} from 'node:fs';
+          import {fixedWiredLogUpBound} from './aegis-flow/experiments/pq128/qrom-research/logup-fixed-oracle-lemma.mjs';
+          for(const degree of [8,16]){
+            const report=fixedWiredLogUpBound({
+              gateCount:8_000_000,wireCount:8_388_608,extensionDegree:degree,
+            });
+            if(report.full_logup_interactive_rbr_knowledge_proved!==false||
+               report.zero_to_one_transition_knowledge_bound_proved!==false||
+               report.pq128_demonstrated!==false||
+               report.probability_upper_bound.numerator!=='81554430')
+              process.exit(1);
+            writeFileSync('pq128-qrom-modular-logup-fixed-bb'+degree+'.json',
+              JSON.stringify(report,null,2));
+          }
+          JS
       - uses: actions/upload-artifact@v4
         with:
           name: pq128-qrom-modular-research

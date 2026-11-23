@@ -45,6 +45,14 @@ test('native Plonky3 LogUp STARK proves a fixed Boolean program and rejects tamp
     assert.equal(report.fri_queries,320);
     assert.equal(report.hiding_fri,true);
     assert.ok(Number.isFinite(report.rbr_bits));
+    assert.equal(report.rbr_report_is_for_actual_compiled_wired_air,true);
+    const breakdown=report.rbr_breakdown?.udr?.terms;
+    assert.ok(Array.isArray(breakdown));
+    for(const label of ['air-composition','deep-ali','low-degree-test',
+      'logup-fingerprint','commitment-collision'])
+      assert.ok(breakdown.some(t=>t.label===label),'missing RBR term '+label);
+    if(process.env.AEGIS_V4_RBR_OUTPUT)
+      writeFileSync(process.env.AEGIS_V4_RBR_OUTPUT,JSON.stringify(report,null,2));
     assert.ok(report.num_lookups>=1);
     assert.equal(report.qrom_fiat_shamir_reduction_proved,false);
     assert.equal(report.pq128_demonstrated,false);

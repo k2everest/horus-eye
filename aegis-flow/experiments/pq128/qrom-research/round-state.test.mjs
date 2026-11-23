@@ -107,3 +107,16 @@ test('strong RBR holes can mark verifier challenges only, never prover messages'
   masked[1]='forged';
   assert.throws(()=>validateMaskedWiredTranscript(s,masked),/NONCANONICAL/);
 });
+
+test('LogUp alpha and beta are one atomic CMS verifier round with no prover message between',()=>{
+  const s=make(),all=ids(s);
+  const alpha=all.indexOf('lookup_alpha');
+  const beta=all.indexOf('lookup_beta');
+  assert.equal(beta,alpha+1);
+  assert.equal(s.steps[alpha].role,'verifier');
+  assert.equal(s.steps[beta].role,'verifier');
+  assert.equal(s.cms_round_completion_ids.includes('lookup_alpha'),false);
+  assert.equal(s.cms_round_completion_ids.includes('lookup_beta'),true);
+  assert.equal(s.logical_verifier_rounds_grouped,true);
+  assert.equal(s.round_by_round_knowledge_proved,false);
+});

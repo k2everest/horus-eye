@@ -129,6 +129,36 @@ export function checkCandidateStateTrace(schedule,eventIds,stateBits,{
     pq128_demonstrated:false,production_ready:false,
   });
 }
+
+/** The strong RBR variant in CMS Sec. 8.6 permits unknown (bottom)
+ * verifier challenges inside an otherwise typed partial transcript.
+ * Here null denotes bottom. It is NOT proof that the strong RBR
+ * state invariance S(tau)=S(tau||bottom) holds.
+ */
+export function validateMaskedWiredTranscript(schedule,events){
+  checkShape(schedule);
+  if(!Array.isArray(events)||events.length>schedule.steps.length)
+    throw new TypeError('INVALID_MASKED_PREFIX');
+  const holes=[];
+  for(let i=0;i<events.length;i++){
+    const expected=schedule.steps[i];
+    if(events[i]===null){
+      if(expected.role!=='verifier')
+        throw new TypeError('BOTTOM_ONLY_FOR_VERIFIER_CHALLENGES');
+      holes.push(expected.id);
+    }else if(events[i]!==expected.id){
+      throw new Error('NONCANONICAL_MASKED_TRANSCRIPT');
+    }
+  }
+  return freeze({
+    schema:'AEGIS_WIRED_MASKED_RBR_TRANSCRIPT_AUDIT_V1',
+    completed_events:events.length,
+    verifier_bottom_holes:freeze(holes),
+    strong_rbr_state_invariance_proved:false,
+    verifier_oracle_extraction_proved:false,
+    qrom_bcs_applicable:false,pq128_demonstrated:false,production_ready:false,
+  });
+}
 if(process.argv[1]?.endsWith('/round-state.mjs')){
   const s=wiredRoundSchedule({friLogArities:Array(12).fill(1)});
   process.stdout.write(JSON.stringify({

@@ -121,6 +121,43 @@ Isso **não** prova que SHA-512 concreto seja um oráculo aleatório;
 nem que todos os eventos de falsificação correspondam a colisões
 externas. Ver `experiments/pq128/v4/outer-screen.mjs`.
 
+## Lema L3 — dimensionamento da entropia do sal, busca quântica ideal
+
+O laboratório anterior usava `SALT_ELEMS=8` BabyBear:
+`log2(2013265921^8) = 247.2551...` bits de entropia
+sob a hipótese de 8 elementos independentes e uniformes.
+No modelo de busca não estruturada, uma única incógnita
+de 247 bits requer ~`2^123.6` consultas com Grover para
+probabilidade constante. Isso **não demonstra um ataque à
+prova**, mas é insuficiente como dimensionamento conservador
+para um segredo salgado arbitrário com meta de 128 bits quânticos.
+
+Por isso o laboratório V4 foi atualizado para
+**`SALT_ELEMS=16`**, fornecendo
+`log2(2013265921^16) = 494.5102...` bits
+de espaço uniforme hipotético. Para um alvo aleatório e
+`K=4*H*S=2^40` eventos, a cota suficiente para busca
+não estruturada é, conservadoramente,
+
+```
+Pr[encontrar sal em K eventos] <=
+  min(1, K*(2Q+1)^2 / 2013265921^16).
+```
+
+Com `Q=2^128`, esse **submodelo** resulta em aproximadamente
+`2^-196.51`, abaixo das metas G1 e G2. O cálculo exato
+`BigInt` e os testes negativos de downgrade estão em
+`experiments/pq128/v4/salt-quantum-screen.mjs`.
+
+**Não é uma demonstração de privacidade do HidingFriPcs.**
+Uma saída de prova não deve ser classificada como
+estatisticamente zero conhecimento com base apenas em
+sal suficiente. Faltam a ligação entre esse jogo e o
+MMCS real, a segurança de hash concreto e a composição
+adaptativa do transcript. A extensão de desafio
+BabyBear⁸ continua com ~247.26 bits; aumentar o sal
+não aumenta esse campo nem certifica Fiat–Shamir/QROM.
+
 ## Composição que falta (não substituir por um mínimo de estimativas)
 
 Uma demonstração de soundness para uma receipt financeira exigiria

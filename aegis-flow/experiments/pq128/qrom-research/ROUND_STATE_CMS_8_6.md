@@ -143,6 +143,12 @@ single *synthetic supplied* finite sequence of state bits. It reports
 cms_state_bit=null (unknown) on every real prefix rather than
 manufacturing a binary answer.
 
+abstract-cms-state.mjs implements the mathematical S* transition rule
+on **explicitly supplied idealized K_i/B_i predicates** and returns
+one candidate state bit for each prefix. Those predicates are research
+inputs, not independently verified cryptographic evidence; the tool
+never declares any CMS axiom universally proven.
+
 It is deliberately impossible to set round_by_round_knowledge_proved,
 theorem_8_6_applicable or production_ready to true through these
 functions. Tests reject out-of-order messages and show a locally

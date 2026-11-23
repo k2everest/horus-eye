@@ -1,8 +1,8 @@
 //! Plonky3 0.8.0 R1CS Boolean gate wiring via a LogUp permutation bus.
 //!
 //! The public circuit is a FIXED program, not a prover-chosen circuit.
-//! Its instruction table and fixed pin values live in DETERMINISTIC PUBLIC
-//! PERIODIC columns derived from the independently authenticated program.  Each gate references a unique wire
+//! The immutable instruction table and pin values live in the trusted
+//! PREPROCESSED matrix committed once per program. Each gate references a wire
 //! table using (wire_index, wire_bit) messages on a common LogUp bus.
 //! The wire table contributes exactly the program-fixed use multiplicity.
 //! This prevents a malicious prover assigning two values to one wire.
@@ -11,7 +11,7 @@
 //! confirmation of financial PQ128 or a benchmark of the 6-SHA-512 program.
 //! A financial verifier must derive the program from an independently
 //! authenticated statement before constructing a verifier instance.
-use std::{borrow::Cow,path::Path,fs,sync::Arc,panic::{catch_unwind,AssertUnwindSafe}};
+use std::{path::Path,fs,sync::Arc,panic::{catch_unwind,AssertUnwindSafe}};
 use base64::{engine::general_purpose::STANDARD as B64,Engine};
 use serde::{Serialize,Deserialize};
 use sha2::{Digest,Sha512};
@@ -33,11 +33,11 @@ const MAX_GATES:usize=8_000_000;
 // rows * 2 * 8 <= 2^27, so <= 2^23 trace rows.
 const MAX_WIRES:usize=8_388_608;
 const MIN_ROWS:usize=4096;
-// Four private-wire columns plus 12 program-metadata columns. Every
-// metadata column is constrained equal to an independently reconstructed
-// public periodic column; LogUp reads main trace columns only because the
-// v0.8.0 lookup witness evaluator does not receive periodic data.
-const GATE_WIDTH:usize=4+PREP_WIDTH;
+// Four private-wire columns. Twelve public-program columns live in
+// deterministic preprocessed trace, not prover-controlled main trace.
+// Plonky3 0.8.0 LogUp RowEvalContext supports preprocessed rows, but
+// NOT periodic rows, when it constructs rational lookup witnesses.
+const GATE_WIDTH:usize=4;
 // columns: gate active; four one-hot op flags; gate (a,b,z) indices;
 // wire-table index; wire use-count; constant-0/1 pin flags.
 const PREP_WIDTH:usize=12;
@@ -135,7 +135,6 @@ impl WiredAir{
             }else{(0,0,0)};
             let wire=bits.get(i).copied().unwrap_or(0);
             trace.extend([a,b,z,wire].map(|x|F::from_u32(x as u32)));
-            trace.extend(self.program_row(i).map(F::from_u32));
         }
         Ok(RowMajorMatrix::new(trace,GATE_WIDTH))
     }
@@ -147,17 +146,15 @@ impl WiredAir{
 impl<T:Field> BaseAir<T> for WiredAir{
     fn width(&self)->usize{GATE_WIDTH}
     fn num_public_values(&self)->usize{32}
-    fn num_periodic_columns(&self)->usize{PREP_WIDTH}
+    fn preprocessed_width(&self)->usize{PREP_WIDTH}
     fn main_next_row_columns(&self)->Vec<usize>{vec![]}
-    fn periodic_columns(&self)->Cow<'_,[Vec<T>]>{
-        let mut columns:Vec<Vec<T>>=(0..PREP_WIDTH)
-            .map(|_|Vec::with_capacity(self.program.rows)).collect();
+    fn preprocessed_next_row_columns(&self)->Vec<usize>{vec![]}
+    fn preprocessed_trace(&self)->Option<RowMajorMatrix<T>>{
+        let mut values=Vec::with_capacity(self.program.rows*PREP_WIDTH);
         for i in 0..self.program.rows{
-            for (j,value) in self.program_row(i).into_iter().enumerate(){
-                columns[j].push(T::from_u32(value));
-            }
+            values.extend(self.program_row(i).map(T::from_u32));
         }
-        Cow::Owned(columns)
+        Some(RowMajorMatrix::new(values,PREP_WIDTH))
     }
 }
 impl<AB> Air<AB> for WiredAir
@@ -177,15 +174,12 @@ where AB:AirBuilder+PermutationAirBuilder+InteractionBuilder,
         let b:AB::Expr=s[1].into();
         let z:AB::Expr=s[2].into();
         let wire:AB::Expr=s[3].into();
-        let public_metadata=builder.periodic_values().to_vec();
-        // Gate instruction columns come from the MAIN trace so the
-        // LogUp prover can resolve all (wire_id, value) lookups. Their
-        // equality to canonical PUBLIC program values is an AIR
-        // constraint at every single row, not a prover-side check.
-        for j in 0..PREP_WIDTH{
-            builder.assert_eq(s[4+j],public_metadata[j]);
-        }
-        let c=s[4..4+PREP_WIDTH].to_vec();
+        // Program instruction columns are independently rebuilt and
+        // committed in the trusted PREPROCESSED matrix. The prover
+        // cannot replace their content without changing the commitment
+        // that the verifier reconstructs from the public program.
+        let preprocessed=builder.preprocessed();
+        let c=preprocessed.current_slice().to_vec();
         let active:AB::Expr=c[0].into();
         let op_and:AB::Expr=c[1].into();
         let op_xor:AB::Expr=c[2].into();
@@ -241,7 +235,7 @@ pub(crate) fn wired_security_report(program_bytes:&[u8])->Result<serde_json::Val
     if log_chunks>=32 {return Err(());}
     let chunks=1usize.checked_shl(log_chunks as u32).ok_or(())?;
     let num_batched=p3_batch_stark::num_batched_openings(
-        GATE_WIDTH,false,0,false,chunks,lookups.len(),8,
+        GATE_WIDTH,true,PREP_WIDTH,false,chunks,lookups.len(),8,
         p3_uni_stark::OpeningShape::hiding(8));
     let params=StarkAirParams{
         num_constraints:constraint_layout.total_constraints(),

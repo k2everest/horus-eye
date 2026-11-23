@@ -34,7 +34,11 @@ const LOG_BLOWUP:usize=3;
 const QUERIES:usize=320;
 const EXT_DIM:usize=8;
 const RANDOM_CODEWORDS:usize=8;
-const SALT_ELEMS:usize=8;
+// 16 independent BabyBear salts give about 494.5 bits of entropy,
+// sufficient for a conservative generic Grover search screen even
+// after H=2^32 receipts x 64 segments x four event families.
+// This does NOT prove QROM binding or complete witness privacy.
+const SALT_ELEMS:usize=16;
 const MAX_OPENING_POINTS:usize=8;
 // SHA-512 assumed ideal 170-bit chosen-collision resistance is an *input* to
 // the classical p3-security estimator, NOT a concrete quantum proof.
@@ -94,10 +98,10 @@ type Config=StarkConfig<Pcs,E,Chall>;
 fn config()->Config{
     // HidingFriPcs upstream requires N >= 2*(queries + DIMENSION*points)
     // AND both MMCS instances must be hiding; mere HidingFriPcs wrapping is
-    // insufficient. Salt entropy uses 8 independent BabyBear elements.
+    // insufficient. Salt entropy uses 16 independent BabyBear elements.
     assert!(ROWS >= 2*(QUERIES+EXT_DIM*MAX_OPENING_POINTS));
     assert!(RANDOM_CODEWORDS >= EXT_DIM);
-    assert!(SALT_ELEMS >= 5);
+    assert!(SALT_ELEMS >= 16);
     let leaf=Sha512Words(b"AEGIS_V4_P3_LEAF_SHA512_V2\0");
     let node=Sha512Words(b"AEGIS_V4_P3_NODE_SHA512_V2\0");
     let chal_hash=Sha512Hash(b"AEGIS_V4_P3_TRANSCRIPT_SHA512_V2\0");

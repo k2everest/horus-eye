@@ -1,7 +1,7 @@
-//! Aegis V4 isolated Plonky3 proof verifier smoke. Real FRI proof,
-//! not an SHA-512 financial note, membership or ownership AIR.
-//! 16-bit amount arithmetic and full-width public claim binding only.
-//! NON-ZK; no PQ128 qualification or consensus activation.
+//! Isolated Plonky3 hiding-FRI research, with separate balance smoke,
+//! financial-preflight and fixed-program WiredAir/LogUp proof paths.
+//! Hiding components do not establish complete ZK, QROM or PQ128.
+//! No consensus activation or production financial authorization.
 mod financial;
 mod sha512_gates;
 mod wired_r1cs;

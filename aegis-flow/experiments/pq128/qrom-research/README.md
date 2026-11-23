@@ -40,3 +40,10 @@ Optional --wired-rbr ingests the actual **interactive** WiredAir report shape; t
 Every obligation is a hardcoded false in the executable screen. There is no input parameter that promotes it to a certificate.
 
 **No consensus migration, financial authorization, mainnet, sale or PQ128 claim follows from this research.**
+
+## Revisão de graus comprometidos
+
+A [derivação HidingFriPcs](HIDING_COMMITTED_DEGREES.md) distingue domínios
+originais/estendidos, chunks mascarados, recomposição honesta/adversarial e
+cada rodada FRI. A auditoria confere 15 fontes fixados e o relatório nativo;
+isso não substitui extração de baixo grau ou o teorema QROM.

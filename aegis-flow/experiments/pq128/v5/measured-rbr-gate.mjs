@@ -1,7 +1,7 @@
 // Independent *audit screen* of the actual Plonky3 WiredAir symbolic RBR
 // JSON. Does not imply QROM theorem hypotheses, privacy, knowledge or PQ128.
 const required=['air-composition','deep-ali','low-degree-test',
-  'logup-fingerprint','commitment-collision'];
+  'logup-fingerprint','batch-combination','commitment-collision'];
 const fields=['air-composition','deep-ali','low-degree-test',
   'logup-fingerprint','batch-combination'];
 const composedBits=xs=>{
@@ -11,10 +11,10 @@ const composedBits=xs=>{
 function verifyRegime(regime){
   if(!regime)return null;
   const terms=regime.terms;
-  if(!Array.isArray(terms)||terms.length<required.length)throw Error('MISSING_RBR_TERMS');
+  if(!Array.isArray(terms)||terms.length!==required.length)throw Error('MISSING_OR_UNKNOWN_RBR_TERMS');
   const map=new Map();
   for(const term of terms){
-    if(!term||typeof term.label!=='string'||typeof term.bits!=='number'||
+    if(!term||!required.includes(term.label)||typeof term.bits!=='number'||
       !Number.isFinite(term.bits)||term.bits<0||map.has(term.label))
       throw Error('INVALID_RBR_TERM');
     map.set(term.label,term.bits);

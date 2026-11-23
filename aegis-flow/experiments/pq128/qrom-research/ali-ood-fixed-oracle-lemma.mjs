@@ -117,7 +117,6 @@ export function quotientOodMismatch({
   const isZero=residual.length===1&&residual[0]===0n;
   const degree=isZero?-1:residual.length-1;
   const denominator=prime**BigInt(extensionDegree);
-  const numerator=isZero?0n:BigInt(degree);
   const division=divideByVanishing(C,domainSize,prime);
   return Object.freeze({
     schema:'AEGIS_OOD_FIXED_POLYNOMIAL_IDENTITY_RESEARCH_V1',
@@ -130,8 +129,12 @@ export function quotientOodMismatch({
     quotient_is_exact_polynomial:division.divisible&&
       division.quotient.length===Q.length&&
       division.quotient.every((x,i)=>x===Q[i]),
-    conditional_uniform_extension_zeta_bound:Object.freeze({
-      numerator:numerator.toString(),denominator:denominator.toString(),
+    nonzero_residual_root_bound_applicable:!isZero,
+    // The zero polynomial vanishes at every challenge. A successful exact
+    // identity is not a zero-probability root event: the nonzero-polynomial
+    // root lemma is simply inapplicable in this case.
+    conditional_uniform_extension_zeta_bound:isZero?null:Object.freeze({
+      numerator:BigInt(degree).toString(),denominator:denominator.toString(),
       warning:'counts a zero of P; zeta on H must be separately rejected',
     }),
     actual_trace_domain_authenticated:false,

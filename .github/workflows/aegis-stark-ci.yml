@@ -167,6 +167,10 @@ jobs:
             process.exit(1);
           writeFileSync('aegis-v4-wired-rbr-audited.json',JSON.stringify(assessment,null,2));
           JS
+      - name: Match committed hiding degrees to native proof shape and exact dependency sources
+        run: |
+          cargo metadata --format-version 1 --locked --offline --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml > aegis-v4-cargo-metadata.json
+          node aegis-flow/experiments/pq128/qrom-research/hiding-degree-demo.mjs --native-report aegis-v4-wired-rbr.json --cargo-metadata aegis-v4-cargo-metadata.json > aegis-v4-hiding-degree-audit.json
       - uses: actions/upload-artifact@v4
         with:
           name: v4-plonky3-lab-lock-${{ github.sha }}
@@ -177,6 +181,7 @@ jobs:
             aegis-v4-amount53-rbr.json
             aegis-v4-wired-rbr.json
             aegis-v4-wired-rbr-audited.json
+            aegis-v4-hiding-degree-audit.json
           if-no-files-found: error
           retention-days: 3
 

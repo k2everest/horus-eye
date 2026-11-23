@@ -17,7 +17,7 @@ use serde::{Serialize,Deserialize};
 use sha2::{Digest,Sha512};
 use p3_air::{Air,AirBuilder,BaseAir,PermutationAirBuilder,WindowAccess};
 use p3_batch_stark::{BatchProof,ProverData,StarkInstance,prove_batch,verify_batch};
-use p3_batch_stark::symbolic::{get_constraint_layout,get_max_constraint_degree,get_log_num_quotient_chunks};
+use p3_batch_stark::symbolic::{get_constraint_layout,get_max_constraint_degree,get_log_num_quotient_chunks,get_symbolic_constraints};
 use p3_air::symbolic::AirLayout;
 use p3_lookup::{Lookups,logup::LogUpGadget};
 use p3_security::{fri::FriRegime,logup::{LogUpAir,security_term},shape::{InstanceShape,StarkAirParams},stark::proven_security_report,grinding::GrindingSites};
@@ -251,6 +251,12 @@ fn preprocessing_config(air:&WiredAir)->Config{
 pub(crate) fn wired_security_report(program_bytes:&[u8])->Result<serde_json::Value,()>{
     let (program,digest)=public_program(program_bytes)?;
     let air=WiredAir::new(program);
+    let config=config();
+    let is_zk=config.is_zk();
+    if is_zk!=1{return Err(());}
+    let rows=air.rows();
+    let committed_log_degree=rows.ilog2() as usize+is_zk;
+    let committed_degree=rows.checked_shl(is_zk as u32).ok_or(())?;
     let lookups=Lookups::<F>::from_air::<crate::E,_>(&air);
     if lookups.is_empty(){return Err(());}
     let layout=AirLayout::from_air::<F>(&air);
@@ -259,42 +265,111 @@ pub(crate) fn wired_security_report(program_bytes:&[u8])->Result<serde_json::Val
         &air,layout,&lookups,&lookup_gadget);
     let degree=get_max_constraint_degree::<F,crate::E,_,_>(
         &air,layout,air.rows(),&lookups,&lookup_gadget);
+    // Two-adic quotient sizing treats IsTransition as degree multiple zero,
+    // but its actual selector polynomial is linear. Keep that sizing value
+    // for the prover's chunk schedule, and derive a distinct conservative
+    // degree for the full polynomial identity used by the OOD analysis.
+    let (base_constraints,extension_constraints)=get_symbolic_constraints::<F,crate::E,_,_>(
+        &air,layout,&lookups,&lookup_gadget);
+    let full_selector_degree=base_constraints.iter()
+        .map(|constraint|constraint.degree_multiple_with_transition(1))
+        .chain(extension_constraints.iter()
+            .map(|constraint|constraint.degree_multiple_with_transition(1)))
+        .max().unwrap_or(0).max(degree)
+        .max(<WiredAir as BaseAir<F>>::max_constraint_degree(&air).unwrap_or(0));
     let log_chunks=get_log_num_quotient_chunks::<F,crate::E,_,_>(
-        &air,layout,air.rows(),&lookups,1,&lookup_gadget);
-    if log_chunks>=32 {return Err(());}
-    let chunks=1usize.checked_shl(log_chunks as u32).ok_or(())?;
+        &air,layout,rows,&lookups,is_zk,&lookup_gadget);
+    // batch-stark/prover.rs adds the ZK bit AFTER symbolic quotient sizing.
+    // The previous report omitted this factor and described half of the
+    // chunks that the native prover actually commits.
+    let committed_log_chunks=log_chunks.checked_add(is_zk).ok_or(())?;
+    let chunks=1usize.checked_shl(committed_log_chunks as u32).ok_or(())?;
     let num_batched=p3_batch_stark::num_batched_openings(
-        GATE_WIDTH,false,PREP_WIDTH,false,chunks,lookups.len(),8,
-        p3_uni_stark::OpeningShape::hiding(8));
+        GATE_WIDTH,false,PREP_WIDTH,false,chunks,lookups.len(),crate::EXT_DIM,
+        p3_uni_stark::OpeningShape::hiding(crate::RANDOM_CODEWORDS));
     let params=StarkAirParams{
         num_constraints:constraint_layout.total_constraints(),
         max_constraint_degree:degree,
         num_quotient_chunks:chunks,max_combo:2,
     };
     let shape=InstanceShape{
-        log_trace_length:air.rows().ilog2() as usize,
-        modulus_bits:247,
-        collision_resistance:170,
+        // The committed polynomial domain is doubled by HidingFriPcs, just
+        // as proof.degree_bits and verifier key generation require.
+        log_trace_length:committed_log_degree,
+        modulus_bits:crate::EXTENSION_FIELD_FLOOR_BITS,
+        collision_resistance:crate::IDEAL_HASH_COLLISION_BITS,
         num_batched_functions:num_batched,
     };
     let regime=FriRegime{
-        log_blowup:3,log_final_poly_len:0,max_log_arity:1,
-        num_queries:320,commit_pow_bits:0,query_pow_bits:0,
+        log_blowup:crate::LOG_BLOWUP,log_final_poly_len:0,max_log_arity:1,
+        num_queries:crate::QUERIES,commit_pow_bits:0,query_pow_bits:0,
     };
     let interactions=LogUpAir{num_interactions:4,max_message_width:2};
     let logup=security_term(&interactions,&shape,&GrindingSites::NONE).ok_or(())?;
     let rbr=proven_security_report(&regime,&params,&shape,&[logup],&GrindingSites::NONE);
+    let quotient_domain=rows.checked_mul(chunks).ok_or(())?;
+    let recomposed_general=rows.checked_mul(chunks.checked_add(1).ok_or(())?).ok_or(())?;
+    let initial_lde=committed_degree.checked_shl(crate::LOG_BLOWUP as u32).ok_or(())?;
+    // This is a source-derived shape, not a coefficient measurement or a
+    // soundness proof. The native test below checks actual proof arities.
+    // Binary FRI commits each vector BEFORE folding; each matrix leaf holds
+    // two extension-field values. log_final_poly_len=0 ends at a constant.
+    let fri_rounds:Vec<_>=(0..committed_log_degree).map(|round|{
+        let factor=1usize<<round;
+        let vector_height=initial_lde/factor;
+        serde_json::json!({
+            "round":round,
+            "commit_before_fold":true,
+            "evaluation_vector_height":vector_height,
+            "committed_matrix_height":vector_height/2,
+            "matrix_width_extension_values":2,
+            "verifier_degree_strict_bound":committed_degree/factor,
+            "honest_opening_quotient_degree_strict_bound":
+                (committed_degree-1).div_ceil(factor),
+            "fold_arity":2
+        })
+    }).collect();
+    let degree_geometry=serde_json::json!({
+        "schema":"AEGIS_V4_WIRED_HIDING_DEGREE_GEOMETRY_V1",
+        "derivation":"pinned-upstream-control-flow-not-coefficient-measurement",
+        "upstream_commit":"a21e3ed42905040ad49c519e402f018381c12d0c",
+        "trace_rows":rows,"is_zk":is_zk,
+        "committed_log_degree":committed_log_degree,
+        "committed_trace_rows":committed_degree,
+        "main_preprocessed_permutation_degree_strict_bound":committed_degree,
+        "randomization_degree_strict_bound":committed_degree,
+        "log_quotient_expansion":log_chunks,
+        "quotient_chunks":chunks,
+        "quotient_domain_rows":quotient_domain,
+        "quotient_chunk_rows":rows,
+        "quotient_chunk_committed_rows":committed_degree,
+        "quotient_chunk_degree_exclusive":committed_degree,
+        // q'_i may independently have degree <2N. The degree-(C-1)N
+        // recombination weights give Qhat degree <(C+1)N. Only the honest
+        // correlated chunk masks cancel back to a polynomial of degree <CN.
+        "quotient_recomposed_general_degree_exclusive":recomposed_general,
+        "quotient_recomposed_honest_degree_exclusive":quotient_domain,
+        "initial_fri_lde_height":initial_lde,
+        "fri_rounds":fri_rounds,
+        "terminal_evaluation_vector_height":1usize<<crate::LOG_BLOWUP,
+        "terminal_polynomial_degree_strict_bound":1,
+        "polynomial_coefficients_checked":false,
+        "degree_caps_verified_for_arbitrary_prover":false,
+        "aegis_target_met":false,"production_ready":false
+    });
     let result=serde_json::json!({
         "schema":"AEGIS_V4_WIRED_LOGUP_FRI_RBR_PROVEN_IOP_ONLY_V1",
         "program_sha512":digest,"trace_rows":air.rows(),
         "num_lookups":lookups.len(),
         "constraints":params.num_constraints,
         "constraint_degree":params.max_constraint_degree,
+        "constraint_full_selector_degree":full_selector_degree,
         "num_quotient_chunks":chunks,
         "num_batched_functions":num_batched,
         "logup_field_bits_floor":shape.modulus_bits,
-        "fri_blowup":8,"fri_queries":320,
+        "fri_blowup":1usize<<crate::LOG_BLOWUP,"fri_queries":crate::QUERIES,
         "hiding_fri":true,"sha512_commitment_collision_bits_assumed":170,
+        "committed_degree_geometry":degree_geometry,
         "rbr_bits":rbr.security_bits(),
         "rbr_breakdown":rbr,
         "collision_cap_is_external_assumption":true,
@@ -426,6 +501,16 @@ mod tests{
             Gate{op:4,a:5,b:1,z:0}, // assert w5==1
         ],6))
     }
+    fn circuit_bytes(air:&WiredAir)->Vec<u8>{
+        let mut bytes=PROGRAM_MAGIC.to_vec();
+        bytes.extend((air.program.wire_count as u32).to_be_bytes());
+        bytes.extend((air.program.gates.len() as u32).to_be_bytes());
+        for gate in air.program.gates.iter(){
+            bytes.push(gate.op);
+            for id in [gate.a,gate.b,gate.z]{bytes.extend(id.to_be_bytes());}
+        }
+        bytes
+    }
     #[test]
     fn statement_binding_is_cryptographically_included_in_program_digest(){
         let circuit=circuit();
@@ -471,6 +556,32 @@ mod tests{
         let prep_config=preprocessing_config(&air);
         let data=ProverData::from_instances(&prep_config,&inst).unwrap();
         let proof=prove_batch(&config,&inst,&data).unwrap();
+        // Compare the report against the ACTUAL native proof/key shape, not
+        // a second copy of a formula. This catches omitting the ZK doubling
+        // in either trace degree or quotient chunk count.
+        let report=wired_security_report(&circuit_bytes(&air)).unwrap();
+        assert!(report["constraint_full_selector_degree"].as_u64().unwrap()>=
+            report["constraint_degree"].as_u64().unwrap());
+        let geometry=&report["committed_degree_geometry"];
+        let committed_log=geometry["committed_log_degree"].as_u64().unwrap() as usize;
+        assert_eq!(proof.degree_bits,vec![committed_log]);
+        assert_eq!(committed_log,air.rows().ilog2() as usize+config.is_zk());
+        let prep_meta=data.common.preprocessed.as_ref().unwrap()
+            .instances[0].as_ref().unwrap();
+        assert_eq!(prep_meta.degree_bits,committed_log);
+        let actual_chunks=&proof.opened_values.instances[0]
+            .base_opened_values.quotient_chunks;
+        assert_eq!(actual_chunks.len(),report["num_quotient_chunks"].as_u64().unwrap() as usize);
+        assert_eq!(actual_chunks.len(),geometry["quotient_chunks"].as_u64().unwrap() as usize);
+        assert!(actual_chunks.iter().all(|chunk|chunk.len()==crate::EXT_DIM));
+        let fri=&proof.opening_proof.1;
+        let rounds=geometry["fri_rounds"].as_array().unwrap();
+        assert_eq!(fri.commit_phase_commits.len(),rounds.len());
+        assert_eq!(fri.commit_phase_openings.len(),rounds.len());
+        for step in &fri.commit_phase_openings{
+            assert!(step.sibling_values.iter().all(|values|values.len()==1));
+        }
+        assert_eq!(fri.final_poly.len(),geometry["terminal_polynomial_degree_strict_bound"].as_u64().unwrap() as usize);
         let public=air.public_values();
         // Critical: do NOT re-use the prover's preprocessed commitment.
         // The verifier independently reconstructs it from the public program.

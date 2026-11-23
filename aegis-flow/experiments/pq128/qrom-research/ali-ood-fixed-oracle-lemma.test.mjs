@@ -16,8 +16,30 @@ test('x^4-1 has expected roots in F17 and long division recovers the honest quot
     constraintPolynomial:C,quotientPolynomial:[2n,1n]});
   assert.equal(r.residual_identically_zero,true);
   assert.equal(r.quotient_is_exact_polynomial,true);
-  assert.equal(r.conditional_uniform_extension_zeta_bound.numerator,'0');
+  assert.equal(r.nonzero_residual_root_bound_applicable,false);
+  assert.equal(r.conditional_uniform_extension_zeta_bound,null);
   assert.equal(r.AIR_LogUp_knowledge_soundness_proved,false);
+});
+test('an exact zero residual vanishes everywhere and cannot have a zero root-event bound',()=>{
+  const input={prime:17n,domainSize:4,
+    constraintPolynomial:[16n,0n,0n,0n,1n],quotientPolynomial:[1n]};
+  const exact=enumerateOodChecks(input);
+  assert.equal(exact.theorem.residual_identically_zero,true);
+  assert.equal(exact.theorem.quotient_is_exact_polynomial,true);
+  assert.equal(exact.exceptional_roots,exact.outside_subgroup_count);
+  assert.equal(exact.accepted_outside_domain_points,13);
+  assert.deepEqual(exact.lower_probability_conditioned_on_outside_domain,
+    {numerator:'13',denominator:'13'});
+  assert.equal(exact.theorem.nonzero_residual_root_bound_applicable,false);
+  assert.equal(exact.theorem.conditional_uniform_extension_zeta_bound,null);
+  // In contrast, a nonzero constant really does have no roots.
+  const nonzero=quotientOodMismatch({...input,
+    constraintPolynomial:[1n],quotientPolynomial:[0n],extensionDegree:1});
+  assert.equal(nonzero.residual_identically_zero,false);
+  assert.equal(nonzero.nonzero_residual_root_bound_applicable,true);
+  assert.equal(nonzero.conditional_uniform_extension_zeta_bound.numerator,'0');
+  assert.equal(nonzero.pq128_demonstrated,false);
+  assert.equal(nonzero.production_ready,false);
 });
 test('malicious quotient mismatches everywhere outside H even if C divisible',()=>{
   const C=[15n,16n,0n,0n,2n,1n];

@@ -16,35 +16,38 @@ export function candidateV5PublicStatement(value){
   const keys=['version','network_id','anchor_root','nullifiers',
     'output_commitments','fee_atomic','asset_id','proof_program_id',
     'encrypted_outputs'];
-  if(!exact(value,keys)||value.version!==QUEER_V5_CANDIDATE_VERSION||
-    typeof value.network_id!=='string'||!/^[A-Za-z0-9_-]{1,64}$/.test(value.network_id)||
-    value.asset_id!=='QUEER'||!validHex(value.anchor_root)||
-    !validHex(value.proof_program_id)||!DECIMAL_U53.test(value.fee_atomic)||
-    !Number.isSafeInteger(Number(value.fee_atomic))||
-    !Array.isArray(value.nullifiers)||value.nullifiers.length!==1||
-    !Array.isArray(value.output_commitments)||value.output_commitments.length!==1||
-    value.nullifiers.some(x=>!validHex(x))||
-    value.output_commitments.some(x=>!validHex(x))||
-    !Array.isArray(value.encrypted_outputs)||value.encrypted_outputs.length!==1)fail();
-  const output=value.encrypted_outputs[0];
+  if(!exact(value,keys))fail();
+  // Read caller properties once and retain only checked primitive values.
+  const {version,network_id,anchor_root,nullifiers,output_commitments,
+    fee_atomic,asset_id,proof_program_id,encrypted_outputs}=value;
+  const singleton=list=>{
+    if(!Array.isArray(list))fail();
+    const length=list.length;
+    if(length!==1||!Object.hasOwn(list,0))fail();
+    return list[0];
+  };
+  const nullifier=singleton(nullifiers),commitment=singleton(output_commitments),
+    output=singleton(encrypted_outputs);
+  if(version!==QUEER_V5_CANDIDATE_VERSION||
+    typeof network_id!=='string'||!/^[A-Za-z0-9_-]{1,64}$/.test(network_id)||
+    asset_id!=='QUEER'||!validHex(anchor_root)||!validHex(proof_program_id)||
+    typeof fee_atomic!=='string'||!DECIMAL_U53.test(fee_atomic)||
+    !Number.isSafeInteger(Number(fee_atomic))||!validHex(nullifier)||!validHex(commitment))fail();
   // Only structural lengths. A real KEM encapsulation must be validated
   // cryptographically by the receiver; a random hex string is insufficient.
-  if(!exact(output,['algorithm','kem_ciphertext_hex','one_time_view_tag'])||
-    output.algorithm!=='ML-KEM-1024'||
-    typeof output.kem_ciphertext_hex!=='string'||
-    !/^[0-9a-f]{3136}$/.test(output.kem_ciphertext_hex)||
-    !validHex(output.one_time_view_tag))fail();
+  if(!exact(output,['algorithm','kem_ciphertext_hex','one_time_view_tag']))fail();
+  const {algorithm,kem_ciphertext_hex,one_time_view_tag}=output;
+  if(algorithm!=='ML-KEM-1024'||typeof kem_ciphertext_hex!=='string'||
+    !/^[0-9a-f]{3136}$/.test(kem_ciphertext_hex)||!validHex(one_time_view_tag))fail();
   return Object.freeze({
     schema:'QUEER_V5_PUBLIC_STATEMENT_STRUCTURAL_ONLY',
     statement:Object.freeze({
-      version:value.version,network_id:value.network_id,
-      anchor_root:value.anchor_root,
-      nullifiers:Object.freeze([...value.nullifiers]),
-      output_commitments:Object.freeze([...value.output_commitments]),
-      fee_atomic:value.fee_atomic,asset_id:value.asset_id,
-      proof_program_id:value.proof_program_id,
+      version,network_id,anchor_root,
+      nullifiers:Object.freeze([nullifier]),
+      output_commitments:Object.freeze([commitment]),
+      fee_atomic,asset_id,proof_program_id,
       encrypted_outputs:Object.freeze([
-        Object.freeze({...output})
+        Object.freeze({algorithm,kem_ciphertext_hex,one_time_view_tag})
       ]),
     }),
     public_linkable_input_commitment_included:false,

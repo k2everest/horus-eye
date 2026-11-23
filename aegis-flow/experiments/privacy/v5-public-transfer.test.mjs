@@ -31,3 +31,32 @@ test('candidate rejects extra identifiers, invalid KEM size, altered fee and mis
     assert.throws(()=>candidateV5PublicStatement({...valid(),...changes}));
   }
 });
+test('fees must be primitive canonical decimal strings without coercion',()=>{
+ for(const fee_atomic of [42,42n,['42'],new String('42'),{toString(){return '42';}},
+   null,undefined,'042',' 42','42.0'])assert.throws(()=>candidateV5PublicStatement({...valid(),fee_atomic}));
+ assert.equal(candidateV5PublicStatement({...valid(),fee_atomic:'0'}).statement.fee_atomic,'0');
+ assert.equal(candidateV5PublicStatement({...valid(),fee_atomic:'9007199254740991'}).statement.fee_atomic,'9007199254740991');
+});
+test('sparse and inherited singleton entries cannot pass as public identifiers',()=>{
+ for(const field of ['nullifiers','output_commitments','encrypted_outputs']){
+  const sparse=Array(1),inherited=Object.setPrototypeOf(Array(1),
+    Object.assign(Object.create(Array.prototype),{0:valid()[field][0]}));
+  for(const array of [sparse,inherited])assert.throws(()=>candidateV5PublicStatement({...valid(),[field]:array}));
+ }
+});
+test('the accepted snapshot copies checked primitives and never rereads mutable caller fields',()=>{
+ const source=valid();let feeReads=0,tagReads=0;
+ Object.defineProperty(source,'fee_atomic',{enumerable:true,get(){feeReads++;return feeReads===1?'42':['42'];}});
+ Object.defineProperty(source.encrypted_outputs[0],'one_time_view_tag',{enumerable:true,get(){tagReads++;return tagReads===1?h('e'):{};}});
+ const result=candidateV5PublicStatement(source);
+ assert.equal(feeReads,1);assert.equal(tagReads,1);
+ source.nullifiers[0]='invalid';source.output_commitments[0]='invalid';
+ source.encrypted_outputs[0].kem_ciphertext_hex='invalid';
+ assert.equal(result.statement.fee_atomic,'42');
+ assert.equal(result.statement.nullifiers[0],h('b'));
+ assert.equal(result.statement.output_commitments[0],h('c'));
+ assert.equal(result.statement.encrypted_outputs[0].one_time_view_tag,h('e'));
+ assert.equal(result.statement.encrypted_outputs[0].kem_ciphertext_hex,'ab'.repeat(1568));
+ assert.equal(Object.isFrozen(result.statement.encrypted_outputs[0]),true);
+ assert.equal(result.consensus_admitted,false);assert.equal(result.pq128_demonstrated,false);
+});

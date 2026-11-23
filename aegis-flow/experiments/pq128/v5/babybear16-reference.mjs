@@ -4,7 +4,13 @@ import {randomBytes} from 'node:crypto';
 const P=2013265921n,D=16,N=31n;
 export const BB16={prime:P,degree:D,nonresidue:N,bytes:64};
 const mod=x=>((x%P)+P)%P;
-export function powBase(a,n){let x=mod(a),r=1n;while(n){if(n&1n)r=mod(r*x);x=mod(x*x);n>>=1n;}return r;}
+// The reference inverse needs fewer than 512 exponent bits. Bound every
+// public exponent before shifting so negative values cannot loop forever.
+const checkExponent=n=>{
+ if(typeof n!=='bigint'||n<0n||n>=(1n<<512n))throw new RangeError('bounded nonnegative bigint exponent required');
+ return n;
+};
+export function powBase(a,n){checkExponent(n);let x=mod(a),r=1n;while(n){if(n&1n)r=mod(r*x);x=mod(x*x);n>>=1n;}return r;}
 export function irreducibilityCertificate(){
  const factors=[2n,3n,5n],order=P-1n;
  const residues=factors.map(f=>powBase(N,order/f));
@@ -16,27 +22,36 @@ export function irreducibilityCertificate(){
   implemented_in_plonky3:false,pcs_compatible:false,pq128_demonstrated:false};
 }
 const check=a=>{
- if(!Array.isArray(a)||a.length!==D||a.some(x=>typeof x!=='bigint'||x<0n||x>=P))
-   throw new RangeError('noncanonical GF(p^16) coefficients');return a;
+ if(!Array.isArray(a))throw new RangeError('noncanonical GF(p^16) coefficients');
+ const length=a.length;
+ if(length!==D)throw new RangeError('noncanonical GF(p^16) coefficients');
+ const copy=Array(D);
+ for(let i=0;i<length;i++){
+  if(!Object.hasOwn(a,i))throw new RangeError('noncanonical GF(p^16) coefficients');
+  const x=a[i];
+  if(typeof x!=='bigint'||x<0n||x>=P)throw new RangeError('noncanonical GF(p^16) coefficients');
+  copy[i]=x;
+ }
+ return copy;
 };
 export const one=()=>[1n,...Array(15).fill(0n)];
 export const zero=()=>Array(16).fill(0n);
-export function add(a,b){check(a);check(b);return a.map((x,i)=>mod(x+b[i]));}
-export function sub(a,b){check(a);check(b);return a.map((x,i)=>mod(x-b[i]));}
+export function add(a,b){a=check(a);b=check(b);return a.map((x,i)=>mod(x+b[i]));}
+export function sub(a,b){a=check(a);b=check(b);return a.map((x,i)=>mod(x-b[i]));}
 export function mul(a,b){
- check(a);check(b);const r=Array(31).fill(0n);
+ a=check(a);b=check(b);const r=Array(31).fill(0n);
  for(let i=0;i<16;i++)for(let j=0;j<16;j++)r[i+j]+=a[i]*b[j];
  for(let i=30;i>=16;i--)r[i-16]+=N*r[i];
  return r.slice(0,16).map(mod);
 }
 export function pow(a,n){
- check(a);if(n<0n)throw new RangeError('negative exponent');
+ a=check(a);checkExponent(n);
  let b=a,r=one();while(n){if(n&1n)r=mul(r,b);n>>=1n;if(n)b=mul(b,b);}
  return r;
 }
-export function inverse(a){check(a);if(a.every(x=>x===0n))throw new RangeError('division by zero');return pow(a,P**16n-2n);}
+export function inverse(a){a=check(a);if(a.every(x=>x===0n))throw new RangeError('division by zero');return pow(a,P**16n-2n);}
 export function encode(a){
- check(a);const b=Buffer.alloc(64);a.forEach((x,i)=>b.writeUInt32LE(Number(x),i*4));return b;
+ a=check(a);const b=Buffer.alloc(64);a.forEach((x,i)=>b.writeUInt32LE(Number(x),i*4));return b;
 }
 export function decode(b){
  if(!Buffer.isBuffer(b)||b.length!==64)throw new TypeError('64 byte canonical encoding required');

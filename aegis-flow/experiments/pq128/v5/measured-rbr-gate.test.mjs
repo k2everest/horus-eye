@@ -31,3 +31,23 @@ test('fail closed on missing LogUp term and fraudulently self-certified reports'
  assert.throws(()=>assessMeasuredWiredRbr({...report(),qrom_fiat_shamir_reduction_proved:true}));
  assert.throws(()=>assessMeasuredWiredRbr(report(),{queryBits:-1}));
 });
+test('full WiredAir accounting cannot silently omit batching or any other required event',()=>{
+ const original=report();
+ for(const omitted of original.rbr_breakdown.udr.terms.map(t=>t.label)){
+  const bad=report();
+  bad.rbr_breakdown.udr.terms=bad.rbr_breakdown.udr.terms.filter(t=>t.label!==omitted);
+  assert.throws(()=>assessMeasuredWiredRbr(bad),/RBR/);
+ }
+ const substituted=report();
+ substituted.rbr_breakdown.udr.terms.find(t=>t.label==='batch-combination').label='unrecognized-event';
+ assert.throws(()=>assessMeasuredWiredRbr(substituted),/INVALID_RBR_TERM/);
+ const extra=report();extra.rbr_breakdown.udr.terms.push({label:'unrecognized-event',bits:0});
+ assert.throws(()=>assessMeasuredWiredRbr(extra),/RBR/);
+ const duplicate=report();
+ duplicate.rbr_breakdown.udr.terms.find(t=>t.label==='batch-combination').label='deep-ali';
+ assert.throws(()=>assessMeasuredWiredRbr(duplicate),/INVALID_RBR_TERM/);
+ const valid=assessMeasuredWiredRbr(original);
+ assert.equal(valid.reports.udr.algebraic_terms['batch-combination'],216);
+ assert.equal(valid.pq128_demonstrated,false);
+ assert.equal(valid.production_ready,false);
+});

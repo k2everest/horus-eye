@@ -32,6 +32,17 @@ jobs:
           node aegis-flow/experiments/pq128/quantitative/parameter-search-demo.mjs --target-failure-bits 128 > pq128-parameter-search-residual.json
       - name: Report the SHA-512 outer-binding QROM ideal-screen for V4 only
         run: node aegis-flow/experiments/pq128/v4/demo.mjs > pq128-v4-outer-screen.json
+      - name: Reproduce disjoint post-quantum component bounds without authorizing PQ128
+        run: |
+          node aegis-flow/experiments/pq128/v4/pq128-formal-dossier.mjs > pq128-plonky3-formal-dossier.json
+          node - <<'JS'
+          const d=require('./pq128-plonky3-formal-dossier.json');
+          if(d.pq128_demonstrated!==false||d.production_ready!==false||
+             d.critical_unknowns.quantum_compatible_state_restoration_reduction!==null||
+             d.critical_unknowns.full_six_SHA512_native_proof_accepted!==null||
+             d.conditional_components.generic_salt_grover_screen.salt_elements!==16)
+            process.exit(1);
+          JS
       - name: Check the private transfer constraint assignment without publishing it
         run: node aegis-flow/experiments/pq128/constraints/demo.mjs --report pq128-transfer-constraints.json
       - name: Rehearse sampled private polynomial segments with an explicit resource budget
@@ -58,6 +69,7 @@ jobs:
             pq128-private-oracle-recovery.json
             pq128-parameter-search.json
             pq128-parameter-search-residual.json
+            pq128-plonky3-formal-dossier.json
           retention-days: 3
           if-no-files-found: error
 

@@ -31,11 +31,13 @@ test('single transfer canonical private SHA512 circuit expresses all six hashes 
     assert.equal(pub.statement_digest,pinned);
     const encoded=readFileSync(pubPath);
     assert.equal(encoded.length,pub.byte_length);
-    const magic=Buffer.from('AEGIS_V4_BOOLEAN_PROGRAM_V1\0','ascii');
+    const magic=Buffer.from('AEGIS_V4_BOOLEAN_PROGRAM_V2\0','ascii');
     assert.deepEqual(encoded.subarray(0,magic.length),magic);
     assert.equal(createHash('sha512').update(encoded).digest('hex'),pub.program_sha512);
     assert.equal(encoded.readUInt32BE(magic.length),m.wire_count);
     assert.equal(encoded.readUInt32BE(magic.length+4),m.gate_count);
+    assert.equal(encoded.subarray(magic.length+8,magic.length+8+64).toString('hex'),pinned);
+    assert.equal(pub.schema,'AEGIS_V4_SINGLE_TRANSFER_NATIVE_PUBLIC_PROGRAM_V2');
     const secret=writeOneInOneOutPrivateAssignment512(m,fixture.witness,secretPath);
     assert.equal(secret.private_assignment_file_created,true);
     assert.equal(secret.byte_length,m.wire_count);

@@ -169,7 +169,20 @@ jobs:
           JS
       - name: Match committed hiding degrees to native proof shape and exact dependency sources
         run: |
-          cargo metadata --format-version 1 --locked --offline --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml > aegis-v4-cargo-metadata.json
+          python3 - <<'PY'
+          import pathlib, subprocess
+          command = ['cargo', 'metadata', '--format-version', '1', '--locked',
+                     '--filter-platform', 'x86_64-unknown-linux-gnu', '--manifest-path',
+                     'aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml']
+          # Metadata may need manifests for target-specific dependencies that a
+          # preceding host build did not download. Keep the resolved lock fixed.
+          result = subprocess.run(command, capture_output=True, text=True)
+          if result.returncode:
+              message = result.stderr[-12000:].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              print(f'::error title=Locked Cargo metadata::{message}', flush=True)
+              raise SystemExit(result.returncode)
+          pathlib.Path('aegis-v4-cargo-metadata.json').write_text(result.stdout)
+          PY
           node aegis-flow/experiments/pq128/qrom-research/hiding-degree-demo.mjs --native-report aegis-v4-wired-rbr.json --cargo-metadata aegis-v4-cargo-metadata.json > aegis-v4-hiding-degree-audit.json
       - uses: actions/upload-artifact@v4
         with:

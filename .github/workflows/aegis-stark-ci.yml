@@ -22,6 +22,8 @@ jobs:
         run: node --test aegis-flow/experiments/pq128/*.test.mjs aegis-flow/experiments/pq128/fri/*.test.mjs aegis-flow/experiments/pq128/financial/*.test.mjs aegis-flow/experiments/pq128/constraints/*.test.mjs aegis-flow/experiments/pq128/quantitative/*.test.mjs aegis-flow/experiments/pq128/v4/*.test.mjs aegis-flow/experiments/pq128/native/backend.test.mjs
       - name: Audit V3 PoW liveness, supply cap and valuation accounting without changing monetary rules
         run: node --test aegis-flow/experiments/economics/*.test.mjs
+      - name: Reject linkable sender and input identifiers in the V5 privacy candidate
+        run: node --test aegis-flow/experiments/privacy/*.test.mjs
       - name: Enforce 336-bit RBR target as a non-approved engineering gate
         run: |
           node - <<'JS'

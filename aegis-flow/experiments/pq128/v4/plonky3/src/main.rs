@@ -95,17 +95,39 @@ type Chall=SerializingChallenger32<F,HashChallenger<u8,Sha512Hash,64>>;
 type Pcs=HidingFriPcs<F,Radix2Bowers,Mmcs,EMmcs,StdRng>;
 type Config=StarkConfig<Pcs,E,Chall>;
 
-fn config()->Config{
-    // HidingFriPcs upstream requires N >= 2*(queries + DIMENSION*points)
-    // AND both MMCS instances must be hiding; mere HidingFriPcs wrapping is
-    // insufficient. Salt entropy uses 16 independent BabyBear elements.
+// Public preprocessing commitments must be independently reproducible.
+// HidingFriPcs zero-pads *public* preprocessing, but the underlying salted
+// Merkle MMCS normally generates fresh salts on every commit. A verifier
+// recomputing the trusted public commitment would otherwise get a different
+// Merkle root from the prover. Deterministic salts are permitted ONLY for
+// the publicly known preprocessed instruction columns, never private trace,
+// quotient commitments or private FRI evaluations.
+fn pcs_rng(public_program:Option<&[u8;64]>,label:&[u8])->StdRng{
+    if let Some(program)=public_program{
+        let mut h=Sha512::new();
+        h.update(b"AEGIS_V4_P3_PUBLIC_PREPROCESS_ONLY_V1\0");
+        h.update((label.len() as u32).to_be_bytes());
+        h.update(label);
+        h.update(program);
+        let digest:[u8;64]=h.finalize().into();
+        StdRng::from_seed(digest[..32].try_into().unwrap())
+    }else{
+        StdRng::try_from_rng(&mut SysRng)
+            .expect("cryptographically secure OS RNG required")
+    }
+}
+fn config_from_public_program(public_program:Option<&[u8;64]>)->Config{
+    // All main-trace proof paths call config() and receive fresh OS entropy.
+    // The alternative below is exclusively for public, verifier-rebuilt
+    // preprocessed MMCS commitments.
     assert!(ROWS >= 2*(QUERIES+EXT_DIM*MAX_OPENING_POINTS));
     assert!(RANDOM_CODEWORDS >= EXT_DIM);
     assert!(SALT_ELEMS >= 16);
     let leaf=Sha512Words(b"AEGIS_V4_P3_LEAF_SHA512_V2\0");
     let node=Sha512Words(b"AEGIS_V4_P3_NODE_SHA512_V2\0");
     let chal_hash=Sha512Hash(b"AEGIS_V4_P3_TRANSCRIPT_SHA512_V2\0");
-    let val_mmcs=Mmcs::new(FH::new(leaf),Compress::new(node),3,StdRng::try_from_rng(&mut SysRng).expect("cryptographically secure OS RNG required"));
+    let val_mmcs=Mmcs::new(FH::new(leaf),Compress::new(node),3,
+        pcs_rng(public_program,b"PUBLIC_PREP_MMCS"));
     let fri=FriParameters{
         log_blowup:LOG_BLOWUP,
         log_final_poly_len:0,
@@ -117,10 +139,16 @@ fn config()->Config{
         mmcs:EMmcs::new(val_mmcs.clone()),
     };
     let pcs=Pcs::new(Radix2Bowers::default(),val_mmcs,fri,
-        RANDOM_CODEWORDS,StdRng::try_from_rng(&mut SysRng).expect("cryptographically secure OS RNG required"));
+        RANDOM_CODEWORDS,pcs_rng(public_program,b"PUBLIC_PREP_PCS"));
     let challenger=Chall::new(HashChallenger::new(
         b"AEGIS_V4_P3_HIDING_EXT8_LAB_V1".to_vec(),chal_hash));
     Config::new(pcs,challenger)
+}
+fn config()->Config{config_from_public_program(None)}
+// DO NOT use this config for prove_batch/verify_batch: its salts are
+// deterministic and safe solely for PUBLIC preprocessing commitments.
+fn public_preprocessing_config(program_sha512:[u8;64])->Config{
+    config_from_public_program(Some(&program_sha512))
 }
 
 #[derive(Clone,Debug,Serialize,Deserialize,PartialEq,Eq)]

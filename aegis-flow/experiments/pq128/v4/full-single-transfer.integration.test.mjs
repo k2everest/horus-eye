@@ -56,7 +56,7 @@ test('complete 1x1 SHA512 circuit produces Plonky3 proof with LogUp wire consist
       degree:actualRbr.constraint_degree,quotient_chunks:actualRbr.num_quotient_chunks,
       queries:actualRbr.fri_queries,rbr_bits:actualRbr.rbr_bits,
       udr:actualRbr.rbr_breakdown.udr.terms.map(t=>t.label),
-    })+'\\n');
+    })+'\n');
     stage('actual-six-sha512-wired-rbr-computed',started);
     const privateStatus=writeOneInOneOutPrivateAssignment512(manifest,f.witness,witnessPath);
     assert.equal(privateStatus.private_assignment_file_created,true);

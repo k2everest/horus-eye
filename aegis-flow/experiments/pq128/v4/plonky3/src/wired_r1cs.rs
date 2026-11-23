@@ -253,7 +253,7 @@ pub(crate) fn wired_security_report(program_bytes:&[u8])->Result<serde_json::Val
     let air=WiredAir::new(program);
     let lookups=Lookups::<F>::from_air::<crate::E,_>(&air);
     if lookups.is_empty(){return Err(());}
-    let layout=AirLayout::from_air(&air);
+    let layout=AirLayout::from_air::<F>(&air);
     let lookup_gadget=LogUpGadget::new();
     let constraint_layout=get_constraint_layout::<F,crate::E,_,_>(
         &air,layout,&lookups,&lookup_gadget);

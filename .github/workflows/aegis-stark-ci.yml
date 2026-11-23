@@ -20,6 +20,21 @@ jobs:
           node-version: '24'
       - name: Test experimental SHA-512 bindings and conditional standalone FRI arithmetic
         run: node --test aegis-flow/experiments/pq128/*.test.mjs aegis-flow/experiments/pq128/fri/*.test.mjs aegis-flow/experiments/pq128/financial/*.test.mjs aegis-flow/experiments/pq128/constraints/*.test.mjs aegis-flow/experiments/pq128/quantitative/*.test.mjs aegis-flow/experiments/pq128/v4/*.test.mjs aegis-flow/experiments/pq128/native/backend.test.mjs
+      - name: Audit V3 PoW liveness, supply cap and valuation accounting without changing monetary rules
+        run: node --test aegis-flow/experiments/economics/*.test.mjs
+      - name: Enforce 336-bit RBR target as a non-approved engineering gate
+        run: |
+          node - <<'JS'
+          (async()=>{
+            const {pq128EngineeringTarget}=await import('./aegis-flow/experiments/pq128/v4/pq128-engineering-target.mjs');
+            const c=pq128EngineeringTarget();
+            if(c.target_rbr_bits!==336||
+               c.proposed_field_constructed_and_audited!==false||
+               c.actual_FRI_soundness_bits!==null||
+               c.pq128_demonstrated!==false||c.production_ready!==false)
+              process.exit(1);
+          })().catch(()=>process.exit(1));
+          JS
       - name: Verify fixed one-input/one-output six-SHA512 Boolean circuit in isolated memory budget
         env:
           AEGIS_V4_ONE_CIRCUIT_INTEGRATION: '1'

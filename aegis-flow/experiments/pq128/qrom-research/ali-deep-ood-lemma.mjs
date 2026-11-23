@@ -175,3 +175,39 @@ export function exhaustiveAliDeepToy({
     pq128_demonstrated:false,production_ready:false,
   });
 }
+
+
+/** Demonstrates why the quotient must be committed BEFORE zeta.
+ * In a finite toy field, a forger who sees zeta can always select a
+ * constant Q= C(zeta)/Z_H(zeta), even for an INVALID trace.
+ * This is a counterexample to any missing commitment-order assumption.
+ */
+export function demonstrateLateQuotientAttack({
+  prime=17,traceRows=4,foldedConstraints=[1n],
+}={}){
+  if(!validInt(prime,5,257)||!validInt(traceRows,2,32)||
+     (prime-1)%traceRows!==0)reject('INVALID_LATE_QUOTIENT_INSTANCE');
+  for(let d=2;d*d<=prime;d++)if(prime%d===0)reject('NONPRIME_FIELD');
+  const p=BigInt(prime),C=validateCoefficients(foldedConstraints,p);
+  const H=rootsOfUnity(traceRows,p);
+  if(!H.some(h=>evalPoly(C,h,p)!==0n))
+    reject('LATE_QUOTIENT_REQUIRES_INVALID_CONSTRAINT');
+  let successfulForgeries=0;
+  for(let zeta=0n;zeta<p;zeta++){
+    const vanishing=mod(exponent(zeta,traceRows,p)-1n,p);
+    if(vanishing===0n)continue;
+    const quotient=mulMod(evalPoly(C,zeta,p),exponent(vanishing,prime-2,p),p);
+    if(mulMod(vanishing,quotient,p)===evalPoly(C,zeta,p))
+      successfulForgeries++;
+  }
+  return Object.freeze({
+    schema:'AEGIS_OOD_ADAPTIVE_QUOTIENT_COUNTEREXAMPLE_V1',
+    zeta_outside_domain_count:prime-traceRows,
+    successful_post_zeta_forgery_count:successfulForgeries,
+    forgery_success_fraction_given_ood:'1',
+    requires_quotient_edited_after_zeta:true,
+    applicable_to_real_plonky3:false,
+    illustrates_necessity_of_commitment_before_zeta:true,
+    pq128_demonstrated:false,
+  });
+}

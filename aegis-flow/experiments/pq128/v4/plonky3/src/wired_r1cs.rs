@@ -28,6 +28,7 @@ use p3_uni_stark::StarkGenericConfig;
 use crate::{F,Config,config};
 
 const PROGRAM_MAGIC:&[u8]=b"AEGIS_V4_BOOLEAN_PROGRAM_V1\0";
+const FINANCIAL_PROGRAM_MAGIC:&[u8]=b"AEGIS_V4_BOOLEAN_PROGRAM_V2\0";
 const MAX_GATES:usize=8_000_000;
 // BabyBear 2-adicity is 27. Hiding doubles the 8x FRI domain:
 // rows * 2 * 8 <= 2^27, so <= 2^23 trace rows.
@@ -56,6 +57,10 @@ pub(crate) struct PublicProgram{
 }
 impl PublicProgram{
     pub(crate) fn from_gates(gates:Vec<Gate>,wire_count:usize)->Result<Self,()>{
+        Self::from_gates_bound(gates,wire_count,None)
+    }
+    fn from_gates_bound(gates:Vec<Gate>,wire_count:usize,
+        statement_digest:Option<[u8;64]>)->Result<Self,()>{
         if gates.is_empty()||gates.len()>MAX_GATES||wire_count<2||wire_count>MAX_WIRES||
             wire_count as u64>=2_013_265_921{return Err(());}
         let mut counts=vec![0u32;wire_count];
@@ -75,9 +80,12 @@ impl PublicProgram{
         if 3u64*gates.len() as u64>=2_013_265_921{return Err(());}
         let rows=gates.len().max(wire_count).max(MIN_ROWS).checked_next_power_of_two().ok_or(())?;
         let mut digest=Sha512::new();
-        digest.update(PROGRAM_MAGIC);
+        digest.update(if statement_digest.is_some(){
+            FINANCIAL_PROGRAM_MAGIC
+        }else{PROGRAM_MAGIC});
         digest.update((wire_count as u32).to_be_bytes());
         digest.update((gates.len() as u32).to_be_bytes());
+        if let Some(binding)=statement_digest{digest.update(binding);}
         for gate in &gates{
             digest.update([gate.op]);
             for id in [gate.a,gate.b,gate.z]{digest.update(id.to_be_bytes());}
@@ -90,18 +98,26 @@ impl PublicProgram{
             public_digest_words:words})
     }
     pub(crate) fn from_bytes(bytes:&[u8])->Result<Self,()>{
-        let prefix=PROGRAM_MAGIC.len();
-        if bytes.len()<prefix+8||&bytes[..prefix]!=PROGRAM_MAGIC{return Err(());}
+        let (prefix,financial)=if bytes.starts_with(FINANCIAL_PROGRAM_MAGIC){
+            (FINANCIAL_PROGRAM_MAGIC.len(),true)
+        }else if bytes.starts_with(PROGRAM_MAGIC){
+            (PROGRAM_MAGIC.len(),false)
+        }else{return Err(());};
+        if bytes.len()<prefix+8+if financial{64}else{0}{return Err(());}
         let n=u32::from_be_bytes(bytes[prefix..prefix+4].try_into().map_err(|_|())?) as usize;
         let m=u32::from_be_bytes(bytes[prefix+4..prefix+8].try_into().map_err(|_|())?) as usize;
+        let start=prefix+8+if financial{64}else{0};
         if n>MAX_WIRES||m>MAX_GATES||
-           bytes.len()!=prefix+8+m.checked_mul(13).ok_or(())?{return Err(());}
+           bytes.len()!=start+m.checked_mul(13).ok_or(())?{return Err(());}
+        let binding=if financial{
+            Some(bytes[prefix+8..start].try_into().map_err(|_|())?)
+        }else{None};
         let mut gates=Vec::with_capacity(m);
-        for chunk in bytes[prefix+8..].chunks_exact(13){
+        for chunk in bytes[start..].chunks_exact(13){
             let word=|i|u32::from_be_bytes(chunk[i..i+4].try_into().unwrap());
             gates.push(Gate{op:chunk[0],a:word(1),b:word(5),z:word(9)});
         }
-        Self::from_gates(gates,n)
+        Self::from_gates_bound(gates,n,binding)
     }
     pub(crate) fn from_parts(gates:Vec<Gate>,wire_count:usize)->Self{
         Self::from_gates(gates,wire_count).expect("trusted public circuit shape")
@@ -372,6 +388,30 @@ mod tests{
             Gate{op:2,a:4,b:0,z:5}, // w5=w4^0
             Gate{op:4,a:5,b:1,z:0}, // assert w5==1
         ],6))
+    }
+    #[test]
+    fn statement_binding_is_cryptographically_included_in_program_digest(){
+        let circuit=circuit();
+        let gates=circuit.program.gates.to_vec();
+        let bound1=PublicProgram::from_gates_bound(gates.clone(),6,Some([0x42;64])).unwrap();
+        let bound2=PublicProgram::from_gates_bound(gates,6,Some([0x43;64])).unwrap();
+        assert_ne!(bound1.public_digest_words,bound2.public_digest_words);
+        let mut bytes=FINANCIAL_PROGRAM_MAGIC.to_vec();
+        bytes.extend(6u32.to_be_bytes());
+        bytes.extend(3u32.to_be_bytes());
+        bytes.extend([0x42u8;64]);
+        for g in circuit.program.gates.iter(){
+            bytes.push(g.op);
+            for id in [g.a,g.b,g.z]{bytes.extend(id.to_be_bytes());}
+        }
+        assert_eq!(PublicProgram::from_bytes(&bytes).unwrap().public_digest_words,
+            bound1.public_digest_words);
+        let header=FINANCIAL_PROGRAM_MAGIC.len()+8;
+        bytes[header]^=1;
+        assert_ne!(PublicProgram::from_bytes(&bytes).unwrap().public_digest_words,
+            bound1.public_digest_words);
+        bytes.pop();
+        assert!(PublicProgram::from_bytes(&bytes).is_err());
     }
     #[test]
     fn program_binary_decode_and_public_pins(){

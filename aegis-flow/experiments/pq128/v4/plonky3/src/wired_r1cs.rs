@@ -103,10 +103,11 @@ impl PublicProgram{
         }else if bytes.starts_with(PROGRAM_MAGIC){
             (PROGRAM_MAGIC.len(),false)
         }else{return Err(());};
-        if bytes.len()<prefix+8+if financial{64}else{0}{return Err(());}
+        let binding_length=if financial{64}else{0};
+        if bytes.len()<prefix+8+binding_length{return Err(());}
         let n=u32::from_be_bytes(bytes[prefix..prefix+4].try_into().map_err(|_|())?) as usize;
         let m=u32::from_be_bytes(bytes[prefix+4..prefix+8].try_into().map_err(|_|())?) as usize;
-        let start=prefix+8+if financial{64}else{0};
+        let start=prefix+8+binding_length;
         if n>MAX_WIRES||m>MAX_GATES||
            bytes.len()!=start+m.checked_mul(13).ok_or(())?{return Err(());}
         let binding=if financial{

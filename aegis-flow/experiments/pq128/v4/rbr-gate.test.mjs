@@ -4,7 +4,7 @@ import {assessV4Rbr} from './rbr-gate.mjs';
 const report=()=>({
   schema:'AEGIS_V4_PLONKY3_RBR_LAB_REPORT_V1',
   challenge_extension_degree:8,log_blowup:3,fri_queries:320,
-  random_codewords:8,salt_elements:8,field_cardinality_floor_bits:247,
+  random_codewords:8,salt_elements:16,field_cardinality_floor_bits:247,
   ideal_sha512_collision_bits_assumed:170,max_opening_points_budget:8,
   rbr_unique_decoding_bits:166,rbr_list_decoding_bits:171,
   rbr_best_bits:171,air_constraints_derived:300,

@@ -5,6 +5,7 @@
 import {screenV4OuterBinding} from './outer-screen.mjs';
 import {inspectFixedInteractiveLogup} from './logup-algebraic-bound.mjs';
 import {screenQuantumSaltSearch} from './salt-quantum-screen.mjs';
+import {assessLogupQromReduction} from './logup-qrom-branches.mjs';
 
 export function buildV4QuantumDossier(){
   const outer=screenV4OuterBinding();
@@ -12,6 +13,7 @@ export function buildV4QuantumDossier(){
     gates:8_000_000,wires:8_388_608,
   });
   const salt=screenQuantumSaltSearch({salts:16});
+  const qromBranches=assessLogupQromReduction();
   const output={
     schema:'AEGIS_V4_QUANTUM_PROOF_OBLIGATIONS_V1',
     date:'2026-11-22',
@@ -28,6 +30,7 @@ export function buildV4QuantumDossier(){
       ideal_outer_512bit_QROM:outer,
       fixed_interactive_logup:logup,
       generic_salt_grover_screen:salt,
+      logup_qrom_hypothesis_branches:qromBranches,
     },
     critical_unknowns:{
       actual_wired_air_fri_logup_rbr_error:null,
@@ -52,6 +55,7 @@ export function buildV4QuantumDossier(){
   // unexpectedly generates an asserted success.
   if(outer.aegis_target_met!==false||logup.aegis_target_met!==false||
     salt.aegis_target_met!==false||
+    qromBranches.qrom_query_loss_exponent_proved!==null||
     output.pq128_demonstrated!==false||output.production_ready!==false)
     throw new Error('unqualified security promotion detected');
   return output;

@@ -1,0 +1,43 @@
+name: Aegis Modular QROM Research
+
+on:
+  pull_request:
+    paths:
+      - 'aegis-flow/experiments/pq128/qrom-research/**'
+      - '.github/workflows/aegis-qrom-research.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qrom-modular-feasibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test exact-rational modular QROM screens and fail-closed policy
+        run: node --test aegis-flow/experiments/pq128/qrom-research/*.test.mjs
+      - name: Produce separately labeled hypothetical budgets
+        run: |
+          node aegis-flow/experiments/pq128/qrom-research/modular-route.mjs > pq128-qrom-modular-bb8.json
+          node aegis-flow/experiments/pq128/qrom-research/modular-route.mjs --degree 16 > pq128-qrom-modular-bb16-sha512.json
+          node aegis-flow/experiments/pq128/qrom-research/modular-route.mjs --degree 16 --digest-bits 576 > pq128-qrom-modular-bb16-hyp576.json
+          node --input-type=module - <<'JS'
+          import {readFileSync} from 'node:fs';
+          const files=['pq128-qrom-modular-bb8.json','pq128-qrom-modular-bb16-sha512.json','pq128-qrom-modular-bb16-hyp576.json'];
+          const x=files.map(p=>JSON.parse(readFileSync(p,'utf8')));
+          if(x.some(r=>r.pq128_demonstrated!==false||r.production_ready!==false||
+                        r.theorem_constants_verified!==false||r.event_union_unproved!==true)||
+             x[0].logup_only.g1_unit_prefactor!==false||
+             x[1].merkle_only.g2_unit_prefactor!==false||
+             x[2].sum_of_these_two_subterms_only.g2_unit_prefactor!==true)process.exit(1);
+          JS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pq128-qrom-modular-research
+          path: pq128-qrom-modular-*.json
+          retention-days: 3
+          if-no-files-found: error

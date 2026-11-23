@@ -280,6 +280,19 @@ fn parameter_report()->serde_json::Value{
 
 fn main(){
     let args:Vec<String>=std::env::args().collect();
+    if args.len()==3&&args[1]=="security-report-wired"{
+        let result=fs::read(&args[2]).ok()
+            .filter(|b|b.len()<=110_000_128)
+            .and_then(|b|catch_unwind(AssertUnwindSafe(||
+                wired_r1cs::wired_security_report(&b))).ok())
+            .and_then(Result::ok);
+        if let Some(report)=result{
+            println!("{}",report);
+            return;
+        }
+        eprintln!("WIRED_LOGUP_SECURITY_REPORT_FAILED");
+        std::process::exit(1);
+    }
     // The verifier must receive a trusted, independently rebuilt program
     // and its expected SHA-512. The prover cannot select the circuit here.
     if args.len()==5&&args[1]=="prove-wired"{

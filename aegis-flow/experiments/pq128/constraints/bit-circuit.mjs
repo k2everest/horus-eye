@@ -231,16 +231,28 @@ export function snapshotBitWitness(circuit,witness){
 // Each public instruction is exactly 13 bytes: opcode, a, b, z (u32BE).
 // The native verifier MUST regenerate this independently from an authenticated
 // public statement; a prover-supplied circuit is never an authority.
-export function bitCircuitPublicProgramBinary(circuit){
+export function bitCircuitPublicProgramBinary(circuit,{financialStatementDigest512}={}){
   const data=state(circuit);
   if(data.gateCount<1||data.gateCount>MAX_GATES||
      data.wireCount<2||data.wireCount>8_388_608)throw new RangeError('bounded R1CS program required');
-  const magic=Buffer.from('AEGIS_V4_BOOLEAN_PROGRAM_V1\0','ascii');
-  const encoded=Buffer.alloc(magic.length+8+13*data.gateCount);
+  // The executable Boolean equations alone may not encode transaction_binding
+  // or other public metadata. Financial V2 ALWAYS binds the entire canonical
+  // statement digest to the public program and native Fiat-Shamir transcript.
+  const financial=financialStatementDigest512!==undefined;
+  if(financial&&(typeof financialStatementDigest512!=='string'||
+     !/^[0-9a-f]{128}$/.test(financialStatementDigest512)))
+    throw new TypeError('canonical 512-bit financial statement digest required');
+  const magic=Buffer.from(
+    financial?'AEGIS_V4_BOOLEAN_PROGRAM_V2\0':'AEGIS_V4_BOOLEAN_PROGRAM_V1\0','ascii');
+  const encoded=Buffer.alloc(magic.length+8+(financial?64:0)+13*data.gateCount);
   magic.copy(encoded,0);
   encoded.writeUInt32BE(data.wireCount,magic.length);
   encoded.writeUInt32BE(data.gateCount,magic.length+4);
   let offset=magic.length+8;
+  if(financial){
+    Buffer.from(financialStatementDigest512,'hex').copy(encoded,offset);
+    offset+=64;
+  }
   for(let i=0;i<data.gateCount;i++){
     encoded[offset]=data.ops[i];
     encoded.writeUInt32BE(data.a[i],offset+1);

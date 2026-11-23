@@ -51,3 +51,37 @@ test('full WiredAir accounting cannot silently omit batching or any other requir
  assert.equal(valid.pq128_demonstrated,false);
  assert.equal(valid.production_ready,false);
 });
+
+
+test('two decoding regimes are conservatively evaluated at the weaker bound',()=>{
+ const r=report();
+ const weaker=structuredClone(r.rbr_breakdown.udr);
+ weaker.regime='ListDecoding';
+ weaker.terms=weaker.terms.map(term=>({...term,
+   bits:term.label==='commitment-collision'?170:95}));
+ r.rbr_breakdown.ldr=weaker;
+ const assessment=assessMeasuredWiredRbr(r,{rbrTargetBits:150,queryBits:0,
+   eventUnionBits:0,unknownConstantReserveBits:0});
+ assert.equal(assessment.decoding_regime_policy,
+   'CONSERVATIVE_WORST_CASE_UNTIL_VERIFIER_SELECTION_PROVED');
+ assert.ok(assessment.reports.udr.algebraic_union_bound_bits>200);
+ assert.ok(assessment.reports.ldr.algebraic_union_bound_bits<95);
+ assert.equal(assessment.measured_interactive_algebraic_union_bits,
+   assessment.reports.ldr.algebraic_union_bound_bits);
+ assert.equal(assessment.reaches_selected_rbr_target,false);
+ assert.equal(assessment.production_ready,false);
+});
+test('regime order cannot inflate RBR and malformed LDR fails closed',()=>{
+ const r=report();
+ const stronger=structuredClone(r.rbr_breakdown.udr);
+ stronger.regime='ListDecoding';
+ stronger.terms=stronger.terms.map(term=>({...term,
+   bits:term.label==='commitment-collision'?170:400}));
+ r.rbr_breakdown.ldr=stronger;
+ let assessment=assessMeasuredWiredRbr(r);
+ assert.equal(assessment.measured_interactive_algebraic_union_bits,
+   assessment.reports.udr.algebraic_union_bound_bits);
+ r.rbr_breakdown.ldr.terms=r.rbr_breakdown.ldr.terms.filter(
+   term=>term.label!=='batch-combination');
+ assert.throws(()=>assessMeasuredWiredRbr(r),/RBR/);
+});

@@ -17,6 +17,10 @@ use serde::{Serialize,Deserialize};
 use sha2::{Digest,Sha512};
 use p3_air::{Air,AirBuilder,BaseAir,PermutationAirBuilder,WindowAccess};
 use p3_batch_stark::{BatchProof,ProverData,StarkInstance,prove_batch,verify_batch};
+use p3_batch_stark::symbolic::{get_constraint_layout,get_max_constraint_degree,get_log_num_quotient_chunks};
+use p3_air::symbolic::AirLayout;
+use p3_lookup::{Lookups,logup::LogUpGadget};
+use p3_security::{fri::FriRegime,logup::{LogUpAir,security_term},shape::{InstanceShape,StarkAirParams},stark::proven_security_report,grinding::GrindingSites};
 use p3_field::{Field,PrimeCharacteristicRing};
 use p3_lookup::{Count,InteractionBuilder,LookupBus};
 use p3_matrix::dense::RowMajorMatrix;
@@ -214,6 +218,68 @@ where AB:AirBuilder+PermutationAirBuilder+InteractionBuilder,
         BUS.lookup_key(builder,[z_id,z],Count::bounded(active,1));
         BUS.table_entry(builder,[wire_id,wire],use_count);
     }
+}
+
+// Derive a quantitative round-by-round *INTERACTIVE* report for the
+// actual LogUp AIR, not the unrelated balance-only AIR. Constraint count,
+// degrees and quotient chunk size come from p3-batch-stark's own symbolic
+// lookup-aware evaluator; the LogUp term is added explicitly as a round.
+// This command deliberately makes NO claims about quantum Fiat-Shamir.
+pub(crate) fn wired_security_report(program_bytes:&[u8])->Result<serde_json::Value,()>{
+    let (program,digest)=public_program(program_bytes)?;
+    let air=WiredAir::new(program);
+    let lookups=Lookups::<F>::from_air::<crate::E,_>(&air);
+    if lookups.is_empty(){return Err(());}
+    let layout=AirLayout::from_air(&air);
+    let lookup_gadget=LogUpGadget::new();
+    let constraint_layout=get_constraint_layout::<F,crate::E,_,_>(
+        &air,layout,&lookups,&lookup_gadget);
+    let degree=get_max_constraint_degree::<F,crate::E,_,_>(
+        &air,layout,air.rows(),&lookups,&lookup_gadget);
+    let log_chunks=get_log_num_quotient_chunks::<F,crate::E,_,_>(
+        &air,layout,air.rows(),&lookups,1,&lookup_gadget);
+    if log_chunks>=32 {return Err(());}
+    let chunks=1usize.checked_shl(log_chunks as u32).ok_or(())?;
+    let num_batched=p3_batch_stark::num_batched_openings(
+        GATE_WIDTH,false,0,false,chunks,lookups.len(),8,
+        p3_uni_stark::OpeningShape::hiding(8));
+    let params=StarkAirParams{
+        num_constraints:constraint_layout.total_constraints(),
+        max_constraint_degree:degree,
+        num_quotient_chunks:chunks,max_combo:2,
+    };
+    let shape=InstanceShape{
+        log_trace_length:air.rows().ilog2() as usize,
+        modulus_bits:247,
+        collision_resistance:170,
+        num_batched_functions:num_batched,
+    };
+    let regime=FriRegime{
+        log_blowup:3,log_final_poly_len:0,max_log_arity:1,
+        num_queries:320,commit_pow_bits:0,query_pow_bits:0,
+    };
+    let interactions=LogUpAir{num_interactions:4,max_message_width:2};
+    let logup=security_term(&interactions,&shape,&GrindingSites::NONE).ok_or(())?;
+    let rbr=proven_security_report(&regime,&params,&shape,&[logup],&GrindingSites::NONE);
+    let result=serde_json::json!({
+        "schema":"AEGIS_V4_WIRED_LOGUP_FRI_RBR_PROVEN_IOP_ONLY_V1",
+        "program_sha512":digest,"trace_rows":air.rows(),
+        "num_lookups":lookups.len(),
+        "constraints":params.num_constraints,
+        "constraint_degree":params.max_constraint_degree,
+        "num_quotient_chunks":chunks,
+        "num_batched_functions":num_batched,
+        "logup_field_bits_floor":shape.modulus_bits,
+        "fri_blowup":8,"fri_queries":320,
+        "hiding_fri":true,"sha512_commitment_collision_bits_assumed":170,
+        "rbr_bits":rbr.security_bits(),
+        "qrom_fiat_shamir_reduction_proved":false,
+        "quantum_adaptive_soundness_proved":false,
+        "knowledge_soundness_proved":false,
+        "zero_knowledge_proved":false,
+        "pq128_demonstrated":false,"production_ready":false
+    });
+    Ok(result)
 }
 
 // A general-purpose STARK proof of a *fixed Boolean program*. This is

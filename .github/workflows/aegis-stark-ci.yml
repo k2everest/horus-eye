@@ -20,6 +20,24 @@ jobs:
           node-version: '24'
       - name: Test experimental SHA-512 bindings and conditional standalone FRI arithmetic
         run: node --test aegis-flow/experiments/pq128/*.test.mjs aegis-flow/experiments/pq128/fri/*.test.mjs aegis-flow/experiments/pq128/financial/*.test.mjs aegis-flow/experiments/pq128/constraints/*.test.mjs aegis-flow/experiments/pq128/quantitative/*.test.mjs aegis-flow/experiments/pq128/v4/*.test.mjs aegis-flow/experiments/pq128/native/backend.test.mjs
+      - name: Verify candidate BabyBear16 field algebra, canonical encoding, uniform sampling, measured RBR gate and V5 no-release policy
+        run: node --test aegis-flow/experiments/pq128/v5/*.test.mjs
+      - name: Export reproducible field comparison, certificate and commercial-release blockade
+        run: |
+          node --input-type=module - <<'JS'
+          import {writeFileSync} from 'node:fs';
+          import {irreducibilityCertificate} from './aegis-flow/experiments/pq128/v5/babybear16-reference.mjs';
+          import {compareFieldProfiles} from './aegis-flow/experiments/pq128/v5/field-comparison.mjs';
+          import {v5ReleaseReadiness} from './aegis-flow/experiments/pq128/v5/release-readiness.mjs';
+          const field=irreducibilityCertificate(),comparison=compareFieldProfiles(),release=v5ReleaseReadiness();
+          if(field.criterion_proved!==true||field.implemented_in_plonky3!==false||
+            comparison.pcs_compatibility_proved!==false||
+            release.commercial_release_allowed!==false||release.pending.length<10)
+            process.exit(1);
+          writeFileSync('pq128-v5-field-certificate.json',JSON.stringify(field,null,2));
+          writeFileSync('pq128-v5-field-comparison.json',JSON.stringify(comparison,null,2));
+          writeFileSync('pq128-v5-release-blocked.json',JSON.stringify(release,null,2));
+          JS
       - name: Audit V3 PoW liveness, supply cap and valuation accounting without changing monetary rules
         run: node --test aegis-flow/experiments/economics/*.test.mjs
       - name: Reject linkable sender and input identifiers in the V5 privacy candidate
@@ -87,6 +105,9 @@ jobs:
             pq128-parameter-search.json
             pq128-parameter-search-residual.json
             pq128-plonky3-formal-dossier.json
+            pq128-v5-field-certificate.json
+            pq128-v5-field-comparison.json
+            pq128-v5-release-blocked.json
           retention-days: 3
           if-no-files-found: error
 
@@ -131,7 +152,21 @@ jobs:
         env:
           AEGIS_V4_P3_INTEGRATION: '1'
           AEGIS_V4_P3_BINARY: ${{ github.workspace }}/aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab
+          AEGIS_V4_RBR_OUTPUT: aegis-v4-wired-rbr.json
         run: node --test aegis-flow/experiments/pq128/v4/plonky3.integration.test.mjs aegis-flow/experiments/pq128/v4/financial53.integration.test.mjs aegis-flow/experiments/pq128/v4/single-transfer.integration.test.mjs aegis-flow/experiments/pq128/v4/wired-r1cs.integration.test.mjs
+      - name: Distinguish measured lookup-aware algebraic RBR from external SHA512 commitment cap
+        run: |
+          node --input-type=module - <<'JS'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {assessMeasuredWiredRbr} from './aegis-flow/experiments/pq128/v5/measured-rbr-gate.mjs';
+          const report=JSON.parse(readFileSync('aegis-v4-wired-rbr.json','utf8'));
+          const assessment=assessMeasuredWiredRbr(report);
+          if(assessment.pq128_demonstrated!==false||
+             assessment.theorem_BCS_QROM_instantiated!==false||
+             !Number.isFinite(assessment.measured_interactive_algebraic_union_bits))
+            process.exit(1);
+          writeFileSync('aegis-v4-wired-rbr-audited.json',JSON.stringify(assessment,null,2));
+          JS
       - uses: actions/upload-artifact@v4
         with:
           name: v4-plonky3-lab-lock-${{ github.sha }}
@@ -140,6 +175,8 @@ jobs:
             aegis-v4-p3-rbr.json
             aegis-v4-p3-m1-screen.json
             aegis-v4-amount53-rbr.json
+            aegis-v4-wired-rbr.json
+            aegis-v4-wired-rbr-audited.json
           if-no-files-found: error
           retention-days: 3
 

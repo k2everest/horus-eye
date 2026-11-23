@@ -1,0 +1,28 @@
+Issue Type,Summary,Description,Priority,Story Points,Epic Name,Epic Link,Labels,Depends On
+Epic,EPIC-01 Base criptográfica PQC,"Fundação criptográfica lattice-based: ML-KEM, ML-DSA, commitments, transcript canônico.",Highest,,EPIC-01 Base criptográfica PQC,,"aegis,pqc",
+Epic,EPIC-02 Transação blindada,"Modelo de note/nullifier/commitment e construção de transação blindada.",Highest,,EPIC-02 Transação blindada,,"aegis,shielded",
+Epic,EPIC-03 Provas ZK lattice,"Statement formal e prover/verifier para validade de transações.",Highest,,EPIC-03 Provas ZK lattice,,"aegis,zk,lattice",
+Epic,EPIC-04 Estado blindado e anti-double-spend,"Árvore de compromissos e registro atômico de nullifiers.",Highest,,EPIC-04 Estado blindado e anti-double-spend,,"aegis,state",
+Epic,EPIC-05 Rede privada anti-correlação,"Relay com padding/batching/delay para redução de metadados.",High,,EPIC-05 Rede privada anti-correlação,,"aegis,network,privacy",
+Epic,EPIC-06 Integração gRPC e hardening,"APIs, mTLS, observabilidade, resiliência e performance.",High,,EPIC-06 Integração gRPC e hardening,,"aegis,grpc,security",
+Story,US-001 Threat model e parâmetros de segurança,"Definir adversário clássico/quântico, níveis de segurança, matriz de risco.",Highest,5,,EPIC-01 Base criptográfica PQC,"aegis,pqc",
+Story,US-002 Wrappers ML-KEM/ML-DSA + test vectors,"Implementar encaps/decaps e sign/verify com vetores oficiais.",Highest,8,,EPIC-01 Base criptográfica PQC,"aegis,pqc",US-001
+Story,US-003 Serialização canônica + transcript hash,"Formato determinístico, domain tags e hashing consistente interlinguagem.",Highest,5,,EPIC-01 Base criptográfica PQC,"aegis,protocol",US-002
+Story,US-004 Commitments lattice (SIS/LWE),"Implementar commit/open/verify e testes de binding/hiding.",Highest,8,,EPIC-01 Base criptográfica PQC,"aegis,crypto",US-001
+Story,US-005 Modelo Note/Nullifier/Commitment,"Definir schemas e regras de derivação/canonicalização.",Highest,5,,EPIC-02 Transação blindada,"aegis,shielded","US-003;US-004"
+Story,US-006 BuildShieldedTx v1,"Construir tx blindada mínima (outputs cifrados + assinatura).",Highest,8,,EPIC-02 Transação blindada,"aegis,shielded","US-005;US-002"
+Story,US-007 ValidateShieldedTx v1,"Validação estrutural, assinatura, replay guards, canonical checks.",Highest,5,,EPIC-02 Transação blindada,"aegis,validation",US-006
+Story,US-008 Statement ZK formal (ownership/balance/range),"Modelar constraints e domínio da prova.",Highest,8,,EPIC-03 Provas ZK lattice,"aegis,zk",US-005
+Story,US-009 Prover v1,"Implementar geração de prova com métricas de tempo/tamanho.",Highest,13,,EPIC-03 Provas ZK lattice,"aegis,zk",US-008
+Story,US-010 Verifier v1,"Implementar verificação determinística e rejeição de provas inválidas.",Highest,8,,EPIC-03 Provas ZK lattice,"aegis,zk",US-009
+Story,US-011 Testes adversariais de prova,"Fuzzing e casos de tampering/replay/malleability.",High,8,,EPIC-03 Provas ZK lattice,"aegis,security","US-010;US-007"
+Story,US-012 Ledger commitments tree,"Persistência de compromissos e roots por altura.",Highest,8,,EPIC-04 Estado blindado e anti-double-spend,"aegis,state",US-005
+Story,US-013 Nullifier registry atômico,"Check/reserve/commit de nullifiers com concorrência segura.",Highest,8,,EPIC-04 Estado blindado e anti-double-spend,"aegis,state",US-012
+Story,US-014 Validação atômica tx+estado,"Aplicar regra: proof && sig && !nullifier_used && root_ok.",Highest,5,,EPIC-04 Estado blindado e anti-double-spend,"aegis,validation","US-010;US-013"
+Story,US-015 Relay com padding e batching,"Padronizar tamanhos de mensagem e janelas de batch.",High,8,,EPIC-05 Rede privada anti-correlação,"aegis,network",US-014
+Story,US-016 Delays e cover traffic,"Reduzir correlação temporal por política configurável.",High,8,,EPIC-05 Rede privada anti-correlação,"aegis,privacy",US-015
+Story,US-017 Métricas de linkabilidade de tráfego,"Criar indicadores internos de vazamento de metadados.",Medium,5,,EPIC-05 Rede privada anti-correlação,"aegis,observability",US-016
+Story,US-018 API Gateway gRPC v1,"Padronizar contratos públicos e internos com versionamento.",High,5,,EPIC-06 Integração gRPC e hardening,"aegis,grpc",US-014
+Story,US-019 mTLS + AuthN/AuthZ service-to-service,"Segurança de transporte e identidade entre serviços.",High,8,,EPIC-06 Integração gRPC e hardening,"aegis,security",US-018
+Story,US-020 Observabilidade segura,"Logs sem segredo, tracing opaco, métricas SLO.",High,5,,EPIC-06 Integração gRPC e hardening,"aegis,ops",US-018
+Story,US-021 Testes de carga e caos,"Validar throughput, latência e recuperação de falhas.",Medium,8,,EPIC-06 Integração gRPC e hardening,"aegis,reliability","US-020;US-019"

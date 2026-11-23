@@ -1,0 +1,120 @@
+{
+  "schema": "AEGIS_HIDING_DEGREE_SOURCE_PROFILE_V1",
+  "repository": "https://github.com/Plonky3/Plonky3",
+  "upstream_commit": "a21e3ed42905040ad49c519e402f018381c12d0c",
+  "sources": [
+    {
+      "package": "p3-air",
+      "version": "0.8.0",
+      "path": "src/symbolic/expression.rs",
+      "checkout_path": "air/src/symbolic/expression.rs",
+      "sha256": "a168a38b2dbd7f5053c003e4bc4838514df7e0df4a7ef050a9d18a0c73fed2f4"
+    },
+    {
+      "package": "p3-air",
+      "version": "0.8.0",
+      "path": "src/symbolic/expression_ext.rs",
+      "checkout_path": "air/src/symbolic/expression_ext.rs",
+      "sha256": "2878fd86061eb7896b4829cc2f4c336607559145c1e9054813ef20b452ea2d30"
+    },
+    {
+      "package": "p3-batch-stark",
+      "version": "0.8.0",
+      "path": "src/common.rs",
+      "checkout_path": "batch-stark/src/common.rs",
+      "sha256": "9abd65969336fb1ce7bbfdc89fbf79db7203a77d940d0e6a3446050e33e3e04d"
+    },
+    {
+      "package": "p3-batch-stark",
+      "version": "0.8.0",
+      "path": "src/prover.rs",
+      "checkout_path": "batch-stark/src/prover.rs",
+      "sha256": "332fc0b5f338ace241a3152b31bf1530e14996fbf489310bd83db98c4caa1181"
+    },
+    {
+      "package": "p3-batch-stark",
+      "version": "0.8.0",
+      "path": "src/security.rs",
+      "checkout_path": "batch-stark/src/security.rs",
+      "sha256": "926545659f3e85811c1af890a05756fe59297725ba1be3815c47fc7cba54ab34"
+    },
+    {
+      "package": "p3-batch-stark",
+      "version": "0.8.0",
+      "path": "src/symbolic.rs",
+      "checkout_path": "batch-stark/src/symbolic.rs",
+      "sha256": "ef21486e329bcc0ca26f946e9ec47738be89a3f46fca58386711295e794a0028"
+    },
+    {
+      "package": "p3-batch-stark",
+      "version": "0.8.0",
+      "path": "src/verifier/mod.rs",
+      "checkout_path": "batch-stark/src/verifier/mod.rs",
+      "sha256": "72ee495d8be6f775b362558059ac6405c7a9720b693f1d36324fea6d3f865241"
+    },
+    {
+      "package": "p3-fri",
+      "version": "0.8.0",
+      "path": "src/config.rs",
+      "checkout_path": "fri/src/config.rs",
+      "sha256": "78f50dc6f0b9233e28399a33a0b402d9c1c53f218b5cb8c73df000075c55f4fe"
+    },
+    {
+      "package": "p3-fri",
+      "version": "0.8.0",
+      "path": "src/hiding_pcs.rs",
+      "checkout_path": "fri/src/hiding_pcs.rs",
+      "sha256": "9ef6e6ea5b0ac8a84b8b7388a3b709fab930b27701abcb1517a5612d988352c4"
+    },
+    {
+      "package": "p3-fri",
+      "version": "0.8.0",
+      "path": "src/prover.rs",
+      "checkout_path": "fri/src/prover.rs",
+      "sha256": "26c595b377a25947fbabe132653947cf2f56b0a2fe78f6c7187fe697fde0878a"
+    },
+    {
+      "package": "p3-fri",
+      "version": "0.8.0",
+      "path": "src/two_adic_pcs.rs",
+      "checkout_path": "fri/src/two_adic_pcs.rs",
+      "sha256": "926b6ecfe0c3c2ae3956d77f78795c3d5d4b7b171c16ec1ae251852c2d2a24cb"
+    },
+    {
+      "package": "p3-fri",
+      "version": "0.8.0",
+      "path": "src/verifier.rs",
+      "checkout_path": "fri/src/verifier.rs",
+      "sha256": "975392a464c823c93c9ec50ce4e73d17a8b0fbdf22f047f887fb749dcf7280a3"
+    },
+    {
+      "package": "p3-uni-stark",
+      "version": "0.8.0",
+      "path": "src/prover.rs",
+      "checkout_path": "uni-stark/src/prover.rs",
+      "sha256": "30e23c852abc4a2d88b953be80754d851144eed921e022ae98a159f668a298f3"
+    },
+    {
+      "package": "p3-uni-stark",
+      "version": "0.8.0",
+      "path": "src/security.rs",
+      "checkout_path": "uni-stark/src/security.rs",
+      "sha256": "d3b692c49faad781971a9fba002153f01b899daaa20170cbe3b77bf568117510"
+    },
+    {
+      "package": "p3-uni-stark",
+      "version": "0.8.0",
+      "path": "src/verifier.rs",
+      "checkout_path": "uni-stark/src/verifier.rs",
+      "sha256": "d55e7787358dca6ad70d28bad8ce8a25428322160fe0133fa680c1a5fe6ab077"
+    },
+    {
+      "package": "p3-commit",
+      "version": "0.8.0",
+      "path": "src/domain.rs",
+      "checkout_path": "commit/src/domain.rs",
+      "sha256": "cd3388e1657ef38da3b4542045c47f585032a5685d87bd1d86b9b2bafcc3182d"
+    }
+  ],
+  "scope": "Trusted exact-source identity inventory; not a source-to-binary attestation, degree proof or PQ128 qualification."
+}

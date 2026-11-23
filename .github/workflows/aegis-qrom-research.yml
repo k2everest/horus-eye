@@ -1,0 +1,114 @@
+name: Aegis Modular QROM Research
+
+on:
+  pull_request:
+    paths:
+      - 'aegis-flow/experiments/pq128/qrom-research/**'
+      - '.github/workflows/aegis-qrom-research.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qrom-modular-feasibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test exact-rational modular QROM screens and fail-closed policy
+        run: node --test aegis-flow/experiments/pq128/qrom-research/*.test.mjs
+      - name: Produce separately labeled hypothetical budgets
+        run: |
+          node aegis-flow/experiments/pq128/qrom-research/modular-route.mjs > pq128-qrom-modular-bb8.json
+          node aegis-flow/experiments/pq128/qrom-research/modular-route.mjs --degree 16 > pq128-qrom-modular-bb16-sha512.json
+          node aegis-flow/experiments/pq128/qrom-research/modular-route.mjs --degree 16 --digest-bits 576 > pq128-qrom-modular-bb16-hyp576.json
+          node --input-type=module - <<'JS'
+          import {readFileSync} from 'node:fs';
+          const files=['pq128-qrom-modular-bb8.json','pq128-qrom-modular-bb16-sha512.json','pq128-qrom-modular-bb16-hyp576.json'];
+          const x=files.map(p=>JSON.parse(readFileSync(p,'utf8')));
+          if(x.some(r=>r.pq128_demonstrated!==false||r.production_ready!==false||
+                        r.theorem_constants_verified!==false||r.event_union_unproved!==true)||
+             x[0].logup_only.g1_unit_prefactor!==false||
+             x[1].merkle_only.g2_unit_prefactor!==false||
+             x[2].sum_of_these_two_subterms_only.g2_unit_prefactor!==true)process.exit(1);
+          JS
+      - name: Reproduce conditional LogUp two-challenge algebraic bounds (not RBR PoK)
+        run: |
+          node --input-type=module - <<'JS'
+          import {writeFileSync} from 'node:fs';
+          import {fixedWiredLogUpBound} from './aegis-flow/experiments/pq128/qrom-research/logup-fixed-oracle-lemma.mjs';
+          for(const degree of [8,16]){
+            const report=fixedWiredLogUpBound({
+              gateCount:8_000_000,wireCount:8_388_608,extensionDegree:degree,
+            });
+            if(report.full_logup_interactive_rbr_knowledge_proved!==false||
+               report.zero_to_one_transition_knowledge_bound_proved!==false||
+               report.pq128_demonstrated!==false||
+               report.probability_upper_bound.numerator!=='81554430')
+              process.exit(1);
+            writeFileSync('pq128-qrom-modular-logup-fixed-bb'+degree+'.json',
+              JSON.stringify(report,null,2));
+          }
+          JS
+      - name: Record conditional ALI-DEEP root-bound and late-quotient counterexample
+        run: |
+          node --input-type=module - <<'JS'
+          import {writeFileSync} from 'node:fs';
+          import {
+            conditionalAliDeepBudget,demonstrateLateQuotientAttack,
+          } from './aegis-flow/experiments/pq128/qrom-research/ali-deep-ood-lemma.mjs';
+          const budget=conditionalAliDeepBudget({
+            traceRows:4096,constraintCount:1000,
+            foldedConstraintDegreeCeiling:12000,
+            quotientDegreeCeiling:12000,extensionDegree:8,
+          });
+          const attack=demonstrateLateQuotientAttack();
+          if(budget.pq128_demonstrated!==false||
+             budget.round_by_round_knowledge_proved!==false||
+             budget.verifier_owned_degree_constraints_proved!==false||
+             attack.successful_post_zeta_forgery_count!==13)
+            process.exit(1);
+          writeFileSync('pq128-qrom-modular-ali-ood-conditional.json',
+            JSON.stringify({schema:'AEGIS_PQ128_ALI_OOD_RESEARCH_ONLY_V1',
+              assumed_example_degrees_not_from_real_compiler:true,budget,attack,
+              pq128_demonstrated:false},null,2));
+          JS
+      - name: Cross-check ALI/OOD polynomial identity and refuse absent degree caps
+        run: |
+          node --input-type=module - <<'JS'
+          import {writeFileSync} from 'node:fs';
+          import {conditionalAliOodBudget} from './aegis-flow/experiments/pq128/qrom-research/ali-ood-degree-budget.mjs';
+          import {conditionalAliDeepBudget} from './aegis-flow/experiments/pq128/qrom-research/ali-deep-ood-lemma.mjs';
+          const missing=conditionalAliOodBudget({traceRows:4096,airConstraintComponents:1000});
+          if(missing.conditional_combined_bound!==null||
+             missing.needs_actual_compiled_polynomial_degree_caps!==true||
+             missing.pq128_demonstrated!==false) process.exit(1);
+          const conditional=conditionalAliOodBudget({
+            traceRows:4096,airConstraintComponents:1000,
+            constraintPolynomialDegreeCap:12000,
+            quotientPolynomialDegreeCap:12000,
+          });
+          const independent=conditionalAliDeepBudget({
+            traceRows:4096,constraintCount:1000,
+            foldedConstraintDegreeCeiling:12000,
+            quotientDegreeCeiling:12000,
+          });
+          if(conditional.conditional_combined_bound.numerator!==independent.union_bound.numerator||
+             conditional.conditional_combined_bound.denominator!==independent.union_bound.denominator||
+             conditional.degree_caps_independently_proved!==false) process.exit(1);
+          writeFileSync('pq128-qrom-modular-ali-ood-missing-degrees.json',
+            JSON.stringify(missing,null,2));
+          writeFileSync('pq128-qrom-modular-ali-ood-differential.json',
+            JSON.stringify({schema:'AEGIS_ALI_OOD_DIFFERENTIAL_RESEARCH_ONLY_V1',
+              assumed_sample_degrees:true,conditional,independent,
+              pq128_demonstrated:false,production_ready:false},null,2));
+          JS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pq128-qrom-modular-research
+          path: pq128-qrom-modular-*.json
+          retention-days: 3
+          if-no-files-found: error

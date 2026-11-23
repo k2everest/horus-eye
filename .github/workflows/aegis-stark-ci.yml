@@ -1,0 +1,401 @@
+name: Aegis STARK and persistent state
+
+on:
+  pull_request:
+    paths: ['aegis-flow/**', '.github/workflows/aegis-stark-ci.yml']
+  push:
+    branches: [main]
+    paths: ['aegis-flow/**', '.github/workflows/aegis-stark-ci.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  pq128-research:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test experimental SHA-512 bindings and conditional standalone FRI arithmetic
+        run: node --test aegis-flow/experiments/pq128/*.test.mjs aegis-flow/experiments/pq128/fri/*.test.mjs aegis-flow/experiments/pq128/financial/*.test.mjs aegis-flow/experiments/pq128/constraints/*.test.mjs aegis-flow/experiments/pq128/quantitative/*.test.mjs aegis-flow/experiments/pq128/v4/*.test.mjs aegis-flow/experiments/pq128/native/backend.test.mjs
+      - name: Verify candidate BabyBear16 field algebra, canonical encoding, uniform sampling, measured RBR gate and V5 no-release policy
+        run: node --test aegis-flow/experiments/pq128/v5/*.test.mjs
+      - name: Export reproducible field comparison, certificate and commercial-release blockade
+        run: |
+          node --input-type=module - <<'JS'
+          import {writeFileSync} from 'node:fs';
+          import {irreducibilityCertificate} from './aegis-flow/experiments/pq128/v5/babybear16-reference.mjs';
+          import {compareFieldProfiles} from './aegis-flow/experiments/pq128/v5/field-comparison.mjs';
+          import {v5ReleaseReadiness} from './aegis-flow/experiments/pq128/v5/release-readiness.mjs';
+          const field=irreducibilityCertificate(),comparison=compareFieldProfiles(),release=v5ReleaseReadiness();
+          if(field.criterion_proved!==true||field.implemented_in_plonky3!==false||
+            comparison.pcs_compatibility_proved!==false||
+            release.commercial_release_allowed!==false||release.pending.length<10)
+            process.exit(1);
+          writeFileSync('pq128-v5-field-certificate.json',JSON.stringify(field,null,2));
+          writeFileSync('pq128-v5-field-comparison.json',JSON.stringify(comparison,null,2));
+          writeFileSync('pq128-v5-release-blocked.json',JSON.stringify(release,null,2));
+          JS
+      - name: Audit V3 PoW liveness, supply cap and valuation accounting without changing monetary rules
+        run: node --test aegis-flow/experiments/economics/*.test.mjs
+      - name: Reject linkable sender and input identifiers in the V5 privacy candidate
+        run: node --test aegis-flow/experiments/privacy/*.test.mjs
+      - name: Enforce 336-bit RBR target as a non-approved engineering gate
+        run: |
+          node - <<'JS'
+          (async()=>{
+            const {pq128EngineeringTarget}=await import('./aegis-flow/experiments/pq128/v4/pq128-engineering-target.mjs');
+            const c=pq128EngineeringTarget();
+            if(c.target_rbr_bits!==336||
+               c.proposed_field_constructed_and_audited!==false||
+               c.actual_FRI_soundness_bits!==null||
+               c.pq128_demonstrated!==false||c.production_ready!==false)
+              process.exit(1);
+          })().catch(()=>process.exit(1));
+          JS
+      - name: Verify fixed one-input/one-output six-SHA512 Boolean circuit in isolated memory budget
+        env:
+          AEGIS_V4_ONE_CIRCUIT_INTEGRATION: '1'
+        run: node --test --test-concurrency=1 aegis-flow/experiments/pq128/v4/single-transfer-circuit.test.mjs
+      - name: Record finite query-model obligations without approving the complete protocol
+        run: node aegis-flow/experiments/pq128/quantitative/demo.mjs > pq128-quantitative-research.json
+      - name: Explore bounded parameter combinations under two explicit conditional targets
+        run: |
+          node aegis-flow/experiments/pq128/quantitative/parameter-search-demo.mjs > pq128-parameter-search.json
+          node aegis-flow/experiments/pq128/quantitative/parameter-search-demo.mjs --target-failure-bits 128 > pq128-parameter-search-residual.json
+      - name: Report the SHA-512 outer-binding QROM ideal-screen for V4 only
+        run: node aegis-flow/experiments/pq128/v4/demo.mjs > pq128-v4-outer-screen.json
+      - name: Reproduce disjoint post-quantum component bounds without authorizing PQ128
+        run: |
+          node aegis-flow/experiments/pq128/v4/pq128-formal-dossier.mjs > pq128-plonky3-formal-dossier.json
+          node - <<'JS'
+          const d=require('./pq128-plonky3-formal-dossier.json');
+          if(d.pq128_demonstrated!==false||d.production_ready!==false||
+             d.critical_unknowns.quantum_compatible_state_restoration_reduction!==null||
+             d.critical_unknowns.full_six_SHA512_native_proof_accepted!==null||
+             d.conditional_components.generic_salt_grover_screen.salt_elements!==16)
+            process.exit(1);
+          JS
+      - name: Check the private transfer constraint assignment without publishing it
+        run: node aegis-flow/experiments/pq128/constraints/demo.mjs --report pq128-transfer-constraints.json
+      - name: Rehearse sampled private polynomial segments with an explicit resource budget
+        run: node aegis-flow/experiments/pq128/constraints/segment-demo.mjs --max-segments 8192 --report pq128-segmented-rehearsal.json
+      - name: Recover a synthetic financial witness from every private row oracle
+        env:
+          AEGIS_ORACLE_FINANCIAL_RECOVERY: '1'
+          AEGIS_ORACLE_FINANCIAL_PUBLIC_ARTIFACT: pq128-private-oracle-recovery.json
+        run: node --test aegis-flow/experiments/pq128/constraints/oracle-financial.integration.test.mjs
+      - name: Prove and verify a public polynomial with the reference FRI implementation
+        run: node aegis-flow/experiments/pq128/fri/demo.mjs --domain-log2 16 --queries 720 --report pq128-reference-fri.json
+      - name: Record conditional screen without authorizing production
+        run: node aegis-flow/experiments/pq128/screen.mjs > pq128-conditional-screen.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pq128-conditional-research-${{ github.sha }}
+          path: |
+            pq128-conditional-screen.json
+            pq128-reference-fri.json
+            pq128-transfer-constraints.json
+            pq128-segmented-rehearsal.json
+            pq128-quantitative-research.json
+            pq128-v4-outer-screen.json
+            pq128-private-oracle-recovery.json
+            pq128-parameter-search.json
+            pq128-parameter-search-residual.json
+            pq128-plonky3-formal-dossier.json
+            pq128-v5-field-certificate.json
+            pq128-v5-field-comparison.json
+            pq128-v5-release-blocked.json
+          retention-days: 3
+          if-no-files-found: error
+
+
+  plonky3-v4-laboratory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Resolve and build the isolated Plonky3 0.8.0 native experiment
+        run: |
+          python3 - <<'PY'
+          import subprocess
+          manifest = 'aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml'
+          commands = [
+              ['cargo', 'generate-lockfile', '--manifest-path', manifest],
+              ['cargo', 'build', '--locked', '--release', '--manifest-path', manifest],
+              ['cargo', 'test', '--locked', '--release', '--manifest-path', manifest],
+          ]
+          for command in commands:
+              result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+              print(result.stdout, end='', flush=True)
+              if result.returncode:
+                  # Keep public compiler diagnostics visible in check annotations
+                  # even when the external job-log archive is unavailable.
+                  diagnostic = result.stdout[-12000:].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                  print(f'::error title=Plonky3 laboratory build::{diagnostic}', flush=True)
+                  raise SystemExit(result.returncode)
+          PY
+      - name: Publish actual Plonky3 AIR round-by-round diagnostics (not QROM)
+        run: |
+          aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab security-report > aegis-v4-p3-rbr.json
+          node -e "const r=require('./aegis-v4-p3-rbr.json'); if(r.aegis_target_met!==false||r.production_ready!==false||r.financial_air_complete!==false||r.quantum_fiat_shamir_qrom_proved!==false||r.fri_queries!==320||r.challenge_extension_degree!==8)process.exit(1)"
+          node aegis-flow/experiments/pq128/v4/rbr-gate.mjs aegis-v4-p3-rbr.json > aegis-v4-p3-m1-screen.json
+          aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab security-report-financial-balance > aegis-v4-amount53-rbr.json
+          node -e "const r=require('./aegis-v4-amount53-rbr.json');if(r.schema!=='AEGIS_V4_AMOUNT53_RBR_RESEARCH_V1'||r.air_width!==535||r.all_sha512_hashes_constrained!==false||r.financial_air_complete!==false||r.aegis_target_met!==false||r.production_ready!==false)process.exit(1)"
+      - name: Prove and verify a real bounded-balance proof (NOT a financial receipt)
+        env:
+          AEGIS_V4_P3_INTEGRATION: '1'
+          AEGIS_V4_P3_BINARY: ${{ github.workspace }}/aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab
+          AEGIS_V4_RBR_OUTPUT: aegis-v4-wired-rbr.json
+        run: node --test aegis-flow/experiments/pq128/v4/plonky3.integration.test.mjs aegis-flow/experiments/pq128/v4/financial53.integration.test.mjs aegis-flow/experiments/pq128/v4/single-transfer.integration.test.mjs aegis-flow/experiments/pq128/v4/wired-r1cs.integration.test.mjs
+      - name: Distinguish measured lookup-aware algebraic RBR from external SHA512 commitment cap
+        run: |
+          node --input-type=module - <<'JS'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {assessMeasuredWiredRbr} from './aegis-flow/experiments/pq128/v5/measured-rbr-gate.mjs';
+          const report=JSON.parse(readFileSync('aegis-v4-wired-rbr.json','utf8'));
+          const assessment=assessMeasuredWiredRbr(report);
+          if(assessment.pq128_demonstrated!==false||
+             assessment.theorem_BCS_QROM_instantiated!==false||
+             !Number.isFinite(assessment.measured_interactive_algebraic_union_bits))
+            process.exit(1);
+          writeFileSync('aegis-v4-wired-rbr-audited.json',JSON.stringify(assessment,null,2));
+          JS
+      - name: Match committed hiding degrees to native proof shape and exact dependency sources
+        run: |
+          python3 - <<'PY'
+          import pathlib, subprocess
+          command = ['cargo', 'metadata', '--format-version', '1', '--locked',
+                     '--filter-platform', 'x86_64-unknown-linux-gnu', '--manifest-path',
+                     'aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml']
+          # Metadata may need manifests for target-specific dependencies that a
+          # preceding host build did not download. Keep the resolved lock fixed.
+          result = subprocess.run(command, capture_output=True, text=True)
+          if result.returncode:
+              message = result.stderr[-12000:].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              print(f'::error title=Locked Cargo metadata::{message}', flush=True)
+              raise SystemExit(result.returncode)
+          pathlib.Path('aegis-v4-cargo-metadata.json').write_text(result.stdout)
+          PY
+          node aegis-flow/experiments/pq128/qrom-research/hiding-degree-demo.mjs --native-report aegis-v4-wired-rbr.json --cargo-metadata aegis-v4-cargo-metadata.json > aegis-v4-hiding-degree-audit.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v4-plonky3-lab-lock-${{ github.sha }}
+          path: |
+            aegis-flow/experiments/pq128/v4/plonky3/Cargo.lock
+            aegis-v4-p3-rbr.json
+            aegis-v4-p3-m1-screen.json
+            aegis-v4-amount53-rbr.json
+            aegis-v4-wired-rbr.json
+            aegis-v4-wired-rbr-audited.json
+            aegis-v4-hiding-degree-audit.json
+          if-no-files-found: error
+          retention-days: 3
+
+
+  # Deliberately isolated high-memory experiment; never enables consensus.
+  # A failed full-size prover is a research result, not a green PQ128 check.
+  plonky3-v4-full-sha512-research:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.number == 5 }}
+    needs: [plonky3-v4-laboratory]
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Compile actual Plonky3 LogUp proof engine
+        run: |
+          cargo generate-lockfile --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
+          cargo build --locked --release --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
+      - name: Prove a complete SHA-512 compression with real Plonky3 LogUp before full six-hash proof
+        env:
+          AEGIS_V4_P3_INTEGRATION: '1'
+          AEGIS_V4_P3_PROFILE: '1'
+          AEGIS_V4_P3_BINARY: ${{ github.workspace }}/aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab
+        run: |
+          /usr/bin/time -v timeout --signal=TERM --kill-after=30s 300s node --test aegis-flow/experiments/pq128/v4/sha512-wired-native.integration.test.mjs
+      - name: Attempt complete 1-in-1-out six-SHA512 proof under hard resource budget
+        env:
+          AEGIS_V4_FULL_WIRED_SHA512: '1'
+          AEGIS_V4_P3_PROFILE: '1'
+          AEGIS_V4_P3_BINARY: ${{ github.workspace }}/aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab
+          NODE_OPTIONS: '--max-old-space-size=8192'
+        run: |
+          /usr/bin/time -v timeout --signal=TERM --kill-after=30s 1200s node --test --test-concurrency=1 aegis-flow/experiments/pq128/v4/full-single-transfer.integration.test.mjs
+
+
+  liboqs-interoperability-laboratory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build the checksum-pinned minimal liboqs laboratory helper
+        run: python3 aegis-flow/experiments/pq128/oqs/build.py
+      - name: Test strict public-key formats and private subprocess boundaries
+        run: node --test aegis-flow/experiments/pq128/oqs/backend.test.mjs
+      - name: Require genuine C and Node signature and KEM interoperability
+        env:
+          AEGIS_OQS_INTEGRATION: '1'
+          AEGIS_OQS_PUBLIC_ARTIFACT: work/oqs/interop-public.json
+        run: node --test aegis-flow/experiments/pq128/oqs/integration.test.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: liboqs-interoperability-laboratory-${{ github.sha }}
+          path: |
+            work/oqs/manifest.json
+            work/oqs/interop-public.json
+          retention-days: 3
+          if-no-files-found: error
+
+  native-financial512-laboratory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@1.100.0
+      - name: Install pinned tools and preserve the accepted program
+        run: python3 aegis-flow/scripts/setup-stark.py
+      - name: Build the isolated host relation and run differential checks
+        run: |
+          python3 aegis-flow/experiments/pq128/native/build.py --host-only
+          CARGO_HOME="$GITHUB_WORKSPACE/work/cargo" CARGO_TARGET_DIR="$GITHUB_WORKSPACE/work/native512-host" CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 cargo test --locked --offline --manifest-path aegis-flow/experiments/pq128/native/guest/Cargo.toml --lib
+          AEGIS_NATIVE512_HOST_TESTS=1 node --test aegis-flow/experiments/pq128/native/host-differential.test.mjs
+      - name: Build the isolated native program without enabling it on any network
+        run: python3 aegis-flow/experiments/pq128/native/build.py
+      - name: Verify the actual SDK parameters without granting PQ128 qualification
+        run: node aegis-flow/scripts/review-stark-security.mjs --source-root work/cargo/registry/src/index.crates.io-1949cf8c6b5b557f --require-source-profile > work/native512/risc0-qualification.json
+      - name: Prove the SHA-512 financial relation and verify its public journal
+        env:
+          AEGIS_NATIVE512_INTEGRATION: '1'
+          AEGIS_NATIVE512_PUBLIC_ARTIFACT: work/native512/public-proof.json
+        run: node --test aegis-flow/experiments/pq128/native/integration.test.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-financial512-laboratory-${{ github.sha }}
+          path: |
+            work/native512/program.json
+            work/native512/public-proof.json
+            work/native512/risc0-qualification.json
+          retention-days: 3
+          if-no-files-found: error
+
+  reward-history-capacity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Mine and revalidate beyond the default block limit with bounded cache
+        run: node aegis-flow/scripts/benchmark-pow-history.mjs --blocks 50001 --report work/history-capacity.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aegis-reward-history-${{ github.sha }}
+          path: work/history-capacity.json
+          retention-days: 3
+          if-no-files-found: error
+
+  real-stark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@1.100.0
+      - name: Build pinned guest and verifier
+        run: python3 aegis-flow/scripts/setup-stark.py
+      - name: Verify the source profile used by the accepted proof engine
+        run: node aegis-flow/scripts/review-stark-security.mjs --source-root work/cargo/registry/src/index.crates.io-1949cf8c6b5b557f --require-source-profile > work/risc0-qualification.json
+      - name: Bind the quantitative research report to the exact engine and financial sources
+        run: node aegis-flow/experiments/pq128/quantitative/demo.mjs --source-root work/cargo/registry/src/index.crates.io-1949cf8c6b5b557f --require-sources > work/risc0-quantitative-research.json
+      - name: Prove and verify a real composite STARK, then apply durable state
+        env:
+          AEGIS_STARK_INTEGRATION: '1'
+          AEGIS_STARK_PUBLIC_ARTIFACT: work/stark-smoke-public.json
+        run: node --test aegis-flow/services/proof-engine/integration.test.mjs
+      - name: Check SQLite crash recovery, backup and process concurrency
+        run: node --test aegis-flow/services/ledger-state/*.test.mjs
+
+      - name: Rehearse encrypted recovery against the freshly proved finalized state
+        env:
+          AEGIS_RECOVERY_INTEGRATION: '1'
+        run: node --test aegis-flow/services/recovery/recovery.integration.test.mjs
+      - name: Run local operational, migration and recovery contract tests
+        run: bash aegis-flow/scripts/dev-env.sh test
+
+      - name: Rehearse fresh-proof testnet tooling locally (not public acceptance)
+        env:
+          AEGIS_TESTNET_INTEGRATION: '1'
+        run: node --test aegis-flow/services/testnet/campaign.integration.test.mjs
+      - name: Spend a mined reward with a fresh native STARK on independent PoW nodes
+        env:
+          AEGIS_OPEN_POW_INTEGRATION: '1'
+          AEGIS_OPEN_POW_PUBLIC_ARTIFACT: work/open-pow-v2-public.json
+        run: node --test aegis-flow/services/open-chain/native.integration.test.mjs
+      - name: Revalidate a native STARK through the resumable backup restore drill
+        env:
+          AEGIS_POW_RECOVERY_ARTIFACT: work/open-pow-v2-public.json
+        run: node --test aegis-flow/services/open-chain/s3-drill.integration.test.mjs
+      - name: Recover an empty node from peers and reverify the native STARK without external storage
+        env:
+          AEGIS_POW_RECOVERY_ARTIFACT: work/open-pow-v2-public.json
+        run: node --test aegis-flow/services/open-chain/peer-recovery.integration.test.mjs aegis-flow/services/open-chain/receipt-index.integration.test.mjs aegis-flow/services/open-chain/storage-atomic.integration.test.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: risc0-source-qualification-${{ github.sha }}
+          path: |
+            work/risc0-qualification.json
+            work/risc0-quantitative-research.json
+          retention-days: 3
+          if-no-files-found: error
+
+  native-pow-wallet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@1.100.0
+      - name: Build pinned guest and verifier
+        run: python3 aegis-flow/scripts/setup-stark.py
+      - name: Verify native wallet reorg and encrypted PoW recovery
+        env:
+          AEGIS_POW_WALLET_INTEGRATION: '1'
+        run: node --test aegis-flow/services/open-chain/wallet.integration.test.mjs
+      - name: Verify QUEER fixed-cap supply-dependent PoW with fresh native proof and fee-only blocks
+        env:
+          AEGIS_QUEER_POW_INTEGRATION: '1'
+        run: node --test aegis-flow/services/open-chain/queer-pow.integration.test.mjs

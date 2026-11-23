@@ -1,0 +1,54 @@
+name: aegis-flow
+
+services:
+  validation-gateway:
+    build:
+      context: ../..
+      dockerfile: services/validation-gateway/Dockerfile
+    image: aegis-flow/validation-gateway:dev
+    environment:
+      NODE_ENV: development
+      AEGIS_BIND_HOST: 127.0.0.1
+      PORT: ${AEGIS_GATEWAY_PORT:-8080}
+      LOG_LEVEL: ${AEGIS_LOG_LEVEL:-info}
+      CORS_ORIGIN: ${AEGIS_CORS_ORIGIN:-http://localhost:8080}
+      AEGIS_LEDGER_PATH: /data/ledger.sqlite
+    volumes:
+      - aegis-ledger:/data
+    # Loopback-only default: run local services directly, or use the explicit
+    # authenticated TLS overlay before exposing a container port.
+    network_mode: host
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:'+process.env.PORT+'/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    init: true
+    cap_drop: [ALL]
+    pids_limit: 128
+    mem_limit: 1g
+    cpus: 2
+    ulimits:
+      nofile:
+        soft: 1024
+        hard: 1024
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  aegis-ledger:
+

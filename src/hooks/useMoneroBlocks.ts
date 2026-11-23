@@ -35,24 +35,7 @@ export function useMoneroBlocks(count = 8, pollMs = 15000) {
     recoveringRef.current = true;
     const config = loadNodeConfig();
     pushLog("auto-heal triggered", true, reason);
-    // 1) clear-peers: reset peer pools (equivalente a hz node --clear-peers)
-    try {
-      await callMoneroRpc(config, "out_peers", { out_peers: 0 });
-      await callMoneroRpc(config, "in_peers", { in_peers: 0 });
-      await new Promise((r) => setTimeout(r, 1500));
-      await callMoneroRpc(config, "out_peers", { out_peers: 12 });
-      await callMoneroRpc(config, "in_peers", { in_peers: 48 });
-      pushLog("clear-peers", true, "peer pool resetado");
-    } catch (e) {
-      pushLog("clear-peers", false, e instanceof Error ? e.message : "falhou");
-    }
-    // 2) rehash-last-blocks: pop os últimos 3 blocos para reavaliar a tail (~2.4%)
-    try {
-      await callMoneroRpc(config, "pop_blocks", { nblocks: 3 });
-      pushLog("rehash-last-blocks", true, "pop_blocks=3");
-    } catch (e) {
-      pushLog("rehash-last-blocks", false, e instanceof Error ? e.message : "falhou");
-    }
+    pushLog("manual intervention required", false, "O monitor não altera peers nem remove blocos. Revise o daemon pelos canais administrativos locais.");
     recoveringRef.current = false;
   }, [pushLog]);
 

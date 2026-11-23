@@ -1,0 +1,17 @@
+**/target
+**/node_modules
+**/.git
+**/.env
+**/*.sqlite
+**/*.sqlite-wal
+**/*.sqlite-shm
+**/work
+gen/
+**/*.token
+**/*.key
+**/*.pem
+**/*.p12
+**/*.enc
+**/*.vault.json
+**/access-policy.json
+**/secrets

@@ -1,0 +1,28 @@
+groups:
+  - name: aegis-operations
+    rules:
+      - alert: AegisScrapeUnavailable
+        expr: up{job="aegis-gateway"} == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations: {summary: 'Gateway scrape failed; check availability, TLS and monitor credential expiry'}
+      - alert: AegisNotReady
+        expr: aegis_ready == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: 'Gateway not ready; check ledger, verifier and incident mode'}
+      - alert: AegisElevatedServerErrors
+        expr: sum(rate(aegis_http_requests_total{status="5xx"}[5m])) / clamp_min(sum(rate(aegis_http_requests_total[5m])), 0.001) > 0.01
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: 'More than one percent server errors over five minutes'}
+      - alert: AegisElevatedRejectedTraffic
+        expr: sum(rate(aegis_http_requests_total{status="4xx"}[5m])) > 5
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: 'High rejected traffic; inspect authentication and rate-limit audit events'}
+      - alert: AegisVerifierStuck
+        expr: aegis_verifier_busy == 1
+        for: 15m
+        labels: {severity: critical}
+        annotations: {summary: 'Verifier continuously busy beyond expected verification timeout'}

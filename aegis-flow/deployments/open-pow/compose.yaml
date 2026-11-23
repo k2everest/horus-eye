@@ -1,0 +1,46 @@
+name: aegis-open-pow
+services:
+  node:
+    platform: linux/amd64
+    image: ${AEGIS_RELEASE_IMAGE:?Use an immutable image digest built from the reviewed commit}
+    pull_policy: never
+    command: [node, /app/services/open-chain/node.mjs]
+    user: '1000:1000'
+    network_mode: host
+    environment:
+      NODE_ENV: development
+      AEGIS_MODE: demo
+      AEGIS_BIND_HOST: ${AEGIS_BIND_HOST:-127.0.0.1}
+      PORT: ${AEGIS_POW_PORT:-8090}
+      AEGIS_POW_DIR: /data/pow
+      AEGIS_POW_GENESIS: /run/aegis-public/pow-genesis.json
+      AEGIS_POW_PEERS: ${AEGIS_POW_PEERS:?Configure independent peer origins as a JSON array}
+      AEGIS_STARK_VERIFIER: /opt/aegis/verify-stark
+    volumes:
+      - type: bind
+        source: ${AEGIS_NODE_DATA_DIR:?Dedicated directory for this node only}
+        target: /data
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${AEGIS_PUBLIC_CONFIG_DIR:?Directory containing pow-genesis.json}
+        target: /run/aegis-public
+        read_only: true
+        bind: {create_host_path: false}
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 2g
+    cpus: 2
+    tmpfs: ['/tmp:size=64m,mode=1777']
+    stop_grace_period: 30s
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, node, '-e', "fetch('http://127.0.0.1:'+process.env.PORT+'/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}

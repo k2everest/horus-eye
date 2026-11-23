@@ -1,0 +1,471 @@
+//! Native V4 partial financial AIR: 53-bit values/fee and exact integer conservation.
+//! SHA-512 ownership, note commitments, nullifiers and Merkle membership are
+//! checked by the host ONLY, using aegis-financial512-guest. They are NOT
+//! arithmetized here: a valid STARK does NOT prove the financial relation.
+//! No consensus activation or PQ128 claim is possible from this module.
+use std::{fs,path::Path,collections::HashSet,panic::{catch_unwind,AssertUnwindSafe}};
+use base64::{engine::general_purpose::STANDARD as B64,Engine};
+use p3_air::{Air,AirBuilder,BaseAir,WindowAccess};
+use p3_air::symbolic::AirLayout;
+use p3_commit::Pcs as PcsTrait;
+use p3_security::fri::FriRegime;
+use p3_uni_stark::{StarkSecurityParams,StarkGenericConfig,OpeningShape,GrindingSites,ProvenSecurity,ConjecturedSecurity};
+use p3_field::{Field,PrimeCharacteristicRing};
+use p3_matrix::dense::RowMajorMatrix;
+use p3_uni_stark::{prove,verify,Proof};
+use serde::{Deserialize,Serialize};
+use serde_json::Value;
+use sha2::{Digest,Sha512};
+use crate::{F,E,Chall,Pcs,Config,config,ROWS,LOG_BLOWUP,QUERIES,EXT_DIM,
+    RANDOM_CODEWORDS,SALT_ELEMS,MAX_PROOF,WORDS,
+    EXTENSION_FIELD_FLOOR_BITS,IDEAL_HASH_COLLISION_BITS};
+
+const SCHEME:&str="AEGIS_V4_P3_FINANCIAL_AMOUNT53_PARTIAL_V1";
+const MAX_VALUE:u64=(1u64<<53)-1;
+const NOTE_COUNT:usize=9;
+const VALUE_BITS:usize=53;
+const LIMBS:usize=4;
+const CARRY_BITS:usize=3;
+const NONZERO_WITNESSES:usize=8;
+const CARRY_ROWS:usize=3;
+const PUBLIC_DIGEST_END:usize=WORDS;
+const VALUES_START:usize=PUBLIC_DIGEST_END;
+const NONZERO_START:usize=VALUES_START+NOTE_COUNT*VALUE_BITS;
+const CARRY_START:usize=NONZERO_START+NONZERO_WITNESSES;
+const WIDTH:usize=CARRY_START+2*CARRY_ROWS*CARRY_BITS;
+const SUITE:&[u8]=b"AEGIS-EXPERIMENT-SHA512-MLDSA87-V1";
+const PREFIX:&[u8]=b"AEGIS_BINDING_FRAME_V1\0";
+
+#[derive(Clone,Debug,Deserialize,Serialize,PartialEq,Eq)]
+#[serde(deny_unknown_fields)]
+struct Statement{
+    version:String,network_id:String,asset_id:String,
+    anchor_root:String,anchor_leaf_count:u32,
+    input_commitments:Vec<String>,output_commitments:Vec<String>,
+    nullifiers:Vec<String>,fee:String,transaction_binding:String,
+}
+fn decimal(value:&str,allow_zero:bool)->Result<u64,()>{
+    if value.is_empty()||value.len()>16||value.starts_with('0')&&value!="0"||
+        !value.bytes().all(|b|b.is_ascii_digit()){return Err(());}
+    let n=value.parse::<u64>().map_err(|_|())?;
+    if n>MAX_VALUE||(!allow_zero&&n==0){return Err(());}
+    Ok(n)
+}
+fn hex64(v:&str)->bool{
+    v.len()==128&&v.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b))
+}
+impl Statement{
+    fn valid(&self)->bool{
+        self.version=="AEGIS_EXPERIMENT_RELATION512_V1"&&self.asset_id=="QUEER"&&
+        !self.network_id.is_empty()&&self.network_id.len()<=64&&
+        self.network_id.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'_'||b==b'-')&&
+        (1..=65536).contains(&self.anchor_leaf_count)&&hex64(&self.anchor_root)&&
+        hex64(&self.transaction_binding)&&decimal(&self.fee,true).is_ok()&&
+        (1..=4).contains(&self.input_commitments.len())&&
+        (1..=4).contains(&self.output_commitments.len())&&
+        self.nullifiers.len()==self.input_commitments.len()&&
+        self.input_commitments.iter().chain(self.output_commitments.iter())
+          .chain(self.nullifiers.iter()).all(|v|hex64(v))&&
+        self.input_commitments.iter().collect::<HashSet<_>>().len()==self.input_commitments.len()&&
+        self.output_commitments.iter().collect::<HashSet<_>>().len()==self.output_commitments.len()&&
+        self.nullifiers.iter().collect::<HashSet<_>>().len()==self.nullifiers.len()&&
+        self.input_commitments.iter().all(|v|!self.output_commitments.contains(v))
+    }
+}
+// For a one-leaf tree the commitment-to-anchor inclusion check uses
+// PUBLIC values only: it is safe and cheaper to perform it directly in the
+// verifier. This does NOT prove that the private note hashes to the public
+// commitment or that the prover knows the spend secret.
+fn framed_sha512(domain:&[u8],parts:&[&[u8]])->[u8;64]{
+    let mut h=Sha512::new();
+    h.update(PREFIX);
+    h.update((SUITE.len() as u32).to_be_bytes());h.update(SUITE);
+    h.update((domain.len() as u32).to_be_bytes());h.update(domain);
+    h.update((parts.len() as u32).to_be_bytes());
+    for part in parts{h.update((part.len() as u32).to_be_bytes());h.update(part);}
+    h.finalize().into()
+}
+fn public_single_leaf_anchor(st:&Statement)->Result<(),()>{
+    if !st.valid()||st.anchor_leaf_count!=1||st.input_commitments.len()!=1||
+      st.output_commitments.len()!=1||st.nullifiers.len()!=1{return Err(());}
+    let commitment=hex::decode(&st.input_commitments[0]).map_err(|_|())?;
+    if commitment.len()!=64{return Err(());}
+    let leaf=framed_sha512(b"FINANCIAL_TREE_LEAF",&[st.network_id.as_bytes(),&commitment]);
+    let root=framed_sha512(b"FINANCIAL_TREE_ROOT",
+        &[st.network_id.as_bytes(),&1u32.to_be_bytes(),&leaf]);
+    if hex::encode(root)!=st.anchor_root{return Err(());}
+    Ok(())
+}
+
+fn binding(statement:&Statement)->Result<[u16;WORDS],()>{
+    if !statement.valid(){return Err(());}
+    let body=serde_json::to_vec(statement).map_err(|_|())?;
+    let mut h=Sha512::new();
+    h.update(PREFIX);
+    h.update((SUITE.len() as u32).to_be_bytes());h.update(SUITE);
+    let domain=b"FINANCIAL_STATEMENT";
+    h.update((domain.len() as u32).to_be_bytes());h.update(domain);
+    h.update(1u32.to_be_bytes());h.update((body.len() as u32).to_be_bytes());
+    h.update(body);
+    let digest:[u8;64]=h.finalize().into();
+    Ok(std::array::from_fn(|i|u16::from_be_bytes([digest[2*i],digest[2*i+1]])))
+}
+
+#[derive(Clone)]
+struct FinancialAmountAir{
+    expected_digest:[u16;WORDS],
+    fee:u64,inputs:usize,outputs:usize,
+}
+impl<T> BaseAir<T> for FinancialAmountAir{
+    fn width(&self)->usize{WIDTH}
+    fn main_next_row_columns(&self)->Vec<usize>{vec![]}
+}
+impl<AB:AirBuilder> Air<AB> for FinancialAmountAir{
+    fn eval(&self,builder:&mut AB){
+        let window=builder.main();
+        let local=window.current_slice();
+        for i in 0..WORDS{
+            builder.assert_eq(local[i],AB::Expr::from_u16(self.expected_digest[i]));
+        }
+        // Reconstruct 9 53-bit private values from individually constrained
+        // Boolean bits. Slots not used by the authenticated public statement
+        // MUST be exactly zero; active input/output slots MUST be positive.
+        let mut limbs:[Vec<AB::Expr>;NOTE_COUNT]=std::array::from_fn(|_|Vec::with_capacity(LIMBS));
+        for i in 0..NOTE_COUNT{
+            let mut bit_sum=AB::Expr::ZERO;
+            for j in 0..LIMBS{
+                let mut limb=AB::Expr::ZERO;
+                for k in 0..16{
+                    let bit_index=j*16+k;
+                    if bit_index>=VALUE_BITS{break;}
+                    let bit:AB::Expr=local[VALUES_START+i*VALUE_BITS+bit_index].into();
+                    builder.assert_zero(bit.clone()*(bit.clone()-AB::Expr::ONE));
+                    bit_sum+=bit.clone();
+                    limb+=bit*AB::Expr::from_u32(1u32<<k);
+                }
+                limbs[i].push(limb);
+            }
+            if i==8{
+                for k in 0..VALUE_BITS {
+                    let required=AB::Expr::from_u32((self.fee>>k&1) as u32);
+                    builder.assert_eq(local[VALUES_START+i*VALUE_BITS+k],required);
+                }
+            }else{
+                let active=if i<4{i<self.inputs}else{i-4<self.outputs};
+                if active{
+                    let inverse:AB::Expr=local[NONZERO_START+i].into();
+                    builder.assert_eq(bit_sum*inverse,AB::Expr::ONE);
+                }else{
+                    builder.assert_eq(bit_sum,AB::Expr::ZERO);
+                    builder.assert_eq(local[NONZERO_START+i],AB::Expr::ZERO);
+                }
+            }
+        }
+        // Each carry is 0..7 (three constrained bits). All intermediate
+        // per-limb sums fit within 7*65536 << BabyBear prime, so these
+        // equalities cannot be satisfied via field-modulus wraparound.
+        let mut ci=AB::Expr::ZERO;
+        let mut co=AB::Expr::ZERO;
+        for j in 0..LIMBS{
+            let mut ins=ci.clone();
+            let mut outs=co.clone()+limbs[8][j].clone();
+            for i in 0..4{
+                ins+=limbs[i][j].clone();outs+=limbs[4+i][j].clone();
+            }
+            let (ci_next,co_next)=if j<CARRY_ROWS{
+                let mut carry=|side:usize|{
+                    let mut acc=AB::Expr::ZERO;
+                    for k in 0..CARRY_BITS{
+                        let value:AB::Expr=local[CARRY_START+side*CARRY_ROWS*CARRY_BITS+
+                            j*CARRY_BITS+k].into();
+                        builder.assert_zero(value.clone()*(value.clone()-AB::Expr::ONE));
+                        acc+=value*AB::Expr::from_u32(1u32<<k);
+                    }
+                    acc
+                };
+                (carry(0),carry(1))
+            }else{(AB::Expr::ZERO,AB::Expr::ZERO)};
+            builder.assert_eq(ins-outs,
+                (ci_next.clone()-co_next.clone())*AB::Expr::from_u32(65536));
+            ci=ci_next;co=co_next;
+        }
+    }
+}
+fn trace(air:&FinancialAmountAir,amounts:[u64;NOTE_COUNT])->RowMajorMatrix<F>{
+    let mut row=Vec::with_capacity(WIDTH);
+    for x in air.expected_digest{row.push(F::from_u16(x));}
+    for amount in amounts {
+        for i in 0..VALUE_BITS{row.push(F::from_u64(amount>>i&1));}
+    }
+    for (i,amount) in amounts[..8].iter().enumerate(){
+        let active=if i<4{i<air.inputs}else{i-4<air.outputs};
+        if active{
+            let bits=amount.count_ones();
+            row.push(F::from_u32(bits).inverse());
+        }else{row.push(F::ZERO);}
+    }
+    let mut ins_carries=[0u64;CARRY_ROWS];
+    let mut outs_carries=[0u64;CARRY_ROWS];
+    let mut ci=0u64;let mut co=0u64;
+    for j in 0..CARRY_ROWS{
+        let ins=ci+(0..4).map(|i|amounts[i]>>(16*j)&65535).sum::<u64>();
+        let outs=co+(4..9).map(|i|amounts[i]>>(16*j)&65535).sum::<u64>();
+        ci=ins>>16;co=outs>>16;
+        ins_carries[j]=ci;outs_carries[j]=co;
+        debug_assert!(ci<8&&co<8);
+    }
+    for side in [ins_carries,outs_carries]{
+        for v in side{for i in 0..CARRY_BITS{row.push(F::from_u64(v>>i&1));}}
+    }
+    assert_eq!(row.len(),WIDTH);
+    let mut data=Vec::with_capacity(WIDTH*ROWS);
+    for _ in 0..ROWS{data.extend_from_slice(&row);}
+    RowMajorMatrix::new(data,WIDTH)
+}
+// This uses the EXACT financial amount AIR shape, not the prior 16-bit
+// smoke AIR. It is an interactive RBR sizing diagnostic with a HYPOTHETICAL
+// ideal hash collision parameter, not a QROM/Fiat-Shamir proof.
+pub(crate) fn financial_rbr_report()->serde_json::Value{
+    let regime=FriRegime{log_blowup:LOG_BLOWUP,log_final_poly_len:0,
+        max_log_arity:1,num_queries:QUERIES,commit_pow_bits:0,query_pow_bits:0};
+    let config=config();
+    let air=FinancialAmountAir{expected_digest:[0;WORDS],fee:0,inputs:1,outputs:1};
+    let layout=AirLayout{main_width:WIDTH,..Default::default()};
+    let domain=<Pcs as PcsTrait<E,Chall>>::natural_domain_for_degree(config.pcs(),ROWS*2);
+    let params=StarkSecurityParams::from_air::<F,E,_>(regime,&air,layout,domain,
+        EXTENSION_FIELD_FLOOR_BITS,IDEAL_HASH_COLLISION_BITS,1,
+        OpeningShape::hiding(RANDOM_CODEWORDS),GrindingSites::NONE);
+    let proven=ProvenSecurity::compute_from_proof(ROWS.ilog2() as usize+1,&params);
+    let conjecture=ConjecturedSecurity::compute_from_params(&params,ROWS.ilog2() as usize+1);
+    serde_json::json!({
+        "schema":"AEGIS_V4_AMOUNT53_RBR_RESEARCH_V1",
+        "sdk":"Plonky3 0.8.0",
+        "air":"amount-conservation-53bit-only",
+        "air_width":WIDTH,
+        "trace_rows":ROWS,
+        "fri_queries":QUERIES,
+        "log_blowup":LOG_BLOWUP,
+        "challenge_extension_degree":EXT_DIM,
+        "random_codewords":RANDOM_CODEWORDS,
+        "salt_elements":SALT_ELEMS,
+        "field_cardinality_floor_bits":EXTENSION_FIELD_FLOOR_BITS,
+        "ideal_sha512_collision_bits_assumed":IDEAL_HASH_COLLISION_BITS,
+        "air_constraints_derived":params.num_constraints,
+        "air_constraint_degree_derived":params.air_max_constraint_degree,
+        "batch_openings_derived":params.num_batched_functions,
+        "quotient_chunks_derived":params.num_quotient_chunks,
+        "rbr_unique_decoding_bits":proven.unique_decoding_bits,
+        "rbr_list_decoding_bits":proven.list_decoding_bits,
+        "rbr_best_bits":proven.security_bits(),
+        "conjectured_bits":conjecture.security_bits,
+        "all_sha512_hashes_constrained":false,
+        "financial_air_complete":false,
+        "quantum_fiat_shamir_qrom_proved":false,
+        "aegis_target_met":false,"production_ready":false
+    })
+}
+
+#[derive(Serialize,Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProofBundle{scheme:String,statement:Statement,proof:String}
+#[derive(Serialize)]
+pub(crate) struct Verdict{
+    valid:bool,statement_digest:Option<String>,
+    amount_conservation_proved:bool,financial_relation_proved:bool,
+    sha512_preimages_arithmetized:bool,knowledge_demonstrated:bool,
+    aegis_target_met:bool,production_ready:bool,
+}
+pub(crate) fn prove_financial(input:&[u8],output:&Path)->Result<(),()>{
+    if input.len()>262144{return Err(());}
+    // IMPORTANT: this full financial check is LOCAL TO THE PROVER.
+    // It does not generate SHA512 AIR constraints or make the prover
+    // an authority for hashes, secrets, nullifiers or Merkle openings.
+    let st_json=aegis_financial512_guest::verify_witness_json(input).map_err(|_|())?;
+    let st:Statement=serde_json::from_slice(&st_json).map_err(|_|())?;
+    let v:Value=serde_json::from_slice(input).map_err(|_|())?;
+    let arr=v.get("inputs").and_then(Value::as_array).ok_or(())?;
+    let outputs=v.get("outputs").and_then(Value::as_array).ok_or(())?;
+    if arr.len()!=st.input_commitments.len()||outputs.len()!=st.output_commitments.len(){return Err(());}
+    let mut values=[0u64;NOTE_COUNT];
+    for (i,item) in arr.iter().enumerate(){
+        values[i]=decimal(item.pointer("/note/value").and_then(Value::as_str).ok_or(())?,false)?;
+    }
+    for (i,item) in outputs.iter().enumerate(){
+        values[4+i]=decimal(item.get("value").and_then(Value::as_str).ok_or(())?,false)?;
+    }
+    values[8]=decimal(&st.fee,true)?;
+    let air=FinancialAmountAir{expected_digest:binding(&st)?,fee:values[8],inputs:arr.len(),outputs:outputs.len()};
+    let proof=prove(&config(),&air,trace(&air,values),&[]).map_err(|_|())?;
+    let proof_bytes=postcard::to_allocvec(&proof).map_err(|_|())?;
+    if proof_bytes.is_empty()||proof_bytes.len()>MAX_PROOF{return Err(());}
+    let bundle=ProofBundle{scheme:SCHEME.into(),statement:st,proof:B64.encode(proof_bytes)};
+    fs::write(output,serde_json::to_vec(&bundle).map_err(|_|())?).map_err(|_|())
+}
+pub(crate) fn verify_financial(bundle:&[u8],expected:&[u8])->Verdict{
+    let fail=||Verdict{valid:false,statement_digest:None,
+        amount_conservation_proved:false,financial_relation_proved:false,
+        sha512_preimages_arithmetized:false,knowledge_demonstrated:false,aegis_target_met:false,production_ready:false};
+    let check=||->Result<[u16;WORDS],()>{ 
+        if bundle.len()>11_200_000||expected.len()>16_384{return Err(());}
+        let payload:ProofBundle=serde_json::from_slice(bundle).map_err(|_|())?;
+        let exp:Statement=serde_json::from_slice(expected).map_err(|_|())?;
+        if payload.scheme!=SCHEME||payload.statement!=exp||!exp.valid(){return Err(());}
+        let proof_bytes=B64.decode(&payload.proof).map_err(|_|())?;
+        if proof_bytes.is_empty()||proof_bytes.len()>MAX_PROOF||B64.encode(&proof_bytes)!=payload.proof{return Err(());}
+        let proof:Proof<Config>=postcard::from_bytes(&proof_bytes).map_err(|_|())?;
+        let digest=binding(&exp)?;
+        let air=FinancialAmountAir{expected_digest:digest,
+            fee:decimal(&exp.fee,true)?,
+            inputs:exp.input_commitments.len(),outputs:exp.output_commitments.len()};
+        catch_unwind(AssertUnwindSafe(||verify(&config(),&air,&proof,&[])))
+            .map_err(|_|())?.map_err(|_|())?;
+        Ok(digest)
+    };
+    let digest=match check(){Ok(d)=>d,Err(_)=>return fail()};
+    let statement_digest=digest.iter().map(|w|format!("{w:04x}")).collect::<String>();
+    Verdict{valid:true,statement_digest:Some(statement_digest),
+        amount_conservation_proved:true,
+        financial_relation_proved:false,sha512_preimages_arithmetized:false,
+        knowledge_demonstrated:false,aegis_target_met:false,production_ready:false}
+}
+
+// One-in/one-out + exactly one Merkle leaf: self-contained, public-only
+// anchor verification + a real Plonky3 53-bit balance proof. This is a
+// PARTIAL financial receipt, not a private ownership/nullifier proof.
+#[derive(Serialize)]
+pub(crate) struct SingleTransferResult{
+    valid_balance:bool,
+    public_single_leaf_membership_verified:bool,
+    statement_digest:Option<String>,
+    private_note_commitment_proved:bool,
+    private_ownership_proved:bool,
+    private_nullifier_proved:bool,
+    financial_relation_proved:bool,
+    aegis_target_met:bool,
+    production_ready:bool,
+}
+fn rejected_single()->SingleTransferResult{
+    SingleTransferResult{valid_balance:false,public_single_leaf_membership_verified:false,
+        statement_digest:None,private_note_commitment_proved:false,
+        private_ownership_proved:false,private_nullifier_proved:false,
+        financial_relation_proved:false,aegis_target_met:false,production_ready:false}
+}
+pub(crate) fn prove_single_transfer(input:&[u8],output:&Path)->Result<(),()>{
+    // Full SHA-512 witness relation is checked exclusively as a local
+    // prover-side preflight. The native STARK only proves value balance.
+    let journal=aegis_financial512_guest::verify_witness_json(input).map_err(|_|())?;
+    let statement:Statement=serde_json::from_slice(&journal).map_err(|_|())?;
+    public_single_leaf_anchor(&statement)?;
+    prove_financial(input,output)
+}
+pub(crate) fn verify_single_transfer(bundle:&[u8],expected:&[u8])->SingleTransferResult{
+    let parse=||->Result<(),()>{
+        if expected.len()>16_384{return Err(());}
+        let st:Statement=serde_json::from_slice(expected).map_err(|_|())?;
+        public_single_leaf_anchor(&st)
+    };
+    if parse().is_err(){return rejected_single();}
+    let verified=verify_financial(bundle,expected);
+    if !verified.valid{return rejected_single();}
+    SingleTransferResult{valid_balance:true,
+        public_single_leaf_membership_verified:true,
+        statement_digest:verified.statement_digest,
+        private_note_commitment_proved:false,
+        private_ownership_proved:false,private_nullifier_proved:false,
+        financial_relation_proved:false,aegis_target_met:false,production_ready:false}
+}
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+    use p3_matrix::Matrix;
+    #[test]
+    fn rejects_noncanonical_and_out_of_range_values(){
+        for value in ["0","01","","-1","9007199254740992","+1"]{
+            assert!(decimal(value,false).is_err());
+        }
+        assert_eq!(decimal("9007199254740991",false),Ok(MAX_VALUE));
+    }
+
+    // Deliberate adversarial counterexample: a balanced 53-bit witness and
+    // arbitrary syntactically valid 512-bit public note hashes CAN produce
+    // a STARK. Until SHA-512 is arithmetized, DO NOT treat proof.valid as
+    // proof of ownership, membership or commitment. This test locks the
+    // intentionally narrow scope and guards against accidental promotion.
+    #[test]
+    fn balanced_values_with_fake_note_hashes_are_not_financial_proofs(){
+        let s=Statement{
+            version:"AEGIS_EXPERIMENT_RELATION512_V1".into(),
+            network_id:"v4-adversarial-lab".into(),
+            asset_id:"QUEER".into(),
+            anchor_root:"dd".repeat(64),anchor_leaf_count:1,
+            input_commitments:vec!["aa".repeat(64)],
+            output_commitments:vec!["bb".repeat(64)],
+            nullifiers:vec!["cc".repeat(64)],
+            fee:"10".into(),transaction_binding:"ee".repeat(64),
+        };
+        assert!(s.valid());
+        // Independent Python/JavaScript FIPS-180-4 framing vector. The guest
+        // serializes the same canonical public-field order.
+        let words=binding(&s).unwrap();
+        let observed=words.iter().map(|w|format!("{w:04x}")).collect::<String>();
+        assert_eq!(observed,
+            "e5092b32a2f6f300743d5df5329a4622485cbb1f28acf507d7df47ee48e4f9975aef09359e7530f8e55fcfcfc96ee6c9e0f8915eaf3709d8c7450d9731a5d740");
+        let air=FinancialAmountAir{expected_digest:binding(&s).unwrap(),
+            fee:10,inputs:1,outputs:1};
+        let proof=prove(&config(),&air,trace(&air,[100,0,0,0,90,0,0,0,10]),&[]).unwrap();
+        assert!(verify(&config(),&air,&proof,&[]).is_ok());
+        // Stronger adversarial check: syntactically valid fake Merkle roots
+        // were previously accepted for any balanced witness. The strict
+        // one-leaf verifier checks that entirely PUBLIC relationship,
+        // independently of the malicious prover.
+        let b=ProofBundle{scheme:SCHEME.into(),statement:s.clone(),
+            proof:B64.encode(postcard::to_allocvec(&proof).unwrap())};
+        let raw=serde_json::to_vec(&b).unwrap();
+        let public=serde_json::to_vec(&s).unwrap();
+        assert!(verify_financial(&raw,&public).valid);
+        let strict=verify_single_transfer(&raw,&public);
+        assert!(!strict.valid_balance);
+        assert!(!strict.public_single_leaf_membership_verified);
+        assert!(!strict.financial_relation_proved);
+        // A correct PUBLIC one-leaf anchor still does NOT prove private
+        // ownership or note preimages. Construct one such counterexample
+        // to forbid future callers from interpreting valid_balance as
+        // "valid private transaction" without an AIR SHA-512 gadget.
+        let mut fake=s.clone();
+        let commitment=hex::decode(&fake.input_commitments[0]).unwrap();
+        let leaf=framed_sha512(b"FINANCIAL_TREE_LEAF",
+            &[fake.network_id.as_bytes(),&commitment]);
+        fake.anchor_root=hex::encode(framed_sha512(b"FINANCIAL_TREE_ROOT",
+            &[fake.network_id.as_bytes(),&1u32.to_be_bytes(),&leaf]));
+        let fake_air=FinancialAmountAir{expected_digest:binding(&fake).unwrap(),
+            fee:10,inputs:1,outputs:1};
+        let fake_proof=prove(&config(),&fake_air,
+            trace(&fake_air,[100,0,0,0,90,0,0,0,10]),&[]).unwrap();
+        let forged=ProofBundle{scheme:SCHEME.into(),statement:fake.clone(),
+            proof:B64.encode(postcard::to_allocvec(&fake_proof).unwrap())};
+        let forged_bytes=serde_json::to_vec(&forged).unwrap();
+        let fake_public=serde_json::to_vec(&fake).unwrap();
+        let still_incomplete=verify_single_transfer(&forged_bytes,&fake_public);
+        assert!(still_incomplete.valid_balance);
+        assert!(still_incomplete.public_single_leaf_membership_verified);
+        assert!(!still_incomplete.private_ownership_proved);
+        assert!(!still_incomplete.private_note_commitment_proved);
+        assert!(!still_incomplete.private_nullifier_proved);
+        assert!(!still_incomplete.financial_relation_proved);
+        assert!(!still_incomplete.production_ready);
+        // No private note preimage, owner, nullifier or path was needed.
+        // This success is specifically an INCOMPLETE proof, not financial validity.
+    }
+    #[test]
+    fn limbs_and_53bit_overflow_bounds(){
+        assert_eq!(WIDTH,535);
+        assert!(ROWS>=4096);
+        assert!((4u128*MAX_VALUE as u128) < (1u128<<64));
+        assert!((5*65535+7)<2_013_265_921u64);
+        let air=FinancialAmountAir{expected_digest:[1;WORDS],fee:10,inputs:1,outputs:2};
+        let m=trace(&air,[100,0,0,0,40,50,0,0,10]);
+        assert_eq!(m.width(),WIDTH);
+        assert_eq!(m.height(),ROWS);
+    }
+}

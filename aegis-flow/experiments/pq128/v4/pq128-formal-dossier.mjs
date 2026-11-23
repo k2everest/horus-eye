@@ -7,6 +7,7 @@ import {inspectFixedInteractiveLogup} from './logup-algebraic-bound.mjs';
 import {screenQuantumSaltSearch} from './salt-quantum-screen.mjs';
 import {assessLogupQromReduction} from './logup-qrom-branches.mjs';
 import {assessCmsQromFeasibility} from './cms-qrom-gate.mjs';
+import {pq128EngineeringTarget} from './pq128-engineering-target.mjs';
 
 export function buildV4QuantumDossier(){
   const outer=screenV4OuterBinding();
@@ -16,6 +17,7 @@ export function buildV4QuantumDossier(){
   const salt=screenQuantumSaltSearch({salts:16});
   const qromBranches=assessLogupQromReduction();
   const cms=assessCmsQromFeasibility();
+  const target=pq128EngineeringTarget();
   const output={
     schema:'AEGIS_V4_QUANTUM_PROOF_OBLIGATIONS_V1',
     date:'2026-11-22',
@@ -34,6 +36,7 @@ export function buildV4QuantumDossier(){
       generic_salt_grover_screen:salt,
       logup_qrom_hypothesis_branches:qromBranches,
       cms20_BCS_QROM_necessary_parameter_screen:cms,
+      candidate_16_extension_unimplemented_engineering_target:target,
     },
     critical_unknowns:{
       actual_wired_air_fri_logup_rbr_error:null,
@@ -61,6 +64,8 @@ export function buildV4QuantumDossier(){
     qromBranches.qrom_query_loss_exponent_proved!==null||
     cms.theorem_applies_to_current_p3_batch_stark!==false||
     cms.pq128_demonstrated!==false||
+    target.proposed_field_constructed_and_audited!==false||
+    target.actual_FRI_soundness_bits!==null||
     output.pq128_demonstrated!==false||output.production_ready!==false)
     throw new Error('unqualified security promotion detected');
   return output;

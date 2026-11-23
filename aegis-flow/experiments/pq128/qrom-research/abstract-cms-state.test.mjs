@@ -15,12 +15,12 @@ test('candidate starts at zero and cannot revive on a prover event',()=>{
   }
 });
 test('witness already present before lookup challenge may trigger a toy 0-to-1 transition',()=>{
-  const i=ids.indexOf('lookup_alpha');
+  const i=ids.indexOf('lookup_beta');
   const prior=evaluateAbstractCmsState(s,ids.slice(0,i),{
-    preChallengeWitnessAvailableAt:['lookup_alpha'],
+    preChallengeWitnessAvailableAt:['lookup_beta'],
   });
   const after=evaluateAbstractCmsState(s,ids.slice(0,i+1),{
-    preChallengeWitnessAvailableAt:['lookup_alpha'],
+    preChallengeWitnessAvailableAt:['lookup_beta'],
   });
   assert.equal(prior.abstract_candidate_state_bit,0);
   assert.equal(after.abstract_candidate_state_bit,1);
@@ -63,4 +63,19 @@ test('rejects unauthorized predicates and duplicate challenge identities',()=>{
   assert.throws(()=>evaluateAbstractCmsState(s,ids,{preChallengeWitnessAvailableAt:['main_commitment']}));
   assert.throws(()=>evaluateAbstractCmsState(s,ids,{exceptionalChallengeAt:['lookup_alpha','lookup_alpha']}));
   assert.throws(()=>evaluateAbstractCmsState(s,ids,{finalVerifierAccepted:'yes'}));
+});
+
+test('no state transition can rely on beta-dependent algebraic event after alpha alone',()=>{
+  const i=ids.indexOf('lookup_alpha');
+  assert.throws(()=>evaluateAbstractCmsState(s,ids.slice(0,i+1),{
+    exceptionalChallengeAt:['lookup_alpha'],
+  }),/INVALID_B_PREDICATE/);
+  const afterAlpha=evaluateAbstractCmsState(s,ids.slice(0,i+1),{
+    exceptionalChallengeAt:['lookup_beta'],
+  });
+  const afterBeta=evaluateAbstractCmsState(s,ids.slice(0,i+2),{
+    exceptionalChallengeAt:['lookup_beta'],
+  });
+  assert.equal(afterAlpha.abstract_candidate_state_bit,0);
+  assert.equal(afterBeta.abstract_candidate_state_bit,1);
 });

@@ -117,7 +117,10 @@ fn pcs_rng(public_program:Option<&[u8;64]>,label:&[u8])->StdRng{
             .expect("cryptographically secure OS RNG required")
     }
 }
-fn config_from_public_program(public_program:Option<&[u8;64]>)->Config{
+// Construct PCS once. HidingFriPcs::clone() FORKS its RNG, so cloning
+// the deterministically salted PUBLIC preprocessing PCS changes its Merkle
+// commitment. Never clone a public-preprocessing PCS before commitment.
+fn pcs_and_challenger(public_program:Option<&[u8;64]>)->(Pcs,Chall){
     // All main-trace proof paths call config() and receive fresh OS entropy.
     // The alternative below is exclusively for public, verifier-rebuilt
     // preprocessed MMCS commitments.
@@ -143,7 +146,18 @@ fn config_from_public_program(public_program:Option<&[u8;64]>)->Config{
         RANDOM_CODEWORDS,pcs_rng(public_program,b"PUBLIC_PREP_PCS"));
     let challenger=Chall::new(HashChallenger::new(
         b"AEGIS_V4_P3_HIDING_EXT8_LAB_V1".to_vec(),chal_hash));
+    (pcs,challenger)
+}
+fn config_from_public_program(public_program:Option<&[u8;64]>)->Config{
+    let (pcs,challenger)=pcs_and_challenger(public_program);
     Config::new(pcs,challenger)
+}
+fn audit_config_from_public_program(
+    public_program:Option<&[u8;64]>
+)->p3_uni_stark::StarkConfig<Pcs,E,audit_challenger::AuditedChallenger>{
+    let (pcs,challenger)=pcs_and_challenger(public_program);
+    p3_uni_stark::StarkConfig::new(pcs,
+        audit_challenger::AuditedChallenger::new(challenger))
 }
 fn config()->Config{config_from_public_program(None)}
 // DO NOT use this config for prove_batch/verify_batch: its salts are

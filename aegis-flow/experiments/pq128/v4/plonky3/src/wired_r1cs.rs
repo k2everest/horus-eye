@@ -487,6 +487,109 @@ pub(crate) fn verify_wired(program_bytes:&[u8],bundle_bytes:&[u8],expected_progr
     }else{rejected()}
 }
 
+/// Independently replay the REAL pinned Plonky3 verify_batch with a
+/// challenger that records every sampled field element / query index.
+/// This is a read-only research API. No private wire or prover seed is
+/// exported, and successful replay DOES NOT establish PQ128.
+pub(crate) fn audit_wired_verifier_transcript(
+    program_bytes:&[u8],bundle_bytes:&[u8],expected_program_sha512:&str
+)->Result<serde_json::Value,()>{
+    use crate::audit_challenger::AuditedChallenger;
+    use p3_uni_stark::StarkConfig;
+    use std::sync::Arc;
+    use sha2::Digest;
+
+    // Match the production verifier's canonical acceptance gate FIRST.
+    // This prevents the audit mode from becoming a weaker verifier.
+    if !verify_wired(program_bytes,bundle_bytes,expected_program_sha512).valid {
+        return Err(());
+    }
+    let (program,digest)=public_program(program_bytes)?;
+    if digest!=expected_program_sha512{return Err(());}
+    let bundle:WiredBundle=serde_json::from_slice(bundle_bytes).map_err(|_|())?;
+    if bundle.scheme!=WIRED_SCHEME||bundle.program_sha512!=digest{return Err(());}
+    let encoded=B64.decode(&bundle.proof).map_err(|_|())?;
+    if encoded.is_empty()||encoded.len()>MAX_WIRED_PROOF||
+       B64.encode(&encoded)!=bundle.proof{return Err(());}
+    let air=WiredAir::new(program);
+    let cfg=config();
+    let log_degree=air.rows().ilog2() as usize+cfg.is_zk();
+
+    // Exactly the original verifier PCS, extension field, and initial
+    // Fiat-Shamir state; only the challenger type is wrapped for tracing.
+    type TraceConfig=StarkConfig<crate::Pcs,crate::E,AuditedChallenger>;
+    let observer=AuditedChallenger::new(cfg.initialise_challenger());
+    let trace_cfg=TraceConfig::new(cfg.pcs().clone(),observer.clone());
+    let public_cfg=preprocessing_config(&air);
+    let public_trace_cfg=TraceConfig::new(public_cfg.pcs().clone(),
+        AuditedChallenger::new(public_cfg.initialise_challenger()));
+    let independent=ProverData::<TraceConfig>::from_airs_and_degrees(
+        &public_trace_cfg,&[air.clone()],&[log_degree]).map_err(|_|())?;
+    // The canonical proof wire format is shared across both Config and
+    // TraceConfig because only the Challenger type changes.
+    let trace_proof:BatchProof<TraceConfig>=
+        postcard::from_bytes(&encoded).map_err(|_|())?;
+    verify_batch(&trace_cfg,&[air.clone()],&trace_proof,
+        &[air.public_values()],&independent.common).map_err(|_|())?;
+
+    let events=observer.events();
+    // In the pinned TwoAdicFriFolding extra_query_index_bits() == 0.
+    // FriShape index_bits = log2(2*N*8). The verifier is the ONLY
+    // source of raw index samples, not a user-provided JSON schedule.
+    let lde_rows=air.rows().checked_mul(2* (1usize<<crate::LOG_BLOWUP)).ok_or(())?;
+    let index_bits=lde_rows.ilog2() as usize;
+    let sampled_indices:Vec<usize>=events.iter().filter(|ev|
+        ev.operation=="sample_bits" && ev.bits==Some(index_bits)
+    ).map(|ev|ev.value.as_deref().ok_or(())
+        .and_then(|s|s.parse::<usize>().map_err(|_|()))).collect::<Result<_,_>>()?;
+    if sampled_indices.len()!=crate::QUERIES||
+       sampled_indices.iter().any(|&i|i>=lde_rows){return Err(());}
+    let rounds=log_degree;
+    if trace_proof.opening_proof.1.commit_phase_commits.len()!=rounds||
+       trace_proof.opening_proof.1.commit_phase_openings.len()!=rounds{return Err(());}
+    // fold_query in pinned Plonky3 (two_adic_pcs.rs) updates index
+    // with `start_index >>= log_arity` and records the parent group index.
+    // max_log_arity is 1 in this verifier-owned configuration.
+    let projected:Vec<Vec<usize>>=sampled_indices.iter().map(|&index|{
+        let mut current=index;
+        (0..rounds).map(|_|{current>>=1;current}).collect()
+    }).collect();
+    let digest_proof=format!("{:x}",Sha512::digest(&encoded));
+    Ok(serde_json::json!({
+        "schema":"AEGIS_NATIVE_WIRED_VERIFY_BATCH_OBSERVATION_V1",
+        "source":"verify_batch executed with same PCS and audited challenger",
+        "program_sha512":digest,
+        "proof_sha512":digest_proof,
+        "verified_by_original_config":true,
+        "verified_by_instrumented_config":true,
+        "transcript_events":events,
+        "fri":{
+            "query_samples_source":"actual verifier challenger sample_bits",
+            "query_index_bits":index_bits,
+            "queries":sampled_indices,
+            "fold_query_indices_after_each_round":projected,
+            "fold_count":rounds,
+            "log_arities":vec![1usize;rounds],
+            "initial_lde_rows":lde_rows,
+            "final_domain_rows":1usize<<crate::LOG_BLOWUP,
+            "projection_source":"p3-fri v0.8.0 verifier::fold_query: start_index >>= log_arity",
+            "projection_extracted_inside_upstream_verifier":false
+        },
+        "batching":{
+            "challenge_samples_in_actual_challenger_events":true,
+            "exact_batch_denominator_polynomials_exported":false,
+            "native_pcs_batch_equivalence_proved":false
+        },
+        "audit_mode_only":true,
+        "native_challenger_samples_observed":true,
+        "whole_verifier_byte_transcript_equivalence_proved":false,
+        "quantum_vector_commitment_extraction_proved":false,
+        "cms_round_by_round_knowledge_proved":false,
+        "pq128_demonstrated":false,
+        "production_ready":false
+    }))
+}
+
 /// End-to-end proof is only for a **trusted public program**. Callers must
 /// rebuild the program from the independently checked financial statement;
 /// accepting a prover-supplied instruction blob would not bind SHA-512.

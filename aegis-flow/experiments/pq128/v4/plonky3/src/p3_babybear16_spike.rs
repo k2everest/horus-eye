@@ -124,6 +124,36 @@ mod tests{
         assert_eq!(SpikeExtension16::ZERO.try_inverse(),None);
     }
     #[test]
+    fn native_p3_extension16_matches_independent_integer_reference_field(){
+        use crate::fp16_reference::Fp16;
+        use p3_field::BasedVectorSpace;
+        for seed in 1u32..=96{
+            let a=core::array::from_fn(|i|
+                ((seed as u64*(i as u64+37)*1234567+11*i as u64)
+                    % 2_013_265_921) as u32);
+            let b=core::array::from_fn(|i|
+                ((seed as u64*(i as u64+7)*7654321+19*i as u64)
+                    % 2_013_265_921) as u32);
+            let real_a=Fp16::from_coefficients(a).unwrap();
+            let real_b=Fp16::from_coefficients(b).unwrap();
+            let actual=e16(a)*e16(b);
+            let actual_basis: &[SpikeBase]=
+                <SpikeExtension16 as BasedVectorSpace<SpikeBase>>::
+                    as_basis_coefficients_slice(&actual);
+            let actual_coords:Vec<u32>=actual_basis.iter()
+                .map(|v|v.as_canonical_u32()).collect();
+            assert_eq!(actual_coords,(real_a*real_b).coordinates().to_vec());
+            assert_eq!(actual_basis.len(),16);
+            let inv=e16(a).try_inverse().unwrap();
+            let inv_basis: &[SpikeBase]=
+                <SpikeExtension16 as BasedVectorSpace<SpikeBase>>::
+                    as_basis_coefficients_slice(&inv);
+            let ref_inv=real_a.inverse().unwrap().coordinates();
+            assert!(inv_basis.iter().zip(ref_inv.iter())
+                .all(|(v,b)|v.as_canonical_u32()==*b));
+        }
+    }
+    #[test]
     fn generic_p3_field_has_correct_extension16_two_adic_generators(){
         assert_eq!(<SpikeExtension16 as TwoAdicField>::TWO_ADICITY,31);
         for bits in [1usize,2,3,4,13,27,28,29,30,31]{

@@ -55,7 +55,7 @@ test('different caps, changed leaf height or rejected openings cannot be extract
   const differentRoot=toyParams({leaf:Buffer.from([4,2])});
   assert.throws(()=>extractCappedMerklePositionCollision(a,differentRoot),
     /NOT_SAME_FIXED_COMMITMENT/);
-  const invalid=toyParams({leaf:Buffer.from([4,2]),sibling:Buffer.from([5])});
+  const invalid={...a,leaf:Buffer.from([4,2])}; // forged row under A's fixed cap
   assert.throws(()=>extractCappedMerklePositionCollision(a,invalid),
     /OPENING_NOT_ACCEPTED/);
   assert.throws(()=>extractCappedMerklePositionCollision(a,{

@@ -219,6 +219,32 @@ mod tests {
         }
     }
     #[test]
+    fn certified_degree16_fft_generators_have_exact_power_of_two_order(){
+        // Independent cross-language certificate:
+        // babybear16-two-adic-certificate.mjs derives these monomials
+        // via t^((p^16-1)/2^bits). Rust checks them using Fp16::mul.
+        let roots=[
+            (28usize,8usize,929455875u32),
+            (29,12,529583979),
+            (30,14,1310212151),
+            (31,15,1835875777),
+        ];
+        for (bits,index,coefficient) in roots {
+            let mut coordinates=[0u32;16];
+            coordinates[index]=coefficient;
+            let root=Fp16::from_coefficients(coordinates).unwrap();
+            assert_eq!(root.pow_u64(1u64<<bits),Fp16::one(),
+                "root at 2^{bits} must have order dividing 2^{bits}");
+            assert_ne!(root.pow_u64(1u64<<(bits-1)),Fp16::one(),
+                "root at 2^{bits} must not have smaller 2-adic order");
+        }
+        // Frobenius DTH_ROOT = 11^((p-1)/16), primitive 16th root.
+        let dth=Fp16::embed_existing_babybear8(
+            [1400279418,0,0,0,0,0,0,0]).unwrap();
+        assert_eq!(dth.pow_u64(16),Fp16::one());
+        assert_ne!(dth.pow_u64(8),Fp16::one());
+    }
+    #[test]
     fn existing_babybear8_has_injective_multiplicative_embedding_into_degree16(){
         // The upstream BabyBearParameters::BinomialExtensionData<8>
         // uses W=11, so u^8=11. Embedding u -> t^2 preserves u^8.

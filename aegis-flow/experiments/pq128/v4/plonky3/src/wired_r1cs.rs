@@ -307,6 +307,25 @@ pub(crate) fn wired_security_report(program_bytes:&[u8])->Result<serde_json::Val
     let interactions=LogUpAir{num_interactions:4,max_message_width:2};
     let logup=security_term(&interactions,&shape,&GrindingSites::NONE).ok_or(())?;
     let rbr=proven_security_report(&regime,&params,&shape,&[logup],&GrindingSites::NONE);
+    // Counterfactual research sizing: SAME *compiled* program constraint
+    // geometry with 16-dimensional extension, 512 FRI queries, and 16
+    // hiding codewords. This does not construct an E16 field or proof.
+    // It deliberately preserves the ORIGINAL 170-bit external collision
+    // assumption: upgrading it requires a separate quantum hash theorem.
+    let candidate_batched=p3_batch_stark::num_batched_openings(
+        GATE_WIDTH,false,PREP_WIDTH,false,chunks,lookups.len(),
+        16,p3_uni_stark::OpeningShape::hiding(16));
+    let candidate_shape=InstanceShape{
+        modulus_bits:494,
+        num_batched_functions:candidate_batched,
+        ..shape
+    };
+    let candidate_regime=FriRegime{num_queries:512,..regime};
+    let candidate_logup=security_term(
+        &interactions,&candidate_shape,&GrindingSites::NONE).ok_or(())?;
+    let candidate_rbr=proven_security_report(
+        &candidate_regime,&params,&candidate_shape,
+        &[candidate_logup],&GrindingSites::NONE);
     let quotient_domain=rows.checked_mul(chunks).ok_or(())?;
     let recomposed_general=rows.checked_mul(chunks.checked_add(1).ok_or(())?).ok_or(())?;
     let initial_lde=committed_degree.checked_shl(crate::LOG_BLOWUP as u32).ok_or(())?;
@@ -372,6 +391,24 @@ pub(crate) fn wired_security_report(program_bytes:&[u8])->Result<serde_json::Val
         "committed_degree_geometry":degree_geometry,
         "rbr_bits":rbr.security_bits(),
         "rbr_breakdown":rbr,
+        "counterfactual_field16_rbr":{
+            "status":"SHADOW_RESEARCH_ONLY_NOT_AN_IMPLEMENTED_P3_FIELD",
+            "same_compiled_air_constraints":params.num_constraints,
+            "same_compiled_quotient_chunks":chunks,
+            "field_modulus_bits_floor":494,
+            "fri_queries":512,
+            "hiding_random_codewords":16,
+            "num_batched_functions":candidate_batched,
+            "collision_assumption_bits_unmodified":crate::IDEAL_HASH_COLLISION_BITS,
+            "conditional_interactive_bits":candidate_rbr.security_bits(),
+            "conditional_breakdown":candidate_rbr,
+            "native_extension_field16_implemented":false,
+            "challenger_transcript_equivalence_proved":false,
+            "merkle_quantum_extraction_proved":false,
+            "quantum_rbr_knowledge_proved":false,
+            "pq128_demonstrated":false,
+            "production_ready":false
+        },
         "collision_cap_is_external_assumption":true,
         "rbr_report_is_for_actual_compiled_wired_air":true,
         "plonky3_field16_implemented":false,

@@ -8,7 +8,7 @@ use p3_batch_stark::{
     verifier::commitments_with_opening_points,
     symbolic::get_log_num_quotient_chunks,
 };
-use p3_field::{BasedVectorSpace,PrimeField32};
+use p3_field::{BasedVectorSpace,PrimeField32,Field,TwoAdicField};
 use p3_fri::{FriParameters,FriShape,PcsShape,PcsVerifierTranscript};
 use p3_fri::VerifierTranscript as FriVerifierTranscript;
 use p3_lookup::{Lookups,logup::LogUpGadget};
@@ -150,6 +150,44 @@ pub(crate) fn replay_verified(
         Ok::<_,()>( (gamma,betas,indices) )
     })?;
     batch.finish();
+    // Exact query-point/denominator map from p3-fri 0.8.0:
+    // verifier::open_inputs -> (index >> (max_height-h)), reverse_bits_len,
+    // x = F::GENERATOR * two_adic_generator(h)^rev, denominator = z - x.
+    // These values are public challenges only, never opened wire values.
+    // Use a bounded export to prevent audit CLI memory amplification.
+    let total_openings:usize=claims.iter().map(|c|c.matrices.iter()
+        .map(|m|m.points.len()).sum::<usize>()).sum();
+    let max_denominators=200_000usize;
+    if indices.len().checked_mul(total_openings).ok_or(())?>max_denominators{
+        return Err(());
+    }
+    let mut actual_denominators=Vec::with_capacity(indices.len()*total_openings);
+    for (qi,&index) in indices.iter().enumerate(){
+        if index >= (1usize<<global_height){return Err(());}
+        for (ci,claim) in claims.iter().enumerate(){
+            for (mi,matrix) in claim.matrices.iter().enumerate(){
+                let h=matrix.domain.size().ilog2() as usize+LOG_BLOWUP;
+                if h==0||h>global_height||h>=usize::BITS as usize{return Err(());}
+                let reduced=index>>(global_height-h);
+                let reversed=reduced.reverse_bits()>>(usize::BITS as usize-h);
+                let x=F::GENERATOR *
+                    F::two_adic_generator(h).exp_u64(reversed as u64);
+                for (pi,point) in matrix.points.iter().enumerate(){
+                    let denominator=point.point-E::from(x);
+                    if denominator.is_zero(){return Err(());}
+                    actual_denominators.push(json!({
+                        "query":qi,"query_index":index,
+                        "commitment_index":ci,"matrix_index":mi,"opening_index":pi,
+                        "log_height":h,"reduced_index":reduced,
+                        "bit_reversed_index":reversed,
+                        "query_x_canonical":x.as_canonical_u32(),
+                        "z_basis":coeffs(&point.point),
+                        "denominator_basis":coeffs(&denominator)
+                    }));
+                }
+            }
+        }
+    }
     let events=challenger.events();
     let export=json!({
         "schema":"AEGIS_VERIFIER_TYPED_TRANSCRIPT_REPLAY_V1",
@@ -166,6 +204,10 @@ pub(crate) fn replay_verified(
         "quotient_chunk_domain_counts":quotient_domains.iter().map(Vec::len).collect::<Vec<_>>(),
         "batch_polynomial_terms":terms,
         "batch_ladder_lengths_by_height":ladder,
+        "actual_pcs_query_denominator_evaluations":actual_denominators,
+        "pcs_denominator_computation":"p3-fri 0.8.0 verifier::open_inputs, independently recomputed from typed domains and queries",
+        "denominator_evaluations_exported":true,
+        "denominator_evaluations_came_from_upstream_verifier_hook":false,
         "hiding_random_codewords_per_private_point":RANDOM_CODEWORDS,
         "native_transcript_bytes_and_samples_consistent":false,
         "pcs_quantum_oracle_extraction_proved":false,

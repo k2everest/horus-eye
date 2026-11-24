@@ -38,6 +38,37 @@ pinned fork must implement the exact Plonky3 traits, Frobenius
 constants, extension basis, serialization, MMCS packing, uniform
 challenge sampling and PCS/FRI arithmetic before native migration.
 
+## 1a. Canonical field embedding from the existing BabyBear^8 extension
+
+The existing p3-baby-bear 0.8.0 code specifies
+`BinomialExtensionData<8>` with W=11, hence
+`E8 = Fp[u]/(u^8-11)`. The candidate `E16` has
+`t^16=11`. Define
+
+  iota: E8 -> E16;
+  iota(sum_(j=0)^7 a_j u^j) = sum_(j=0)^7 a_j t^(2j).
+
+Then `iota(u^8-11)=t^16-11=0`, so the map descends to
+the quotient and is a unital ring homomorphism. Its kernel is an
+ideal of a field and cannot contain 1; therefore the kernel is 0
+and the map is an injective field homomorphism. Equivalently, its
+canonical coefficients occupy *even* positions of the 16-limb
+representation, and no nonzero E8 element maps to zero.
+
+The reference Rust implementation now includes
+`embed_existing_babybear8` and
+`project_existing_babybear8`, with property tests comparing
+independent E8 multiplication against E16 multiplication, and
+checking that inverses of nonzero embedded E8 values remain in
+the even-coefficient subfield.
+
+**Security caveat:** this mathematical embedding does **not**
+make existing E8 proof bytes or Fiat-Shamir challenges valid
+under the E16 proof system. The latter requires new transcript
+domain separation, proof-versioning, parameter commitments, a
+fresh independent migration strategy and tests of the actual
+P3 encoded extension arithmetic.
+
 ## 2. Research-sizing calculation derived from pinned p3-security
 
 For the single-instance native WiredAir profile:
@@ -76,6 +107,34 @@ would be fraudulent and is forbidden.
 The implementation and tests for the comparison are in
 `pq128-fri-candidate-screen.mjs` and `.test.mjs`, which
 always return `pq128_demonstrated:false`.
+
+## 2a. All UDR terms, not only FRI
+
+`pq128-interactive-composite-screen.mjs` now independently mirrors
+the pinned `p3-security 0.8.0` UDR equations:
+
+  ALI = floor(log2|E|) - log2(num_constraints)
+  DEEP = floor(log2|E|) -
+         log2(max(deg*(k+combo-1)+k-1,(chunks+1)*k+combo-1))
+  LogUp = floor(log2|E|) - log2(4*k*(2+2))
+  FRI query = q*(-log2(alpha_udr))
+  FRI commit = floor(log2|E|)-log2(n+1)
+  PCS batch = floor(log2|E|)-log2(n*(num_batched_functions-1))
+  total = min(all terms, externally assumed collision-resistance bits)
+
+This function requires the true independently derived compiled
+constraints/degree/chunks/batch counts; the input is an
+*algebraic screen* only, never a trusted binary attestation.
+
+For an illustrative non-attested shape
+`num_constraints=100, max_degree=3, quotient_chunks=8,
+num_batched_functions=20`, E16+512 queries gives the
+algebraic UDR minimum of **~424.98 bits**, limited by
+FRI query sampling, before the 170-bit externally assumed
+collision cap. A hypothetical 512-bit collision assumption
+would remove that estimator bottleneck but would still
+**not** establish quantum Merkle collapse-binding, CMS
+knowledge soundness or PQ128. All such flags remain false.
 
 ## 3. Cryptographic knowledge/security obligations: clear PASS vs HOLD
 

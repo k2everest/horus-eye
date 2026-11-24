@@ -67,7 +67,18 @@ const audit=()=>{
       batch_polynomial_terms:[{commitment_index:0,matrix_index:0,
         opening_index:0,input_log_height:16,alpha_ladder_offset:0,
         polynomial_count:12,hiding_random_codewords:8,
-        point_basis:Array(8).fill(0)}],
+        point_basis:[11,...Array(7).fill(0)]}],
+      denominator_evaluations_exported:true,
+      denominator_evaluations_came_from_upstream_verifier_hook:false,
+      actual_pcs_query_denominator_evaluations:indices.map((index,query)=>{
+        let v=index,reversed=0;
+        for(let j=0;j<16;j++){reversed=(reversed<<1)|(v&1);v>>=1;}
+        return {query,query_index:index,commitment_index:0,
+          matrix_index:0,opening_index:0,log_height:16,
+          reduced_index:index,bit_reversed_index:reversed,
+          query_x_canonical:7,z_basis:[11,...Array(7).fill(0)],
+          denominator_basis:[4,...Array(7).fill(0)]};
+      }),
     },
     fri:{
       query_samples_source:'actual verifier challenger sample_bits',
@@ -121,6 +132,10 @@ test('reject false attestations and adversarial changes in geometry',()=>{
     a=>a.typed_replay.pcs_batch_gamma_basis[0]++,
     a=>a.typed_replay.fri_query_indices[0]++,
     a=>a.typed_replay.batch_polynomial_terms[0].hiding_random_codewords=7,
+    a=>a.typed_replay.actual_pcs_query_denominator_evaluations[0]
+      .denominator_basis[0]++,
+    a=>a.typed_replay.actual_pcs_query_denominator_evaluations[2]
+      .bit_reversed_index++,
   ]){
     const a=audit();change(a);
     assert.throws(()=>validateNativeWiredVerifierAudit(a,report(),

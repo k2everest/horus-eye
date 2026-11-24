@@ -808,6 +808,26 @@ mod tests{
             term["hiding_random_codewords"]==crate::RANDOM_CODEWORDS));
         assert!(terms.iter().any(|term|
             term["hiding_random_codewords"]==0));
+        assert_eq!(audit["typed_replay"]["denominator_evaluations_exported"],true);
+        assert_eq!(audit["typed_replay"]
+            ["denominator_evaluations_came_from_upstream_verifier_hook"],false);
+        let denominators=audit["typed_replay"]
+            ["actual_pcs_query_denominator_evaluations"].as_array().unwrap();
+        assert_eq!(denominators.len(),crate::QUERIES*terms.len());
+        let modulus=2_013_265_921u64;
+        for (i,rec) in denominators.iter().enumerate(){
+            assert_eq!(rec["query"].as_u64().unwrap() as usize,i/terms.len());
+            let x=rec["query_x_canonical"].as_u64().unwrap();
+            let z=rec["z_basis"].as_array().unwrap();
+            let d=rec["denominator_basis"].as_array().unwrap();
+            assert_eq!(z.len(),crate::EXT_DIM);
+            assert_eq!(d.len(),crate::EXT_DIM);
+            assert!(x<modulus);
+            let expected=(z[0].as_u64().unwrap()+modulus-x)%modulus;
+            assert_eq!(d[0].as_u64(),Some(expected));
+            assert!(z[1..].iter().zip(&d[1..]).all(|(a,b)|a==b));
+            assert!(d.iter().any(|coord|coord.as_u64()!=Some(0)));
+        }
 
         assert_eq!(audit["fri"]["fold_count"],13);
         assert_eq!(audit["fri"]["query_index_bits"],16);

@@ -615,8 +615,8 @@ pub(crate) fn audit_wired_verifier_transcript(
     let replay_betas=typed_replay["fri_fold_beta_bases"].as_array().ok_or(())?;
     if replay_betas.len()!=rounds||
        replay_betas.iter().enumerate().any(|(i,beta)|
-           named_challenges[format!("fri_fold_challenge_{i}")]
-               ["babybear_coefficients"]!=*beta)||
+           named_challenges.get(&format!("fri_fold_challenge_{i}"))
+               .and_then(|c|c.get("babybear_coefficients"))!=Some(beta))||
        typed_replay["fri_query_indices"]!=serde_json::json!(sampled_indices)||
        typed_replay["fri_derived_log_arities"]!=serde_json::json!(vec![1usize;rounds])||
        typed_replay["fri_index_bits"]!=index_bits{

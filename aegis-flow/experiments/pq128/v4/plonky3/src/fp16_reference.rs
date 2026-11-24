@@ -210,7 +210,7 @@ mod tests {
         assert_eq!(generator.pow_u64(16),Fp16::from_coefficients(
             [11,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]).unwrap());
         for i in 1..=64 {
-            let a=element(i),b=element(100+i),c=element(200+i);
+            let (a,b,c)=(element(i),element(100+i),element(200+i));
             assert_eq!(a * b,b * a);
             assert_eq!(a*(b+c),a*b+a*c);
             assert_eq!((a*b)*c,a*(b*c));
@@ -355,7 +355,7 @@ mod tests {
         let mut reader=||seq.next().expect("cycle");
         let (a,draws)=Fp16::from_uniform_u32_source(&mut reader,100).unwrap();
         assert!(draws>=16);
-        assert!(a.coordinates().iter().all(|&v|v as u64<P));
+        assert!(a.coordinates().iter().all(|&v|(v as u64)<P));
         let mut always_reject=||u32::MAX;
         assert_eq!(Fp16::from_uniform_u32_source(&mut always_reject,50),None);
     }

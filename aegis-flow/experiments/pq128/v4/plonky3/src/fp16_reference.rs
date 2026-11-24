@@ -258,6 +258,16 @@ mod tests {
                 Some(core::array::from_fn(|i|
                     ((coeffs_a[i] as u64+coeffs_b[i] as u64)%P) as u32)));
         }
+        // Nonzero embedded E8 values have their multiplicative inverses
+        // inside the same E8 subfield of E16, not in arbitrary odd powers.
+        for seed in 1..=4 {
+            let a=element(seed+500).coordinates();
+            let c=core::array::from_fn(|i|a[i]);
+            let x=Fp16::embed_existing_babybear8(c).unwrap();
+            let inv=x.inverse().unwrap();
+            assert!(inv.project_existing_babybear8().is_some());
+            assert_eq!(x*inv,Fp16::one());
+        }
         let mut odd=[0u32;16];odd[1]=1;
         assert_eq!(Fp16(odd).project_existing_babybear8(),None);
         assert_eq!(Fp16::embed_existing_babybear8(

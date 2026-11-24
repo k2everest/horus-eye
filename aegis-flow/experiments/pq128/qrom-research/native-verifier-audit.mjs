@@ -213,6 +213,12 @@ export function validateNativeWiredVerifierAudit(audit,geometryReport,{
     conditional_fixed_oracle_gamma_root_numerator:String(conditionalRoots),
     conditional_fixed_oracle_gamma_root_denominator:
       String(2013265921n**8n),
+    // Domain-wide union handles any later query index that depends on
+    // gamma through Fiat-Shamir. Still requires fixed pre-gamma errors.
+    conditional_gamma_adaptive_query_union_numerator:
+      String(BigInt(conditionalRoots)*BigInt(f.initial_lde_rows)),
+    conditional_gamma_adaptive_query_union_denominator:
+      String(2013265921n**8n),
     fixed_pre_gamma_discrepancy_hypothesis_proved:false,
     trusted_executable_attested:false,
     exact_batching_polynomials_verified:false,

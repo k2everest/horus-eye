@@ -791,6 +791,24 @@ mod tests{
             &program,&bundle,&digest).expect("native auditor accepts honest proof");
         assert_eq!(audit["verified_by_original_config"],true);
         assert_eq!(audit["verified_by_instrumented_config"],true);
+        assert_eq!(audit["typed_replay"]
+            ["native_transcript_bytes_and_samples_consistent"],true);
+        assert_eq!(audit["typed_replay"]
+            ["fri_derived_log_arities"].as_array().unwrap().len(),13);
+        assert_eq!(audit["typed_replay"]
+            ["fri_query_indices"].as_array().unwrap().len(),crate::QUERIES);
+        assert_eq!(audit["typed_replay"]
+            ["pcs_batch_gamma_basis"].as_array().unwrap().len(),crate::EXT_DIM);
+        assert_eq!(audit["typed_replay"]["rho_basis"].as_array().unwrap().len(),crate::EXT_DIM);
+        assert_eq!(audit["typed_replay"]["zeta_basis"].as_array().unwrap().len(),crate::EXT_DIM);
+        let terms=audit["typed_replay"]["batch_polynomial_terms"]
+            .as_array().unwrap();
+        assert!(!terms.is_empty());
+        assert!(terms.iter().any(|term|
+            term["hiding_random_codewords"]==crate::RANDOM_CODEWORDS));
+        assert!(terms.iter().any(|term|
+            term["hiding_random_codewords"]==0));
+
         assert_eq!(audit["fri"]["fold_count"],13);
         assert_eq!(audit["fri"]["query_index_bits"],16);
         assert_eq!(audit["fri"]["initial_lde_rows"],65536);

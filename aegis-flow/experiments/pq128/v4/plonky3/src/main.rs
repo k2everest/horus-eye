@@ -5,6 +5,7 @@
 mod financial;
 mod sha512_gates;
 mod wired_r1cs;
+mod audit_challenger;
 use std::{fs,panic::{catch_unwind,AssertUnwindSafe},path::Path};
 use base64::{engine::general_purpose::STANDARD as B64,Engine};
 use p3_air::{Air,AirBuilder,BaseAir,WindowAccess};
@@ -330,6 +331,27 @@ fn main(){
                 wired_r1cs::prove_wired(&p,&w,Path::new(&args[4])))).ok())
             .is_some_and(|r|r.is_ok());
         if !result{eprintln!("WIRED_BOOLEAN_PROOF_GENERATION_FAILED");std::process::exit(1);}
+        return;
+    }
+    // Audited verifier: accepts only proofs accepted by the original
+    // verifier AND by the exact PCS verifier with an observing challenger.
+    // This is forensic instrumentation; never a consensus acceptance path.
+    if args.len()==5&&args[1]=="audit-verify-wired"{
+        let report=match (fs::read(&args[2]),fs::read(&args[3])){
+            (Ok(program),Ok(bundle))
+                if program.len()<=110_000_128&&bundle.len()<=44*1024*1024=>
+                catch_unwind(AssertUnwindSafe(||
+                    wired_r1cs::audit_wired_verifier_transcript(
+                        &program,&bundle,&args[4])
+                )).ok().and_then(Result::ok),
+            _=>None,
+        };
+        if let Some(report)=report{
+            println!("{}",report);
+        }else{
+            eprintln!("AUDITED_WIRED_TRANSCRIPT_REJECTED");
+            std::process::exit(1);
+        }
         return;
     }
     if args.len()==5&&args[1]=="verify-wired"{

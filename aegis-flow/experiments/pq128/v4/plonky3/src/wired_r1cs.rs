@@ -564,6 +564,33 @@ pub(crate) fn audit_wired_verifier_transcript(
         let mut current=index;
         (0..rounds).map(|_|{current>>=1;current}).collect()
     }).collect();
+    // The pinned typed drivers sample exactly these extension challenges:
+    // LogUp alpha,beta; AIR rho; OOD zeta; PCS batch gamma; then one
+    // FRI fold beta per verifier-owned round. ExtensionFieldCodec samples
+    // DIMENSION base-field coordinates in canonical basis order.
+    let mut labels=vec![
+        "lookup_alpha".to_string(),"lookup_beta".to_string(),
+        "constraint_challenge".to_string(),"zeta".to_string(),
+        "pcs_batch_alpha".to_string(),
+    ];
+    labels.extend((0..rounds).map(|i|format!("fri_fold_challenge_{i}")));
+    let samples:Vec<&str>=events.iter().filter(|e|e.operation=="sample_base")
+        .map(|e|e.value.as_deref().ok_or(())).collect::<Result<_,_>>()?;
+    let expected=labels.len().checked_mul(crate::EXT_DIM).ok_or(())?;
+    if samples.len()!=expected{
+        eprintln!("AEGIS_AUDIT_CHALLENGE_COUNT_MISMATCH: got={}, expected={expected}",
+            samples.len());return Err(());
+    }
+    let mut named_challenges=serde_json::Map::new();
+    for (i,label) in labels.iter().enumerate(){
+        let group=&samples[i*crate::EXT_DIM..(i+1)*crate::EXT_DIM];
+        let coefficients:Vec<u32>=group.iter().map(|s|s.parse().map_err(|_|()))
+            .collect::<Result<_,_>>()?;
+        named_challenges.insert(label.clone(),serde_json::json!({
+            "babybear_coefficients":coefficients,
+            "basis_dimension":crate::EXT_DIM
+        }));
+    }
     let digest_proof=format!("{:x}",Sha512::digest(&encoded));
     Ok(serde_json::json!({
         "schema":"AEGIS_NATIVE_WIRED_VERIFY_BATCH_OBSERVATION_V1",
@@ -573,6 +600,8 @@ pub(crate) fn audit_wired_verifier_transcript(
         "verified_by_original_config":true,
         "verified_by_instrumented_config":true,
         "transcript_events":events,
+        "named_verifier_challenges":named_challenges,
+        "challenge_label_derivation":"pinned v0.8.0 typed-driver sample order; 8 BabyBear coefficients each",
         "fri":{
             "query_samples_source":"actual verifier challenger sample_bits",
             "query_index_bits":index_bits,

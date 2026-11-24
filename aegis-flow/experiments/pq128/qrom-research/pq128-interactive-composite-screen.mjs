@@ -87,7 +87,7 @@ export function estimateWiredInteractiveUDR({
     fri_round_by_round_knowledge_proved:false,
     full_financial_witness_extractor_proved:false,
     cms_qrom_constants_instantiated:false,
-    128_bit_post_quantum_security_demonstrated:false,
+    pq128_demonstrated:false,
     production_ready:false,
     release_gate:'HOLD_NO_GO',
   });

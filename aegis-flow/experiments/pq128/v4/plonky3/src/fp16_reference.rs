@@ -200,6 +200,20 @@ mod tests {
         }
     }
     #[test]
+    fn independent_bigint_golden_vector_for_modular_reduction(){
+        // This vector was generated with an independently written
+        // arbitrary-precision integer polynomial multiplier, not Fp16::mul.
+        let a=Fp16([123,456,789,101112,131415,161718,192021,222324,
+            252627,282930,313233,343536,373839,404142,434445,464748]);
+        let b=Fp16(core::array::from_fn(|i|
+            (P-100-(i as u64)*333) as u32));
+        let expected=Fp16([296647809,939245440,1603211015,196793660,
+            933380489,1900614571,1186138975,904128612,
+            1155492472,27873624,1648712900,79121527,
+            1459806258,1865144241,1396044466,153415923]);
+        assert_eq!(a*b,expected);
+    }
+    #[test]
     fn nonzero_elements_have_unique_multiplicative_inverse(){
         assert_eq!(Fp16::zero().inverse(),None);
         for i in 1..=20 {

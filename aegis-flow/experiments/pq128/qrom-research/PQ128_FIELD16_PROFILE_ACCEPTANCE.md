@@ -172,6 +172,46 @@ would remove that estimator bottleneck but would still
 **not** establish quantum Merkle collapse-binding, CMS
 knowledge soundness or PQ128. All such flags remain false.
 
+## 2b. Do not apply the same QROM loss to unrelated events
+
+The conservative CMS-style expression we use as a **conditional**
+research route is
+
+  Adv_QROM <= C_RBR * Q^2 * epsilon_RBR +
+              C_hash * Q^3 / 2^lambda.
+
+The `Q^2` loss applies to a **proved RBR bound**, and the
+`Q^3 / 2^lambda` term models collision-type failure in an
+ideal lambda-bit random oracle. The two exponents must be
+calculated *separately*, with global quantum query accounting,
+exact constants and the appropriate domain-separated oracle
+reduction. This is not a theorem about unmodeled real SHA-512.
+
+`qrom-explicit-two-term-budget.mjs` applies a hypothetical
+common 2^80 overhead to *both* terms and computes their sum
+in the logarithmic domain without floating-point underflow.
+
+For Q=2^64, lambda=512, hypothetical epsilon_RBR=2^-424.978:
+  RBR term (after Q² and 80-bit margin): 216.978 bits
+  hash term (after Q³ and 80-bit margin): 240 bits
+  union: ~216.978 bits.
+
+The algebraic UDR candidate screen does NOT establish
+epsilon_RBR for knowledge soundness. Thus the calculation is
+a **capacity screen**, not a real 216-bit security level or
+PQ128 certification. The external `p3-security`
+`collision_resistance=170` used in its *interactive*
+estimate is an assumed hash-strength proxy, while the
+`Q^3/2^lambda` term is a separate hypothesis for an
+ideal SHA-512-output random oracle. It would be mathematically
+incorrect to replace one with the other silently.
+
+For native BabyBear⁸ and the illustrative shape with
+epsilon=2^-226.752, the same hypothetical formula yields
+only ~18.75 bits after Q² and margin, far below 128.
+This numerical check is useful only after the soundness
+property and shape are actually proved.
+
 ## 3. Cryptographic knowledge/security obligations: clear PASS vs HOLD
 
 A release-ready candidate must have ALL of:

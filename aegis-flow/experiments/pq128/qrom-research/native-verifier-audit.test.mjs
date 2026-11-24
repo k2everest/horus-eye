@@ -84,7 +84,7 @@ test('sampled indices must match observed sample_bits, not a reported substitute
   const out=audit();out.transcript_events.pop();
   assert.throws(()=>validateNativeWiredVerifierAudit(out,report(),
     {expectedProgramSha512:digest}),/SAMPLED_QUERIES_DIFFER/);
-  const wide=audit();wide.transcript_events[12].bits=15;
+  const wide=audit();wide.transcript_events.find(e=>e.operation==='sample_bits').bits=15;
   assert.throws(()=>validateNativeWiredVerifierAudit(wide,report(),
     {expectedProgramSha512:digest}),/SAMPLE_BITS_WIDTH/);
 });

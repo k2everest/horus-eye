@@ -696,6 +696,52 @@ mod tests{
             &independently_derived.common).unwrap();
     }
     #[test]
+    fn audited_native_verifier_exports_real_samples_and_query_paths(){
+        let air=circuit();
+        let program=circuit_bytes(&air);
+        let digest=hex::encode(Sha512::digest(&program));
+        let trace=air.trace(&[0,1,1,1,1,1]).unwrap();
+        let cfg=config();
+        let instances=[StarkInstance::<Config,_>{
+            air:&air,trace:&trace,public_values:air.public_values()
+        }];
+        let prep_cfg=preprocessing_config(&air);
+        let data=ProverData::from_instances(&prep_cfg,&instances).unwrap();
+        let proof=prove_batch(&cfg,&instances,&data).unwrap();
+        let encoded=postcard::to_allocvec(&proof).unwrap();
+        let bundle=serde_json::to_vec(&WiredBundle{
+            scheme:WIRED_SCHEME.to_owned(),program_sha512:digest.clone(),
+            proof:B64.encode(&encoded)
+        }).unwrap();
+        let audit=audit_wired_verifier_transcript(
+            &program,&bundle,&digest).expect("native auditor accepts honest proof");
+        assert_eq!(audit["verified_by_original_config"],true);
+        assert_eq!(audit["verified_by_instrumented_config"],true);
+        assert_eq!(audit["fri"]["fold_count"],13);
+        assert_eq!(audit["fri"]["query_index_bits"],16);
+        assert_eq!(audit["fri"]["initial_lde_rows"],65536);
+        assert_eq!(audit["fri"]["queries"].as_array().unwrap().len(),crate::QUERIES);
+        assert_eq!(audit["fri"]["fold_query_indices_after_each_round"]
+            .as_array().unwrap().len(),crate::QUERIES);
+        for (query,path) in audit["fri"]["queries"].as_array().unwrap().iter().zip(
+            audit["fri"]["fold_query_indices_after_each_round"]
+                .as_array().unwrap())
+        {
+            let mut index=query.as_u64().unwrap() as usize;
+            for folded in path.as_array().unwrap(){
+                index>>=1;
+                assert_eq!(folded.as_u64().unwrap() as usize,index);
+            }
+        }
+        assert_eq!(audit["whole_verifier_byte_transcript_equivalence_proved"],false);
+        assert_eq!(audit["pq128_demonstrated"],false);
+        // The observer never authorizes a proof rejected by the original path.
+        let mut corrupted=serde_json::from_slice::<WiredBundle>(&bundle).unwrap();
+        corrupted.program_sha512="00".repeat(64);
+        let bad=serde_json::to_vec(&corrupted).unwrap();
+        assert!(audit_wired_verifier_transcript(&program,&bad,&digest).is_err());
+    }
+    #[test]
     fn native_verifier_rejects_modified_fri_and_quotient_proof_objects(){
         // This is a real native verifier rejection test, NOT an argument
         // for extraction from an arbitrary malicious quantum commitment.

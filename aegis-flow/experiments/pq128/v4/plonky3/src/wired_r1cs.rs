@@ -502,7 +502,7 @@ pub(crate) fn audit_wired_verifier_transcript(
     // Match the production verifier's canonical acceptance gate FIRST.
     // This prevents the audit mode from becoming a weaker verifier.
     if !verify_wired(program_bytes,bundle_bytes,expected_program_sha512).valid {
-        return Err(());
+        eprintln!("AEGIS_AUDIT_FAILED_ORIGINAL_VERIFIER");return Err(());
     }
     let (program,digest)=public_program(program_bytes)?;
     if digest!=expected_program_sha512{return Err(());}
@@ -530,7 +530,9 @@ pub(crate) fn audit_wired_verifier_transcript(
     let trace_proof:BatchProof<TraceConfig>=
         postcard::from_bytes(&encoded).map_err(|_|())?;
     verify_batch(&trace_cfg,&[air.clone()],&trace_proof,
-        &[air.public_values()],&independent.common).map_err(|_|())?;
+        &[air.public_values()],&independent.common).map_err(|e|{
+            eprintln!("AEGIS_AUDIT_FAILED_INSTRUMENTED_VERIFIER: {e:?}");()
+        })?;
 
     let events=observer.events();
     // In the pinned TwoAdicFriFolding extra_query_index_bits() == 0.
@@ -543,10 +545,18 @@ pub(crate) fn audit_wired_verifier_transcript(
     ).map(|ev|ev.value.as_deref().ok_or(())
         .and_then(|s|s.parse::<usize>().map_err(|_|()))).collect::<Result<_,_>>()?;
     if sampled_indices.len()!=crate::QUERIES||
-       sampled_indices.iter().any(|&i|i>=lde_rows){return Err(());}
+       sampled_indices.iter().any(|&i|i>=lde_rows){
+        eprintln!("AEGIS_AUDIT_INDEX_SAMPLING_FAILURE: got={}, expected={}, index_bits={index_bits}, sample_types={:?}",
+            sampled_indices.len(),crate::QUERIES,
+            events.iter().filter(|ev|ev.operation.starts_with("sample"))
+                .map(|ev|ev.operation).take(20).collect::<Vec<_>>());
+        return Err(());
+    }
     let rounds=log_degree;
     if trace_proof.opening_proof.1.commit_phase_commits.len()!=rounds||
-       trace_proof.opening_proof.1.commit_phase_openings.len()!=rounds{return Err(());}
+       trace_proof.opening_proof.1.commit_phase_openings.len()!=rounds{
+        eprintln!("AEGIS_AUDIT_FRI_SHAPE_MISMATCH: expected {rounds}");return Err(());
+    }
     // fold_query in pinned Plonky3 (two_adic_pcs.rs) updates index
     // with `start_index >>= log_arity` and records the parent group index.
     // max_log_arity is 1 in this verifier-owned configuration.

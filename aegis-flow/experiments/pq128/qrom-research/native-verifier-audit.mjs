@@ -86,6 +86,47 @@ export function validateNativeWiredVerifierAudit(audit,geometryReport,{
       return Array.isArray(observed)&&observed.length===path.length&&
         path.every((v,j)=>observed[j]===v);
     }),'FRI_QUERY_PROJECTION');
+  const typed=audit.typed_replay;
+  assert(typed?.schema==='AEGIS_VERIFIER_TYPED_TRANSCRIPT_REPLAY_V1'&&
+    typed.native_transcript_bytes_and_samples_consistent===true,
+    'TYPED_REPLAY_MISSING');
+  assert(typed.fri_query_indices?.length===bits.length&&
+    typed.fri_query_indices.every((n,i)=>n===bits[i])&&
+    Array.isArray(typed.fri_derived_log_arities)&&
+    typed.fri_derived_log_arities.length===f.fold_count&&
+    typed.fri_derived_log_arities.every(n=>n===1)&&
+    typed.fri_index_bits===f.query_index_bits,
+    'TYPED_FRI_SHAPE');
+  const challengePairs=[
+    ['constraint_challenge','rho_basis'],
+    ['zeta','zeta_basis'],
+    ['pcs_batch_alpha','pcs_batch_gamma_basis'],
+  ];
+  for(const [named,key] of challengePairs){
+    assert(Array.isArray(typed[key])&&typed[key].length===8&&
+      typed[key].every((n,i)=>n===
+        audit.named_verifier_challenges[named].babybear_coefficients[i]),
+      'TYPED_CHALLENGE_MISMATCH');
+  }
+  assert(Array.isArray(typed.fri_fold_beta_bases)&&
+    typed.fri_fold_beta_bases.length===f.fold_count&&
+    typed.fri_fold_beta_bases.every((coeffs,i)=>
+      Array.isArray(coeffs)&&coeffs.length===8&&
+      coeffs.every((n,j)=>n===audit.named_verifier_challenges[
+        'fri_fold_challenge_'+i].babybear_coefficients[j])),
+      'TYPED_FOLD_CHALLENGE_MISMATCH');
+  assert(Array.isArray(typed.batch_polynomial_terms)&&
+    typed.batch_polynomial_terms.length>0&&
+    typed.batch_polynomial_terms.every(term=>
+      exactInt(term.commitment_index,0,100)&&
+      exactInt(term.matrix_index,0,100)&&
+      exactInt(term.opening_index,0,100)&&
+      exactInt(term.input_log_height,1,27)&&
+      exactInt(term.alpha_ladder_offset,0,1_000_000)&&
+      exactInt(term.polynomial_count,1,1_000_000)&&
+      [0,8].includes(term.hiding_random_codewords)&&
+      Array.isArray(term.point_basis)&&term.point_basis.length===8),
+      'TYPED_BATCHING_TERMS');
   assert(audit.batching?.exact_batch_denominator_polynomials_exported===false&&
     audit.whole_verifier_byte_transcript_equivalence_proved===false&&
     audit.quantum_vector_commitment_extraction_proved===false&&

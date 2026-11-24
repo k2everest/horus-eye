@@ -770,6 +770,48 @@ mod tests{
             &independently_derived.common).unwrap();
     }
     #[test]
+    fn native_salted_mmcs_position_binding_rejects_row_and_salt_equivocation(){
+        use p3_commit::{Mmcs as MmcsTrait,BatchOpeningRef};
+        use p3_matrix::Dimensions;
+        use rand::{SeedableRng,rngs::StdRng};
+        // The exact hash labels, cap height, 512-bit digest shape and salt
+        // count from the production PCS factory, but deterministic test-only
+        // RNG. This regression is not a quantum collapse-binding theorem.
+        let mmcs=crate::Mmcs::new(
+            crate::FH::new(crate::Sha512Words(b"AEGIS_V4_P3_LEAF_SHA512_V2\0")),
+            crate::Compress::new(crate::Sha512Words(
+                b"AEGIS_V4_P3_NODE_SHA512_V2\0")),
+            3,StdRng::seed_from_u64(42));
+        let tall=RowMajorMatrix::new(
+            (0..(16*2)).map(|i|F::from_u32((i+1) as u32))
+                .collect::<Vec<_>>(),2);
+        let short=RowMajorMatrix::new(
+            (0..(8*3)).map(|i|F::from_u32((i+200) as u32))
+                .collect::<Vec<_>>(),3);
+        let dimensions=[Dimensions{width:2,height:16},
+            Dimensions{width:3,height:8}];
+        let (root,prover_data)=mmcs.commit(vec![tall,short]);
+        let (opened,opening_proof)=mmcs.open_batch(5,&prover_data).unpack();
+        assert!(mmcs.verify_batch(&root,&dimensions,5,
+            BatchOpeningRef::new(&opened,&opening_proof)).is_ok());
+        for matrix in 0..2{
+            let mut forged=opened.clone();
+            forged[matrix][0]+=F::ONE;
+            assert!(mmcs.verify_batch(&root,&dimensions,5,
+                BatchOpeningRef::new(&forged,&opening_proof)).is_err(),
+                "an adversarial change to matrix {matrix} must be rejected");
+        }
+        let mut shortened=opened.clone();
+        shortened[0].pop();
+        assert!(mmcs.verify_batch(&root,&dimensions,5,
+            BatchOpeningRef::new(&shortened,&opening_proof)).is_err());
+        // Index binding: the same proof must not authorize an unrelated
+        // global query coordinate. Other indices can map to same shorter
+        // matrix row, but the tallest row and Merkle path are pinned.
+        assert!(mmcs.verify_batch(&root,&dimensions,7,
+            BatchOpeningRef::new(&opened,&opening_proof)).is_err());
+    }
+    #[test]
     fn audited_native_verifier_exports_real_samples_and_query_paths(){
         let air=circuit();
         let program=circuit_bytes(&air);

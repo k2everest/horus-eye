@@ -593,6 +593,45 @@ mod tests{
             &independently_derived.common).unwrap();
     }
     #[test]
+    fn native_verifier_rejects_modified_fri_and_quotient_proof_objects(){
+        // This is a real native verifier rejection test, NOT an argument
+        // for extraction from an arbitrary malicious quantum commitment.
+        let air=circuit();
+        let trace=air.trace(&[0,1,1,1,1,1]).unwrap();
+        let cfg=config();
+        let instances=[StarkInstance::<Config,_>{
+            air:&air,trace:&trace,public_values:air.public_values()
+        }];
+        let prep_cfg=preprocessing_config(&air);
+        let data=ProverData::from_instances(&prep_cfg,&instances).unwrap();
+        let proof=prove_batch(&cfg,&instances,&data).unwrap();
+        let public=air.public_values();
+        let verify=|candidate:&BatchProof<Config>|{
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(||{
+                verify_batch(&cfg,&[air.clone()],candidate,
+                    &[public.clone()],&data.common).is_ok()
+            })).unwrap_or(false)
+        };
+        assert!(verify(&proof));
+        // Missing terminal polynomial coefficient cannot be accepted.
+        let mut tampered=proof.clone();
+        assert!(!tampered.opening_proof.1.final_poly.is_empty());
+        tampered.opening_proof.1.final_poly.clear();
+        assert!(!verify(&tampered));
+        // The FRI query/opening shape is part of the authenticated proof.
+        let mut tampered=proof.clone();
+        assert!(!tampered.opening_proof.1.commit_phase_openings.is_empty());
+        tampered.opening_proof.1.commit_phase_openings.pop();
+        assert!(!verify(&tampered));
+        // Hiding quotient-chunk opening shape must match verifier degree data.
+        let mut tampered=proof.clone();
+        assert!(!tampered.opened_values.instances[0]
+            .base_opened_values.quotient_chunks.is_empty());
+        tampered.opened_values.instances[0]
+            .base_opened_values.quotient_chunks.pop();
+        assert!(!verify(&tampered));
+    }
+    #[test]
     fn adversarial_gate_row_rebinding_is_rejected_by_logup(){
         let air=circuit();
         let mut trace=air.trace(&[0,1,1,1,1,1]).unwrap();

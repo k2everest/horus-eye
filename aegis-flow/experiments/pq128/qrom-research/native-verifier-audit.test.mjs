@@ -53,6 +53,22 @@ const audit=()=>{
     transcript_events:[...base,...indices.map(i=>({operation:'sample_bits',
       type_name:'usize',value:String(i),bits:16}))].map((e,seq)=>({...e,seq})),
     named_verifier_challenges:named,
+    typed_replay:{
+      schema:'AEGIS_VERIFIER_TYPED_TRANSCRIPT_REPLAY_V1',
+      native_transcript_bytes_and_samples_consistent:true,
+      fri_query_indices:indices,
+      fri_derived_log_arities:Array(13).fill(1),
+      fri_index_bits:16,
+      rho_basis:named.constraint_challenge.babybear_coefficients,
+      zeta_basis:named.zeta.babybear_coefficients,
+      pcs_batch_gamma_basis:named.pcs_batch_alpha.babybear_coefficients,
+      fri_fold_beta_bases:Array.from({length:13},(_,i)=>
+        named['fri_fold_challenge_'+i].babybear_coefficients),
+      batch_polynomial_terms:[{commitment_index:0,matrix_index:0,
+        opening_index:0,input_log_height:16,alpha_ladder_offset:0,
+        polynomial_count:12,hiding_random_codewords:8,
+        point_basis:Array(8).fill(0)}],
+    },
     fri:{
       query_samples_source:'actual verifier challenger sample_bits',
       projection_extracted_inside_upstream_verifier:false,
@@ -102,6 +118,9 @@ test('reject false attestations and adversarial changes in geometry',()=>{
     a=>a.transcript_events[0].seq=5,
     a=>a.fri.final_domain_rows=16,
     a=>a.named_verifier_challenges.lookup_alpha.babybear_coefficients[0]++,
+    a=>a.typed_replay.pcs_batch_gamma_basis[0]++,
+    a=>a.typed_replay.fri_query_indices[0]++,
+    a=>a.typed_replay.batch_polynomial_terms[0].hiding_random_codewords=7,
   ]){
     const a=audit();change(a);
     assert.throws(()=>validateNativeWiredVerifierAudit(a,report(),

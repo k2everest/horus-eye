@@ -164,6 +164,78 @@ mod tests{
         }
     }
     #[test]
+    #[ignore = "isolated patched Monty31 D16 experiment; NOT a verified or production PCS"]
+    fn native_plonky3_hiding_fri_pcs_field16_commit_open_verify_and_forgery(){
+        use p3_challenger::{HashChallenger,SerializingChallenger32,CanObserve};
+        use p3_commit::{
+            Pcs,ExtensionMmcs,OpeningRequest,CommitmentOpening,
+            MatrixOpening,PointOpening,
+        };
+        use p3_dft::Radix2Bowers;
+        use p3_fri::{FriParameters,HidingFriPcs};
+        use p3_matrix::dense::RowMajorMatrix;
+        use p3_merkle_tree::MerkleTreeHidingMmcs;
+        use rand::{SeedableRng,rngs::StdRng};
+        type MM=MerkleTreeHidingMmcs<SpikeBase,u64,
+            crate::FH,crate::Compress,StdRng,2,8,16>;
+        type FMM=ExtensionMmcs<SpikeBase,SpikeExtension16,MM>;
+        type PCS=HidingFriPcs<SpikeBase,Radix2Bowers,MM,FMM,StdRng>;
+        type CH=SerializingChallenger32<SpikeBase,
+            HashChallenger<u8,crate::Sha512Hash,64>>;
+        let leaf=crate::Sha512Words(b"AEGIS_PQ128_NATIVE_E16_LEAF_TEST_V1\\0");
+        let node=crate::Sha512Words(b"AEGIS_PQ128_NATIVE_E16_NODE_TEST_V1\\0");
+        let val_mmcs=MM::new(crate::FH::new(leaf),
+            crate::Compress::new(node),3,StdRng::seed_from_u64(7101));
+        let fri=FriParameters{
+            log_blowup:3,log_final_poly_len:0,max_log_arity:1,
+            num_queries:512,batch_proof_of_work_bits:0,
+            commit_proof_of_work_bits:0,query_proof_of_work_bits:0,
+            mmcs:FMM::new(val_mmcs.clone()),
+        };
+        let pcs=PCS::new(Radix2Bowers::default(),val_mmcs,fri,16,
+            StdRng::seed_from_u64(7102));
+        let make_chall=||CH::new(HashChallenger::new(
+            b"AEGIS_PQ128_NATIVE_E16_PCS_TEST_V1".to_vec(),
+            crate::Sha512Hash(b"AEGIS_PQ128_NATIVE_E16_TRANSCRIPT_TEST_V1\\0")));
+        let domain=Pcs::<SpikeExtension16,CH>::natural_domain_for_degree(&pcs,4096);
+        let witness=RowMajorMatrix::new((0..4096*2)
+            .map(|i|SpikeBase::new((i as u32*37+11)%0x78000001))
+            .collect::<Vec<_>>(),2);
+        let (commitment,prover_data)=
+            Pcs::<SpikeExtension16,CH>::commit(
+                &pcs,vec![(domain,witness)]).expect("research commit");
+        let mut prover_chall=make_chall();
+        prover_chall.observe(commitment.clone());
+        let mut point_basis=[0u32;16];point_basis[0]=73;point_basis[1]=5;
+        let z=e16(point_basis);
+        let (values,proof)=Pcs::<SpikeExtension16,CH>::open(
+            &pcs,vec![OpeningRequest{prover_data:&prover_data,
+                points:vec![vec![z]]}],&mut prover_chall
+        ).expect("research open");
+        let claim=CommitmentOpening{
+            commitment:commitment.clone(),
+            matrices:vec![MatrixOpening{
+                domain,
+                points:vec![PointOpening{
+                    point:z,values:values[0][0][0].clone(),
+                }],
+            }],
+        };
+        let mut verifier_chall=make_chall();
+        verifier_chall.observe(commitment.clone());
+        Pcs::<SpikeExtension16,CH>::verify(
+            &pcs,vec![claim.clone()],&proof,&mut verifier_chall
+        ).expect("research verify");
+        // Binding sanity check only: changing an authenticated E16
+        // evaluation must NOT validate under the same commitment.
+        let mut forged=claim;
+        forged.matrices[0].points[0].values[0]+=SpikeExtension16::ONE;
+        let mut forged_chall=make_chall();
+        forged_chall.observe(commitment);
+        assert!(Pcs::<SpikeExtension16,CH>::verify(
+            &pcs,vec![forged],&proof,&mut forged_chall).is_err());
+    }
+    #[test]
     #[ignore = "requires an isolated patched p3-monty-31-0.8.0 generic degree-16 multiplication fallback"]
     fn generic_p3_field_has_correct_extension16_two_adic_generators(){
         assert_eq!(<SpikeExtension16 as TwoAdicField>::TWO_ADICITY,31);

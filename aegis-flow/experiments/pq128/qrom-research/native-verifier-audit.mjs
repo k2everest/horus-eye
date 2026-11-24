@@ -32,6 +32,33 @@ export function validateNativeWiredVerifierAudit(audit,geometryReport,{
     events.every((e,i)=>e&&e.seq===i&&
       ['observe','sample_base','sample_extension','sample_bits','grind'].includes(e.operation)),
       'MALFORMED_EVENTS');
+  // ExtensionFieldCodec samples eight BabyBear coefficients for every
+  // named verifier challenge. No challenge may be fabricated after queries.
+  const labels=['lookup_alpha','lookup_beta','constraint_challenge',
+    'zeta','pcs_batch_alpha',
+    ...Array.from({length:f.fold_count},(_,i)=>'fri_fold_challenge_'+i)];
+  const base=events.filter(e=>e.operation==='sample_base');
+  assert(base.length===labels.length*8&&
+    events.every(e=>e.operation!=='sample_extension')&&
+    typeof audit.named_verifier_challenges==='object'&&
+    audit.named_verifier_challenges!==null&&
+    Object.keys(audit.named_verifier_challenges).length===labels.length,
+    'CHALLENGE_COUNT');
+  for(let i=0;i<labels.length;i++){
+    const challenge=audit.named_verifier_challenges[labels[i]];
+    assert(challenge?.basis_dimension===8&&
+      Array.isArray(challenge.babybear_coefficients)&&
+      challenge.babybear_coefficients.length===8,'CHALLENGE_BASIS_SHAPE');
+    for(let j=0;j<8;j++){
+      const observed=base[i*8+j].value,claimed=challenge.babybear_coefficients[j];
+      assert(typeof observed==='string'&&/^\\d+$/.test(observed)&&
+        exactInt(claimed,0,2013265920)&&observed===String(claimed),
+        'CHALLENGE_BASIS_MISMATCH');
+    }
+  }
+  const firstQuery=events.findIndex(e=>e.operation==='sample_bits');
+  const lastChallenge=events.findLastIndex(e=>e.operation==='sample_base');
+  assert(lastChallenge<firstQuery&&firstQuery>=0,'CHALLENGE_QUERY_ORDER');
   const sampled=events.filter(e=>e.operation==='sample_bits');
   const bits=sampled.map(e=>{
     assert(e.bits===f.query_index_bits&&

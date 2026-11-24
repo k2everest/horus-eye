@@ -35,12 +35,24 @@ const audit=()=>{
   const path=indices.map(index=>Array.from({length:13},()=>{
     index>>=1;return index;
   }));
+  const labels=['lookup_alpha','lookup_beta','constraint_challenge',
+    'zeta','pcs_batch_alpha',
+    ...Array.from({length:13},(_,i)=>'fri_fold_challenge_'+i)];
+  const named=Object.fromEntries(labels.map((name,i)=>[name,{
+    basis_dimension:8,
+    babybear_coefficients:Array.from({length:8},(_,j)=>i*8+j+1)
+  }]));
+  const base=labels.flatMap((_,i)=>Array.from({length:8},(_,j)=>({
+    operation:'sample_base',type_name:'BabyBear',
+    value:String(i*8+j+1),bits:null,
+  })));
   return {
     schema:'AEGIS_NATIVE_WIRED_VERIFY_BATCH_OBSERVATION_V1',
     program_sha512:digest,proof_sha512:'ef'.repeat(64),
     verified_by_original_config:true,verified_by_instrumented_config:true,
-    transcript_events:indices.map((i,seq)=>({seq,operation:'sample_bits',
-      type_name:'usize',value:String(i),bits:16})),
+    transcript_events:[...base,...indices.map(i=>({operation:'sample_bits',
+      type_name:'usize',value:String(i),bits:16}))].map((e,seq)=>({...e,seq})),
+    named_verifier_challenges:named,
     fri:{
       query_samples_source:'actual verifier challenger sample_bits',
       projection_extracted_inside_upstream_verifier:false,
@@ -89,6 +101,7 @@ test('reject false attestations and adversarial changes in geometry',()=>{
     a=>a.proof_sha512='GG',
     a=>a.transcript_events[0].seq=5,
     a=>a.fri.final_domain_rows=16,
+    a=>a.named_verifier_challenges.lookup_alpha.babybear_coefficients[0]++,
   ]){
     const a=audit();change(a);
     assert.throws(()=>validateNativeWiredVerifierAudit(a,report(),

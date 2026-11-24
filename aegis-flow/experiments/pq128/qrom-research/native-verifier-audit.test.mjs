@@ -108,6 +108,10 @@ test('real-verifier JSON schema has fail-closed query/geometry validation',()=>{
   assert.equal(r.conditional_fixed_oracle_gamma_root_denominator,
     String(2013265921n**8n));
   assert.equal(r.fixed_pre_gamma_discrepancy_hypothesis_proved,false);
+  assert.equal(r.conditional_gamma_adaptive_query_union_numerator,
+    String(11n*65536n));
+  assert.equal(r.conditional_gamma_adaptive_query_union_denominator,
+    String(2013265921n**8n));
 });
 test('sampled indices must match observed sample_bits, not a reported substitute',()=>{
   const forged=audit();forged.fri.queries[15]^=1;

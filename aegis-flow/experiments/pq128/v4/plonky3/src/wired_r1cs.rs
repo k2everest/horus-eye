@@ -613,18 +613,21 @@ mod tests{
             })).unwrap_or(false)
         };
         assert!(verify(&proof));
+        // BatchProof does not implement Clone in the pinned Plonky3.
+        // Deserialize fresh independent objects from the canonical encoding.
+        let encoded=postcard::to_allocvec(&proof).unwrap();
         // Missing terminal polynomial coefficient cannot be accepted.
-        let mut tampered=proof.clone();
+        let mut tampered:BatchProof<Config>=postcard::from_bytes(&encoded).unwrap();
         assert!(!tampered.opening_proof.1.final_poly.is_empty());
         tampered.opening_proof.1.final_poly.clear();
         assert!(!verify(&tampered));
         // The FRI query/opening shape is part of the authenticated proof.
-        let mut tampered=proof.clone();
+        let mut tampered:BatchProof<Config>=postcard::from_bytes(&encoded).unwrap();
         assert!(!tampered.opening_proof.1.commit_phase_openings.is_empty());
         tampered.opening_proof.1.commit_phase_openings.pop();
         assert!(!verify(&tampered));
         // Hiding quotient-chunk opening shape must match verifier degree data.
-        let mut tampered=proof.clone();
+        let mut tampered:BatchProof<Config>=postcard::from_bytes(&encoded).unwrap();
         assert!(!tampered.opened_values.instances[0]
             .base_opened_values.quotient_chunks.is_empty());
         tampered.opened_values.instances[0]

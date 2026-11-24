@@ -8,7 +8,6 @@ use p3_batch_stark::{
     verifier::commitments_with_opening_points,
     symbolic::get_log_num_quotient_chunks,
 };
-use p3_commit::PolynomialSpace;
 use p3_field::{BasedVectorSpace,PrimeField32};
 use p3_fri::{FriParameters,FriShape,PcsShape,PcsVerifierTranscript};
 use p3_fri::VerifierTranscript as FriVerifierTranscript;
@@ -21,8 +20,8 @@ use crate::wired_r1cs::WiredAir;
 
 type SC=StarkConfig<Pcs,E,AuditedChallenger>;
 fn coeffs(value:&E)->Vec<u32>{
-    value.as_basis_coefficients_slice()
-        .iter().map(|f|f.as_canonical_u32()).collect()
+    let basis: &[F]=<E as BasedVectorSpace<F>>::as_basis_coefficients_slice(value);
+    basis.iter().map(|f|f.as_canonical_u32()).collect()
 }
 fn params()->FriParameters<()> {
     FriParameters{

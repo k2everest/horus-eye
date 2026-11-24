@@ -197,8 +197,13 @@ mod tests{
         let make_chall=||CH::new(HashChallenger::new(
             b"AEGIS_PQ128_NATIVE_E16_PCS_TEST_V1".to_vec(),
             crate::Sha512Hash(b"AEGIS_PQ128_NATIVE_E16_TRANSCRIPT_TEST_V1\\0")));
-        let domain=Pcs::<SpikeExtension16,CH>::natural_domain_for_degree(&pcs,4096);
-        let witness=RowMajorMatrix::new((0..4096*2)
+        // HidingFriPcs interleaves fresh rows before the inner PCS commit:
+        // a trace of N rows is committed on a domain of 2N points. The public
+        // domain must describe that actual committed polynomial, not N.
+        const TRACE_ROWS:usize=4096;
+        const COMMITTED_ROWS:usize=2*TRACE_ROWS;
+        let domain=Pcs::<SpikeExtension16,CH>::natural_domain_for_degree(&pcs,COMMITTED_ROWS);
+        let witness=RowMajorMatrix::new((0..TRACE_ROWS*2)
             .map(|i|SpikeBase::new((i as u32*37+11)%0x78000001))
             .collect::<Vec<_>>(),2);
         let (commitment,prover_data)=
@@ -212,6 +217,15 @@ mod tests{
             &pcs,vec![OpeningRequest{prover_data:&prover_data,
                 points:vec![vec![z]]}],&mut prover_chall
         ).expect("research open");
+        assert_eq!(values.len(),1);
+        assert_eq!(values[0].len(),1);
+        assert_eq!(values[0][0][0].len(),2);
+        // This is the real E16 PCS proof, not a field arithmetic stand-in:
+        // all binary folds of the 2N committed polynomial must be present.
+        let expected_rounds=COMMITTED_ROWS.ilog2() as usize;
+        assert_eq!(proof.1.commit_phase_commits.len(),expected_rounds);
+        assert_eq!(proof.1.commit_phase_openings.len(),expected_rounds);
+        assert_eq!(proof.1.final_poly.len(),1);
         let claim=CommitmentOpening{
             commitment:commitment.clone(),
             matrices:vec![MatrixOpening{

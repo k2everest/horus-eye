@@ -199,6 +199,19 @@ jobs:
           retention-days: 3
 
 
+  # Degree-16 is NOT supported by the pinned upstream Monty31 multiplier.
+  # Test against an isolated temporary source patch; never alter consensus
+  # dependencies, publish a fake PQ128 guarantee, or weaken normal CI.
+  plonky3-v4-babybear16-patched-spike:
+    needs: [plonky3-v4-laboratory]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Compile generic BabyBear16 P3 field only under a temporary checked patch
+        run: bash aegis-flow/experiments/pq128/v4/plonky3/scripts/test-babybear16-patched.sh
+
   # Deliberately isolated high-memory experiment; never enables consensus.
   # A failed full-size prover is a research result, not a green PQ128 check.
   plonky3-v4-full-sha512-research:

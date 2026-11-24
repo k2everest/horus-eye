@@ -68,6 +68,7 @@ const audit=()=>{
         opening_index:0,input_log_height:16,alpha_ladder_offset:0,
         polynomial_count:12,hiding_random_codewords:8,
         point_basis:[11,...Array(7).fill(0)]}],
+      batch_ladder_lengths_by_height:{"16":12},
       denominator_evaluations_exported:true,
       denominator_evaluations_came_from_upstream_verifier_hook:false,
       actual_pcs_query_denominator_evaluations:indices.map((index,query)=>{
@@ -103,6 +104,10 @@ test('real-verifier JSON schema has fail-closed query/geometry validation',()=>{
   assert.equal(r.structural_consistency_checked,true);
   assert.equal(r.trusted_executable_attested,false);
   assert.equal(r.quantum_extraction_proved,false);
+  assert.equal(r.conditional_fixed_oracle_gamma_root_numerator,'11');
+  assert.equal(r.conditional_fixed_oracle_gamma_root_denominator,
+    String(2013265921n**8n));
+  assert.equal(r.fixed_pre_gamma_discrepancy_hypothesis_proved,false);
 });
 test('sampled indices must match observed sample_bits, not a reported substitute',()=>{
   const forged=audit();forged.fri.queries[15]^=1;
@@ -132,6 +137,8 @@ test('reject false attestations and adversarial changes in geometry',()=>{
     a=>a.typed_replay.pcs_batch_gamma_basis[0]++,
     a=>a.typed_replay.fri_query_indices[0]++,
     a=>a.typed_replay.batch_polynomial_terms[0].hiding_random_codewords=7,
+    a=>a.typed_replay.batch_polynomial_terms[0].alpha_ladder_offset=1,
+    a=>a.typed_replay.batch_ladder_lengths_by_height["16"]=10,
     a=>a.typed_replay.actual_pcs_query_denominator_evaluations[0]
       .denominator_basis[0]++,
     a=>a.typed_replay.actual_pcs_query_denominator_evaluations[2]

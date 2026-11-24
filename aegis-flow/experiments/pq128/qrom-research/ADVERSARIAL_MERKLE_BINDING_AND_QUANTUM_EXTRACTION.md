@@ -75,6 +75,45 @@ the simple binary capped-leaf game. The native Rust negative tests
 exercise the actual salted multi-height MMCS. Neither constitutes
 a proof for arbitrary quantum adversaries.
 
+## 2a. Explicit mixed-height injection in the pinned verifier
+
+The source `p3-merkle-tree 0.8.0 merkle-tree/src/mmcs/mod.rs`
+`walk_pruned_frontier` has a stronger structure than an ordinary
+one-height Merkle tree. The *verifier-owned* authenticated node is
+built by a directed acyclic graph of hashes:
+
+1. At the maximal matrix height, the leaf is `H_leaf(concat(rows))`,
+   with the order of matrices fixed by dimensions.
+2. Each parent is `H_node(ordered-child-digests)` under the
+   verifier-derived binary arity schedule.
+3. When a shorter-height matrix joins a folded level, the verifier
+   hashes the **new shorter-height rows** with `H_leaf` and then
+   computes `H_node(previous-parent-digest, injected-height-digest)`.
+4. `verify_multi_batch` rejects conflicting rows for duplicate or
+   merged queries, including `InconsistentGroupOpening` at
+   the shorter-height injection. Salts are appended *before* each
+   corresponding hash and have known width 16.
+
+**Conditional mixed-height extension.** Fix the entire DAG topology,
+matrix order, dimensions, salts' expected width, query index, cap
+position and injective serialization. In any pair of distinct accepted
+full openings where a row/salt input used by the fixed authentication
+DAG differs, evaluate the two DAGs bottom-up. If the root-cap digest
+agrees, at least one node on a path from the differing input to the
+agreed cap has two different serialized inputs but the same output.
+Since each DAG gate is one of the fixed `H_leaf` or `H_node`, this
+gate is a hash collision. The proof is the same first-merge argument
+as the binary path lemma; branching/injection merely inserts more
+hash gates, and fixed topology avoids ambiguity about which gates
+were computed.
+
+This is a **conditional classical circuit reduction** and does not
+state that a single malicious post-challenge *quantum* opening can be
+coherently measured or that a globally consistent vector can be
+extracted. The native mixed-height regression is a check of the
+specific deployed verifier behavior, not a symbolic verification of
+every height/shape combination.
+
 ## 3. Why this does not yet eliminate post-challenge oracle changes
 
 The above lemma starts with **two classical successful openings**.

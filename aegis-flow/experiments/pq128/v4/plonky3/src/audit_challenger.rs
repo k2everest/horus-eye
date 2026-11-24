@@ -5,6 +5,7 @@
 use std::{any::type_name,sync::{Arc,Mutex}};
 use p3_challenger::{CanObserve,CanSample,CanSampleBits,FieldChallenger,GrindingChallenger};
 use serde::Serialize;
+use p3_field::PrimeField32;
 use crate::{Chall,E,F};
 
 #[derive(Clone,Debug,Serialize)]
@@ -43,7 +44,7 @@ impl<T> CanObserve<T> for AuditedChallenger where Chall:CanObserve<T> {
 impl CanSample<F> for AuditedChallenger {
     fn sample(&mut self)->F{
         let x: F=self.inner.sample();
-        self.record("sample_base",type_name::<F>(),Some(format!("{x:?}")),None);
+        self.record("sample_base",type_name::<F>(),Some(x.as_canonical_u32().to_string()),None);
         x
     }
 }

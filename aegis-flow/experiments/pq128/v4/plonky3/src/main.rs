@@ -10,6 +10,9 @@ mod native_transcript_replay;
 // Research-only field reference; never linked into production prover/verifier.
 #[cfg(test)]
 mod fp16_reference;
+// Plonky3 generic native type compatibility spike: research-only.
+#[cfg(test)]
+mod p3_babybear16_spike;
 use std::{fs,panic::{catch_unwind,AssertUnwindSafe},path::Path};
 use base64::{engine::general_purpose::STANDARD as B64,Engine};
 use p3_air::{Air,AirBuilder,BaseAir,WindowAccess};

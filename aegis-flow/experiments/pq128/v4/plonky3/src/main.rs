@@ -7,6 +7,9 @@ mod sha512_gates;
 mod wired_r1cs;
 mod audit_challenger;
 mod native_transcript_replay;
+// Research-only field reference; never linked into production prover/verifier.
+#[cfg(test)]
+mod fp16_reference;
 use std::{fs,panic::{catch_unwind,AssertUnwindSafe},path::Path};
 use base64::{engine::general_purpose::STANDARD as B64,Engine};
 use p3_air::{Air,AirBuilder,BaseAir,WindowAccess};

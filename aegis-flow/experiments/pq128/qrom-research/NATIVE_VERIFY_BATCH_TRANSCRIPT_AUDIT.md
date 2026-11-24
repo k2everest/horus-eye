@@ -72,10 +72,19 @@ mask-column counts from actual authenticated public verification inputs.
 The denominator depends on query index through
 `X = F::GENERATOR * F::two_adic_generator(log_height) ^
  reverse_bits_len(index >> (max_height-log_height), log_height)`.
-The native module currently exports the symbolic `(z-X)` terms and
-query indices, not every concrete denominator value or its inverse.
-The flag `exact_batch_denominator_polynomials_exported` therefore
-remains false. This distinction is essential for any soundness argument.
+The native module now exports **all per-query concrete denominator values** in
+the canonical BabyBear^8 basis, along with the query index, bit-reversed
+reduced index, root-of-unity query coordinate X and original opening point z.
+It reuses the upstream formula while calculating these values in the audit
+module rather than instrumenting `open_inputs` itself. A separate JS
+validator checks the subtraction z-X in the extension-field coefficient
+basis, the query projection, ordering, and rejection of a zero denominator.
+
+The flag `exact_batch_denominator_polynomials_exported` remains false,
+because enumerating finite evaluations does not prove a polynomial identity
+or an adversarial oracle-binding reduction. The new typed replay explicitly
+sets `denominator_evaluations_came_from_upstream_verifier_hook=false`. This
+distinction is essential for any soundness argument.
 
 ## Fundamental RNG pitfall caught by CI
 
@@ -88,6 +97,17 @@ shared **construction factory** instead of cloning the PCS fixed this;
 the original verifier and audited verifier then both accepted a native
 WiredAir/LogUp/HidingFriPcs proof. This was confirmed by CI (14 native
 Rust tests passed at intermediate commit `0f131bd`).
+
+## Validation milestone (2026-11-24)
+
+The original audit-challenger and typed-replay implementation (commit
+`82cd424`) passed `plonky3-v4-laboratory` with 14/14 native Rust tests and
+`Aegis Modular QROM Research` in GitHub Actions. This validates exact
+sample-stream replay for tested honest proof input, **not universal security**.
+
+The concrete-denominator exporter and its Rust/JS negative tests were
+added subsequently and require their *own* successful CI run before they
+can be labeled validated.
 
 ## Remaining mathematical and adversarial obligations
 

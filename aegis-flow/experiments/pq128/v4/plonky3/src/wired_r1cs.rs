@@ -496,7 +496,6 @@ pub(crate) fn audit_wired_verifier_transcript(
 )->Result<serde_json::Value,()>{
     use crate::audit_challenger::AuditedChallenger;
     use p3_uni_stark::StarkConfig;
-    use std::sync::Arc;
     use sha2::Digest;
 
     // Match the production verifier's canonical acceptance gate FIRST.
@@ -512,17 +511,18 @@ pub(crate) fn audit_wired_verifier_transcript(
     if encoded.is_empty()||encoded.len()>MAX_WIRED_PROOF||
        B64.encode(&encoded)!=bundle.proof{return Err(());}
     let air=WiredAir::new(program);
-    let cfg=config();
-    let log_degree=air.rows().ilog2() as usize+cfg.is_zk();
-
-    // Exactly the original verifier PCS, extension field, and initial
-    // Fiat-Shamir state; only the challenger type is wrapped for tracing.
+    // Exactly the same factory as the original verifier; do not clone
+    // HidingFriPcs (its Clone generates a new RNG seed and would destroy
+    // deterministic PUBLIC-preprocessing commitment equality).
     type TraceConfig=StarkConfig<crate::Pcs,crate::E,AuditedChallenger>;
-    let observer=AuditedChallenger::new(cfg.initialise_challenger());
-    let trace_cfg=TraceConfig::new(cfg.pcs().clone(),observer.clone());
-    let public_cfg=preprocessing_config(&air);
-    let public_trace_cfg=TraceConfig::new(public_cfg.pcs().clone(),
-        AuditedChallenger::new(public_cfg.initialise_challenger()));
+    let trace_cfg=crate::audit_config_from_public_program(None);
+    let observer=trace_cfg.initialise_challenger();
+    let log_degree=air.rows().ilog2() as usize+trace_cfg.is_zk();
+    let mut public_id=[0u8;64];
+    for (i,word) in air.program.public_digest_words.iter().enumerate(){
+        public_id[2*i..2*i+2].copy_from_slice(&word.to_be_bytes());
+    }
+    let public_trace_cfg=crate::audit_config_from_public_program(Some(&public_id));
     let independent=ProverData::<TraceConfig>::from_airs_and_degrees(
         &public_trace_cfg,&[air.clone()],&[log_degree]).map_err(|_|())?;
     // The canonical proof wire format is shared across both Config and

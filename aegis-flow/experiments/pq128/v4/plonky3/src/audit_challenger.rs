@@ -8,7 +8,7 @@ use serde::Serialize;
 use p3_field::PrimeField32;
 use crate::{Chall,E,F};
 
-#[derive(Clone,Debug,Serialize)]
+#[derive(Clone,Debug,Serialize,PartialEq,Eq)]
 pub(crate) struct ChallengeEvent {
     pub seq:usize,
     pub operation:&'static str,

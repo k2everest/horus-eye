@@ -127,6 +127,49 @@ export function validateNativeWiredVerifierAudit(audit,geometryReport,{
       [0,8].includes(term.hiding_random_codewords)&&
       Array.isArray(term.point_basis)&&term.point_basis.length===8),
       'TYPED_BATCHING_TERMS');
+  // Validate every exported denominator in F_p^8 by subtraction of
+  // the verifier-derived base-field query point X from the opening point z.
+  // This is arithmetic/shape checking, not an independent hash replay.
+  const prime=2013265921,denoms=typed.actual_pcs_query_denominator_evaluations;
+  const terms=typed.batch_polynomial_terms;
+  assert(typed.denominator_evaluations_exported===true&&
+    typed.denominator_evaluations_came_from_upstream_verifier_hook===false&&
+    Array.isArray(denoms)&&denoms.length===bits.length*terms.length&&
+    denoms.length<=200000,'DENOMINATOR_COUNT');
+  let d=0;
+  const reverseBits=(v,width)=>{
+    let reversed=0;
+    for(let j=0;j<width;j++){
+      reversed=(reversed<<1)|(v&1);
+      v>>=1;
+    }
+    return reversed;
+  };
+  for(let qi=0;qi<bits.length;qi++){
+    for(const term of terms){
+      const rec=denoms[d++];
+      const h=term.input_log_height;
+      const shifted=bits[qi]>>(f.query_index_bits-h);
+      const rev=reverseBits(shifted,h);
+      assert(rec?.query===qi&&rec.query_index===bits[qi]&&
+        rec.commitment_index===term.commitment_index&&
+        rec.matrix_index===term.matrix_index&&
+        rec.opening_index===term.opening_index&&
+        rec.log_height===h&&rec.reduced_index===shifted&&
+        rec.bit_reversed_index===rev&&
+        exactInt(rec.query_x_canonical,0,prime-1)&&
+        Array.isArray(rec.z_basis)&&rec.z_basis.length===8&&
+        Array.isArray(rec.denominator_basis)&&rec.denominator_basis.length===8,
+        'DENOMINATOR_ORDER_AND_PROJECTION');
+      const expected=rec.z_basis.map((v,i)=>{
+        assert(exactInt(v,0,prime-1),'NONCANONICAL_OPENING_POINT');
+        return i===0?(v-rec.query_x_canonical+prime)%prime:v;
+      });
+      assert(expected.every((v,i)=>rec.denominator_basis[i]===v)&&
+        rec.denominator_basis.some(v=>v!==0),
+        'DENOMINATOR_FIELD_ARITHMETIC');
+    }
+  }
   assert(audit.batching?.exact_batch_denominator_polynomials_exported===false&&
     audit.whole_verifier_byte_transcript_equivalence_proved===false&&
     audit.quantum_vector_commitment_extraction_proved===false&&

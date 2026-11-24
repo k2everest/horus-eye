@@ -51,7 +51,7 @@ export function validateNativeWiredVerifierAudit(audit,geometryReport,{
       challenge.babybear_coefficients.length===8,'CHALLENGE_BASIS_SHAPE');
     for(let j=0;j<8;j++){
       const observed=base[i*8+j].value,claimed=challenge.babybear_coefficients[j];
-      assert(typeof observed==='string'&&/^\\d+$/.test(observed)&&
+      assert(typeof observed==='string'&&/^\d+$/.test(observed)&&
         exactInt(claimed,0,2013265920)&&observed===String(claimed),
         'CHALLENGE_BASIS_MISMATCH');
     }

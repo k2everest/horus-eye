@@ -591,6 +591,39 @@ pub(crate) fn audit_wired_verifier_transcript(
             "basis_dimension":crate::EXT_DIM
         }));
     }
+    // This replay uses the EXACT public, typed transcript drivers shipped
+    // by p3-batch-stark and p3-fri, including HidingFriPcs augmentation.
+    // Reject any difference in even one absorbed value or sampled bit.
+    let (mut typed_replay,replayed_events)=
+        crate::native_transcript_replay::replay_verified(
+            &air,&trace_proof,&independent.common).map_err(|_|{
+                eprintln!("AEGIS_AUDIT_TYPED_REPLAY_FAILURE");()
+            })?;
+    if replayed_events!=events{
+        eprintln!("AEGIS_AUDIT_TRANSCRIPT_EVENT_MISMATCH: native={}, replay={}",
+            events.len(),replayed_events.len());return Err(());
+    }
+    for (label,basis) in [
+        ("constraint_challenge","rho_basis"),
+        ("zeta","zeta_basis"),
+        ("pcs_batch_alpha","pcs_batch_gamma_basis"),
+    ]{
+        if named_challenges[label]["babybear_coefficients"]!=typed_replay[basis]{
+            eprintln!("AEGIS_AUDIT_CHALLENGE_LABEL_MISMATCH: {label}");return Err(());
+        }
+    }
+    let replay_betas=typed_replay["fri_fold_beta_bases"].as_array().ok_or(())?;
+    if replay_betas.len()!=rounds||
+       replay_betas.iter().enumerate().any(|(i,beta)|
+           named_challenges[format!("fri_fold_challenge_{i}")]
+               ["babybear_coefficients"]!=*beta)||
+       typed_replay["fri_query_indices"]!=serde_json::json!(sampled_indices)||
+       typed_replay["fri_derived_log_arities"]!=serde_json::json!(vec![1usize;rounds])||
+       typed_replay["fri_index_bits"]!=index_bits{
+        eprintln!("AEGIS_AUDIT_FRI_TYPED_REPLAY_MISMATCH");return Err(());
+    }
+    typed_replay["native_transcript_bytes_and_samples_consistent"]=
+        serde_json::json!(true);
     let digest_proof=format!("{:x}",Sha512::digest(&encoded));
     Ok(serde_json::json!({
         "schema":"AEGIS_NATIVE_WIRED_VERIFY_BATCH_OBSERVATION_V1",
@@ -601,6 +634,7 @@ pub(crate) fn audit_wired_verifier_transcript(
         "verified_by_instrumented_config":true,
         "transcript_events":events,
         "named_verifier_challenges":named_challenges,
+        "typed_replay":typed_replay,
         "challenge_label_derivation":"pinned v0.8.0 typed-driver sample order; 8 BabyBear coefficients each",
         "fri":{
             "query_samples_source":"actual verifier challenger sample_bits",
@@ -616,6 +650,7 @@ pub(crate) fn audit_wired_verifier_transcript(
         },
         "batching":{
             "challenge_samples_in_actual_challenger_events":true,
+            "source_typed_batch_terms_replayed":true,
             "exact_batch_denominator_polynomials_exported":false,
             "native_pcs_batch_equivalence_proved":false
         },

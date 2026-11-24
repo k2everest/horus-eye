@@ -801,6 +801,11 @@ mod tests{
                 BatchOpeningRef::new(&forged,&opening_proof)).is_err(),
                 "an adversarial change to matrix {matrix} must be rejected");
         }
+        let mut forged_salts=opening_proof.clone();
+        forged_salts.0[0][0]+=F::ONE;
+        assert!(mmcs.verify_batch(&root,&dimensions,5,
+            BatchOpeningRef::new(&opened,&forged_salts)).is_err(),
+            "same root and row cannot validate a changed private salt");
         let mut shortened=opened.clone();
         shortened[0].pop();
         assert!(mmcs.verify_batch(&root,&dimensions,5,

@@ -127,6 +127,34 @@ export function validateNativeWiredVerifierAudit(audit,geometryReport,{
       [0,8].includes(term.hiding_random_codewords)&&
       Array.isArray(term.point_basis)&&term.point_basis.length===8),
       'TYPED_BATCHING_TERMS');
+  // A separate gamma-power ladder is maintained at each LDE height.
+  // This is the native FRI batching order, checked against the actual
+  // typed replay. A forged short ladder would inflate algebraic security.
+  const ladders=new Map();
+  for(const term of typed.batch_polynomial_terms){
+    const h=term.input_log_height;
+    const expected=ladders.get(h)??0;
+    assert(term.alpha_ladder_offset===expected,'PCS_GAMMA_LADDER_GAP');
+    assert(Number.isSafeInteger(expected+term.polynomial_count),
+      'PCS_GAMMA_LADDER_OVERFLOW');
+    ladders.set(h,expected+term.polynomial_count);
+  }
+  const recorded=typed.batch_ladder_lengths_by_height;
+  assert(recorded!==null&&typeof recorded==='object'&&
+    !Array.isArray(recorded)&&
+    Object.keys(recorded).length===ladders.size&&
+    [...ladders].every(([h,length])=>recorded[String(h)]===length),
+    'PCS_GAMMA_LADDER_REPORT');
+  // Only for a FIXED nonzero polynomial in gamma, Schwartz-Zippel:
+  // P_h(gamma) has degree <= L_h-1, so Pr[P_h(gamma)=0]
+  // <= (L_h-1)/|F_p^8|. A conservative union over heights is valid
+  // only if all discrepancies are fixed BEFORE sampling gamma and at
+  // least one induced error polynomial is nonzero.
+  // This calculation is not a quantum/knowledge/commitment proof.
+  const conditionalRoots=[...ladders.values()].reduce(
+    (sum,length)=>sum+Math.max(0,length-1),0);
+  assert(Number.isSafeInteger(conditionalRoots),
+    'PCS_GAMMA_ROOT_BUDGET_OVERFLOW');
   // Validate every exported denominator in F_p^8 by subtraction of
   // the verifier-derived base-field query point X from the opening point z.
   // This is arithmetic/shape checking, not an independent hash replay.
@@ -182,6 +210,10 @@ export function validateNativeWiredVerifierAudit(audit,geometryReport,{
     fold_count:f.fold_count,
     runtime_report_matches_research_geometry:true,
     transcript_drift_detected:false,
+    conditional_fixed_oracle_gamma_root_numerator:String(conditionalRoots),
+    conditional_fixed_oracle_gamma_root_denominator:
+      String(2013265921n**8n),
+    fixed_pre_gamma_discrepancy_hypothesis_proved:false,
     trusted_executable_attested:false,
     exact_batching_polynomials_verified:false,
     all_challenges_semantically_labeled:false,

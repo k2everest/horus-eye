@@ -69,6 +69,42 @@ domain separation, proof-versioning, parameter commitments, a
 fresh independent migration strategy and tests of the actual
 P3 encoded extension arithmetic.
 
+## 1b. Deterministic two-adic root-of-unity certificate
+
+The exact-order FFT generator constants for degrees 28 through 31,
+needed by a hypothetical Plonky3 `BinomialExtensionData<16>`,
+can be derived without guessing:
+
+  M = p^16-1, v2(M)=31,
+  g_j = t^(M/2^j) for 28 <= j <= 31.
+
+Each `g_j` has order precisely `2^j`, because
+`v2(ord(t))=31` follows from `t^16=11` and
+`v2(ord(11))=27`. Each monomial is serialized in the
+canonical basis (coefficient index, coefficient mod p):
+
+  j=28: (8, 929455875)
+  j=29: (12, 529583979)
+  j=30: (14, 1310212151)
+  j=31: (15, 1835875777)
+
+The binomial-extension Frobenius constant candidate
+`DTH_ROOT = 11^((p-1)/16) mod p = 1400279418`
+has exact order 16.
+
+The new `babybear16-two-adic-certificate.mjs` computes these
+values dynamically using BigInt and verifies every generator
+has the specified order, rather than trusting copied tables.
+The vector test fixes the results across implementations.
+
+**Crucial omission:** a full multiplicative generator of
+`E16^*` has NOT been proved, nor have the full
+`BinomialExtensionData<16>` trait, Frobenius tables,
+production random sampling and FRI/PCS compatibility been
+implemented. Declaring these five properties would be
+unsupported. No changes to the production transcript follow
+from a root-of-unity certificate alone.
+
 ## 2. Research-sizing calculation derived from pinned p3-security
 
 For the single-instance native WiredAir profile:

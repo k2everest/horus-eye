@@ -777,6 +777,20 @@ mod tests{
         assert!(report["constraint_full_selector_degree"].as_u64().unwrap()>=
             report["constraint_degree"].as_u64().unwrap());
         let geometry=&report["committed_degree_geometry"];
+        let shadow=&report["counterfactual_field16_rbr"];
+        assert_eq!(shadow["status"],"SHADOW_RESEARCH_ONLY_NOT_AN_IMPLEMENTED_P3_FIELD");
+        assert_eq!(shadow["field_modulus_bits_floor"],494);
+        assert_eq!(shadow["fri_queries"],512);
+        assert_eq!(shadow["hiding_random_codewords"],16);
+        assert_eq!(shadow["collision_assumption_bits_unmodified"],170);
+        assert_eq!(shadow["same_compiled_air_constraints"],report["constraints"]);
+        assert_eq!(shadow["same_compiled_quotient_chunks"],report["num_quotient_chunks"]);
+        assert!(shadow["num_batched_functions"].as_u64().unwrap()>=
+            report["num_batched_functions"].as_u64().unwrap());
+        assert!(shadow["conditional_interactive_bits"].as_f64().unwrap()<=170.0);
+        assert_eq!(shadow["native_extension_field16_implemented"],false);
+        assert_eq!(shadow["merkle_quantum_extraction_proved"],false);
+        assert_eq!(shadow["pq128_demonstrated"],false);
         let committed_log=geometry["committed_log_degree"].as_u64().unwrap() as usize;
         assert_eq!(proof.degree_bits,vec![committed_log]);
         assert_eq!(committed_log,air.rows().ilog2() as usize+config.is_zk());

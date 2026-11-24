@@ -8,7 +8,7 @@ use p3_batch_stark::{
     verifier::commitments_with_opening_points,
     symbolic::get_log_num_quotient_chunks,
 };
-use p3_field::{BasedVectorSpace,PrimeField32,Field,TwoAdicField};
+use p3_field::{BasedVectorSpace,PrimeField32,PrimeCharacteristicRing,Field,TwoAdicField};
 use p3_fri::{FriParameters,FriShape,PcsShape,PcsVerifierTranscript};
 use p3_fri::VerifierTranscript as FriVerifierTranscript;
 use p3_lookup::{Lookups,logup::LogUpGadget};

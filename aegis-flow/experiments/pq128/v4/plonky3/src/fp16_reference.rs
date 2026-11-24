@@ -23,6 +23,25 @@ impl Fp16 {
         value.iter().all(|&v| (v as u64) < P).then_some(Self(value))
     }
     pub(crate) fn coordinates(&self) -> [u32; D] { self.0 }
+    /// An injective field embedding of the existing Plonky3 BabyBear^8
+    /// polynomial basis u^8=11 into the candidate BabyBear^16 basis
+    /// t^16=11: send u to t^2. This is a field homomorphism, not a
+    /// byte-compatible serialized proof/Fiat-Shamir transcript.
+    pub(crate) fn embed_existing_babybear8(coefficients: [u32; 8]) -> Option<Self> {
+        if coefficients.iter().any(|&v| v as u64 >= P) { return None; }
+        let mut result=[0u32; D];
+        for (i,&c) in coefficients.iter().enumerate(){
+            result[2*i]=c;
+        }
+        Some(Self(result))
+    }
+    /// Recover an E8 subfield element iff all odd t-powers are zero.
+    pub(crate) fn project_existing_babybear8(self) -> Option<[u32; 8]> {
+        if self.0.iter().skip(1).step_by(2).any(|&c| c!=0) {
+            return None;
+        }
+        Some(core::array::from_fn(|i|self.0[2*i]))
+    }
     pub(crate) fn serialize(&self) -> [u8; 64] {
         let mut out = [0u8; 64];
         for (i, &v) in self.0.iter().enumerate() {
@@ -198,6 +217,51 @@ mod tests {
             assert_eq!(a*Fp16::one(),a);
             assert_eq!((a-b)+b,a);
         }
+    }
+    #[test]
+    fn existing_babybear8_has_injective_multiplicative_embedding_into_degree16(){
+        // The upstream BabyBearParameters::BinomialExtensionData<8>
+        // uses W=11, so u^8=11. Embedding u -> t^2 preserves u^8.
+        fn mul8(a:[u32;8],b:[u32;8])->[u32;8]{
+            let mut out=[0u64;8];
+            for i in 0..8 {
+                for j in 0..8 {
+                    let k=i+j;
+                    let product=a[i] as u64*b[j] as u64%P;
+                    let (idx,v)=if k>=8{
+                        (k-8,product*11%P)
+                    }else{(k,product)};
+                    out[idx]=(out[idx]+v)%P;
+                }
+            }
+            out.map(|v|v as u32)
+        }
+        let u=Fp16::embed_existing_babybear8(
+            [0,1,0,0,0,0,0,0]).unwrap();
+        let mut t2=[0u32;16];t2[2]=1;
+        assert_eq!(u,Fp16(t2));
+        assert_eq!(u.pow_u64(8),
+            Fp16::embed_existing_babybear8(
+                [11,0,0,0,0,0,0,0]).unwrap());
+        for seed in 1..=128 {
+            let a=element(seed).coordinates();
+            let b=element(seed+201).coordinates();
+            let coeffs_a=core::array::from_fn(|i|a[i]);
+            let coeffs_b=core::array::from_fn(|i|b[i]);
+            let embed_a=Fp16::embed_existing_babybear8(coeffs_a).unwrap();
+            let embed_b=Fp16::embed_existing_babybear8(coeffs_b).unwrap();
+            assert_eq!(embed_a.project_existing_babybear8(),Some(coeffs_a));
+            assert_eq!(embed_b.project_existing_babybear8(),Some(coeffs_b));
+            assert_eq!((embed_a*embed_b).project_existing_babybear8(),
+                Some(mul8(coeffs_a,coeffs_b)));
+            assert_eq!((embed_a+embed_b).project_existing_babybear8(),
+                Some(core::array::from_fn(|i|
+                    ((coeffs_a[i] as u64+coeffs_b[i] as u64)%P) as u32)));
+        }
+        let mut odd=[0u32;16];odd[1]=1;
+        assert_eq!(Fp16(odd).project_existing_babybear8(),None);
+        assert_eq!(Fp16::embed_existing_babybear8(
+            [P as u32,0,0,0,0,0,0,0]),None);
     }
     #[test]
     fn independent_bigint_golden_vector_for_modular_reduction(){

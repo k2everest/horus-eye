@@ -347,6 +347,13 @@ mod tests{
             .expect("E16 WiredAir+LogUp native proof");
         assert_eq!(proof.degree_bits.len(),1);
         assert_eq!(proof.opening_proof.1.commit_phase_commits.len(),13);
+        assert_eq!(proof.opening_proof.1.commit_phase_openings.len(),13);
+        assert_eq!(proof.opening_proof.1.final_poly.len(),1);
+        let chunks=&proof.opened_values.instances[0]
+            .base_opened_values.quotient_chunks;
+        assert!(!chunks.is_empty());
+        assert!(chunks.iter().all(|chunk|chunk.len()==16),
+            "native E16 quotient chunks must expose all 16 coordinates");
         let independent=make_cfg(8801);
         let derived=ProverData::<CFG>::from_airs_and_degrees(
             &independent,&[air.clone()],&proof.degree_bits)
@@ -357,8 +364,31 @@ mod tests{
         let mut changed_public=public;
         changed_public[0]+=SpikeBase::ONE;
         assert!(verify_batch(
-            &cfg,&[air],&proof,&[changed_public],&derived.common
+            &cfg,&[air.clone()],&proof,&[changed_public],&derived.common
         ).is_err(),"changed authenticated public program digest was accepted");
+
+        // Adversarial invalid witness: the final asserted wire is zero,
+        // contradicting the public program's ASSERT_ONE gate. Either the
+        // prover must refuse or the independently verified proof must fail.
+        let bad_source=air.trace(&[0,1,1,1,1,0]).unwrap();
+        let bad_trace=RowMajorMatrix::new(bad_source.values.iter()
+            .map(|x|SpikeBase::new(x.as_canonical_u32()))
+            .collect::<Vec<_>>(),4);
+        let invalid_public=air.public_values().iter()
+            .map(|x|SpikeBase::new(x.as_canonical_u32()))
+            .collect::<Vec<_>>();
+        let bad_instances=[StarkInstance::<CFG,_>{
+            air:&air,trace:&bad_trace,public_values:invalid_public.clone(),
+        }];
+        let bad_preprocessed=ProverData::from_instances(
+            &make_cfg(8801),&bad_instances).unwrap();
+        if let Ok(invalid_proof)=prove_batch(&make_cfg(8701),
+            &bad_instances,&bad_preprocessed)
+        {
+            assert!(verify_batch(
+                &cfg,&[air],&invalid_proof,&[invalid_public],&derived.common
+            ).is_err(),"invalid LogUp / ASSERT_ONE witness verified");
+        }
     }
 
     #[test]

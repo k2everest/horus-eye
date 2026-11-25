@@ -226,6 +226,10 @@ jobs:
         with:
           node-version: '24'
       - uses: dtolnay/rust-toolchain@stable
+      - name: Verify and record real six-SHA512 public circuit geometry before costly proving
+        run: |
+          node --test aegis-flow/experiments/pq128/v4/financial-capacity-preflight.test.mjs
+          node aegis-flow/experiments/pq128/v4/financial-capacity-preflight.mjs
       - name: Compile actual Plonky3 LogUp proof engine
         run: |
           cargo generate-lockfile --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml

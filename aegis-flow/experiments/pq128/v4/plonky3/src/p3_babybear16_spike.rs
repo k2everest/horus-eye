@@ -343,7 +343,7 @@ mod tests{
         }];
         let data=ProverData::from_instances(&prep,&instances)
             .expect("E16 fixed public preprocessing");
-        let proof=prove_batch(&cfg,&instances,&data)
+        let mut proof=prove_batch(&cfg,&instances,&data)
             .expect("E16 WiredAir+LogUp native proof");
         assert_eq!(proof.degree_bits.len(),1);
         assert_eq!(proof.opening_proof.1.commit_phase_commits.len(),13);
@@ -365,12 +365,14 @@ mod tests{
         // from the isolated PCS forged-claim test above: the verifier must
         // reject a transcript that keeps the committed program and all
         // public inputs intact while changing one terminal coefficient.
-        let mut corrupted_fri=proof.clone();
-        assert!(!corrupted_fri.opening_proof.1.final_poly.is_empty());
-        corrupted_fri.opening_proof.1.final_poly[0]+=SpikeExtension16::ONE;
+        assert!(!proof.opening_proof.1.final_poly.is_empty());
+        proof.opening_proof.1.final_poly[0]+=SpikeExtension16::ONE;
         assert!(verify_batch(
-            &cfg,&[air.clone()],&corrupted_fri,&[public.clone()],&derived.common
+            &cfg,&[air.clone()],&proof,&[public.clone()],&derived.common
         ).is_err(),"tampered native E16 WiredAir+LogUp FRI terminal polynomial accepted");
+        // BatchProof does not implement Clone in pinned Plonky3 0.8.0.
+        // Restore the original coefficient, then reverify the same proof.
+        proof.opening_proof.1.final_poly[0]-=SpikeExtension16::ONE;
 
         // The original proof must remain valid after the adversarial check,
         // excluding accidental test pollution of shared verifier state.

@@ -403,7 +403,7 @@ mod tests{
         // financial statement digest. The external financial verifier is
         // responsible for computing this digest from canonical public data.
         let financial_program_bytes=|binding:[u8;64]|{
-            let mut bytes=b"AEGIS_V4_BOOLEAN_PROGRAM_V2\\0".to_vec();
+            let mut bytes=b"AEGIS_V4_BOOLEAN_PROGRAM_V2\0".to_vec();
             bytes.extend_from_slice(&6u32.to_be_bytes());
             bytes.extend_from_slice(&3u32.to_be_bytes());
             bytes.extend_from_slice(&binding);
@@ -423,7 +423,7 @@ mod tests{
         let mut statement_b=financial_program_bytes([0x35;64]);
         // Flip one bit ONLY inside the public financial statement binding.
         // The opcode stream, gate count, wire count and row count are fixed.
-        let binding_offset=b"AEGIS_V4_BOOLEAN_PROGRAM_V2\\0".len()+8;
+        let binding_offset=b"AEGIS_V4_BOOLEAN_PROGRAM_V2\0".len()+8;
         statement_b[binding_offset]^=1;
         let financial_air_a=WiredAir::new(
             PublicProgram::from_bytes(&statement_a)

@@ -137,6 +137,29 @@ References:
 - https://eprint.iacr.org/2019/834
 - https://arxiv.org/abs/2202.13730
 
+## Executable E16 PCS and WiredAir integration status (November 25)
+
+The process-local `p3-monty-31` + `p3-matrix` patch was validated in
+GitHub Actions at commit `c63b8d2`: all four positive E16 native tests
+passed, including an actual `HidingFriPcs` commit/open/verify with
+512 queries, 16 hiding codewords and a corrupted-claim/final-polynomial
+negative check. The ordinary unpatched Plonky3 laboratory also passed.
+
+Follow-up commit `f60876b` expands the negative test to all 16 extension
+coordinates in both committed columns (32 changed-value verifications).
+Commit `a191652` adds an **ignored-unless-patched** native
+`WiredAir + LogUp` batch-STARK proof-and-independent-verification test.
+It uses the same public Boolean program, re-encodes its BabyBear witness
+into the isomorphic test-only Monty31 type, retains 512 FRI queries and
+16 hiding codewords, and checks rejection of a changed program digest.
+Neither new test may be credited as passing until its CI has completed.
+
+This is still a laboratory *honest-prover functionality* test. It is NOT
+a new accepted consensus verifier, independent extraction, a complete
+six-SHA512 financial proof, malicious-prover proximity theorem or a
+quantum Fiat-Shamir reduction. The E16 extension multiplicative generator
+still lacks a complete full-order certificate.
+
 ## Release-blocking proof obligations
 
 1. Compiled, reproducible, audited, *native* BabyBear^16 field with

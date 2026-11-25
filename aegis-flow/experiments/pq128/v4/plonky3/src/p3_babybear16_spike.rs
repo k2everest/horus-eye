@@ -395,6 +395,76 @@ mod tests{
             Gate{op:2,a:4,b:0,z:5},
             Gate{op:4,a:5,b:1,z:0},
         ],6));
+
+        // Financial V2 statement binding on the real E16 STARK (small,
+        // honest Boolean program, not a complete six-SHA512 transfer).
+        // Same gate table and same wire assignment; the only difference
+        // between the two programs below is a 64-byte authenticated
+        // financial statement digest. The external financial verifier is
+        // responsible for computing this digest from canonical public data.
+        let financial_program_bytes=|binding:[u8;64]|{
+            let mut bytes=b"AEGIS_V4_BOOLEAN_PROGRAM_V2\\0".to_vec();
+            bytes.extend_from_slice(&6u32.to_be_bytes());
+            bytes.extend_from_slice(&3u32.to_be_bytes());
+            bytes.extend_from_slice(&binding);
+            for gate in [
+                Gate{op:1,a:2,b:3,z:4},
+                Gate{op:2,a:4,b:0,z:5},
+                Gate{op:4,a:5,b:1,z:0},
+            ]{
+                bytes.push(gate.op);
+                for index in [gate.a,gate.b,gate.z]{
+                    bytes.extend_from_slice(&index.to_be_bytes());
+                }
+            }
+            bytes
+        };
+        let statement_a=financial_program_bytes([0x35;64]);
+        let mut statement_b=financial_program_bytes([0x35;64]);
+        // Flip one bit ONLY inside the public financial statement binding.
+        // The opcode stream, gate count, wire count and row count are fixed.
+        let binding_offset=b"AEGIS_V4_BOOLEAN_PROGRAM_V2\\0".len()+8;
+        statement_b[binding_offset]^=1;
+        let financial_air_a=WiredAir::new(
+            PublicProgram::from_bytes(&statement_a)
+                .expect("canonical research V2 statement A"));
+        let financial_air_b=WiredAir::new(
+            PublicProgram::from_bytes(&statement_b)
+                .expect("canonical research V2 statement B"));
+        let financial_public_a=financial_air_a.public_values().iter()
+            .map(|x|SpikeBase::new(x.as_canonical_u32())).collect::<Vec<_>>();
+        let financial_public_b=financial_air_b.public_values().iter()
+            .map(|x|SpikeBase::new(x.as_canonical_u32())).collect::<Vec<_>>();
+        assert_ne!(financial_public_a,financial_public_b);
+        assert_eq!(financial_air_a.rows(),financial_air_b.rows());
+
+        let financial_source=financial_air_a.trace(&[0,1,1,1,1,1]).unwrap();
+        let financial_trace=RowMajorMatrix::new(financial_source.values.iter()
+            .map(|x|SpikeBase::new(x.as_canonical_u32()))
+            .collect::<Vec<_>>(),4);
+        let financial_instances=[StarkInstance::<CFG,_>{
+            air:&financial_air_a,trace:&financial_trace,
+            public_values:financial_public_a.clone(),
+        }];
+        let financial_data=ProverData::from_instances(
+            &make_cfg(8801),&financial_instances
+        ).expect("trusted statement A preprocessed table");
+        let financial_proof=prove_batch(
+            &make_cfg(8701),&financial_instances,&financial_data
+        ).expect("native E16 financial V2-bound Boolean proof");
+        let verifier_a=ProverData::<CFG>::from_airs_and_degrees(
+            &make_cfg(8801),&[financial_air_a.clone()],&financial_proof.degree_bits
+        ).expect("independent statement A preprocessing");
+        verify_batch(&make_cfg(8701),&[financial_air_a],&financial_proof,
+            &[financial_public_a],&verifier_a.common
+        ).expect("statement A must verify");
+        let verifier_b=ProverData::<CFG>::from_airs_and_degrees(
+            &make_cfg(8801),&[financial_air_b.clone()],&financial_proof.degree_bits
+        ).expect("independent statement B preprocessing");
+        assert!(verify_batch(&make_cfg(8701),&[financial_air_b],
+            &financial_proof,&[financial_public_b],&verifier_b.common
+        ).is_err(),"native E16 proof rebound to a different financial statement");
+
         let alternate_public=alternate_air.public_values().iter()
             .map(|x|SpikeBase::new(x.as_canonical_u32()))
             .collect::<Vec<_>>();

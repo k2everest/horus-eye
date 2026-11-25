@@ -386,6 +386,27 @@ mod tests{
             &cfg,&[air.clone()],&proof,&[changed_public],&derived.common
         ).is_err(),"changed authenticated public program digest was accepted");
 
+        // Stronger program-binding check: the alternative public circuit
+        // has the same wire count, gates count, height and a valid witness.
+        // A proof for one authenticated instruction table must not verify
+        // against independently reconstructed preprocessing of the other.
+        let alternate_air=WiredAir::new(PublicProgram::from_parts(vec![
+            Gate{op:1,a:2,b:2,z:4},
+            Gate{op:2,a:4,b:0,z:5},
+            Gate{op:4,a:5,b:1,z:0},
+        ],6));
+        let alternate_public=alternate_air.public_values().iter()
+            .map(|x|SpikeBase::new(x.as_canonical_u32()))
+            .collect::<Vec<_>>();
+        assert_ne!(alternate_public,public,"distinct programs have same digest");
+        let alternate_prep=ProverData::<CFG>::from_airs_and_degrees(
+            &make_cfg(8801),&[alternate_air.clone()],&proof.degree_bits
+        ).expect("alternate public preprocessing");
+        assert!(verify_batch(
+            &cfg,&[alternate_air],&proof,&[alternate_public],&alternate_prep.common
+        ).is_err(),"proof for one fixed circuit accepted with different program");
+
+
         // Adversarial invalid witness: the final asserted wire is zero,
         // contradicting the public program's ASSERT_ONE gate. Either the
         // prover must refuse or the independently verified proof must fail.

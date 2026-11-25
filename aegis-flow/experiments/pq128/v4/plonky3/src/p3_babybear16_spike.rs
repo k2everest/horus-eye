@@ -242,12 +242,21 @@ mod tests{
         ).expect("research verify");
         // Binding sanity check only: changing an authenticated E16
         // evaluation must NOT validate under the same commitment.
-        let mut forged=claim;
+        let mut forged=claim.clone();
         forged.matrices[0].points[0].values[0]+=SpikeExtension16::ONE;
         let mut forged_chall=make_chall();
-        forged_chall.observe(commitment);
+        forged_chall.observe(commitment.clone());
         assert!(Pcs::<SpikeExtension16,CH>::verify(
             &pcs,vec![forged],&proof,&mut forged_chall).is_err());
+
+        // A distinct adversarial path: keep the authenticated claim
+        // unchanged but corrupt the final FRI coefficient.
+        let mut forged_final=proof.clone();
+        forged_final.1.final_poly[0]+=SpikeExtension16::ONE;
+        let mut terminal_chall=make_chall();
+        terminal_chall.observe(commitment);
+        assert!(Pcs::<SpikeExtension16,CH>::verify(
+            &pcs,vec![claim],&forged_final,&mut terminal_chall).is_err());
     }
     #[test]
     #[ignore = "requires an isolated patched p3-monty-31-0.8.0 generic degree-16 multiplication fallback"]

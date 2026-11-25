@@ -215,7 +215,7 @@ jobs:
   # Deliberately isolated high-memory experiment; never enables consensus.
   # A failed full-size prover is a research result, not a green PQ128 check.
   plonky3-v4-full-sha512-research:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.number == 5 }}
+    if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.number == 5 || github.event.pull_request.number == 6) }}
     needs: [plonky3-v4-laboratory]
     runs-on: ubuntu-latest
     timeout-minutes: 28

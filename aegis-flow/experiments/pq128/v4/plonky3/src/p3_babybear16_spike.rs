@@ -249,6 +249,26 @@ mod tests{
         assert!(Pcs::<SpikeExtension16,CH>::verify(
             &pcs,vec![forged],&proof,&mut forged_chall).is_err());
 
+        // Exercise all 16 extension coordinates of BOTH opened columns.
+        // The original proof and root stay fixed; any modified claimed
+        // value must be rejected by the actual native PCS verifier.
+        for column in 0..2 {
+            for limb in 0..16 {
+                let mut bad_claim=claim.clone();
+                let mut delta=[0u32;16];
+                delta[limb]=1;
+                bad_claim.matrices[0].points[0].values[column]+=e16(delta);
+                let mut bad_chall=make_chall();
+                bad_chall.observe(commitment.clone());
+                assert!(
+                    Pcs::<SpikeExtension16,CH>::verify(
+                        &pcs,vec![bad_claim],&proof,&mut bad_chall
+                    ).is_err(),
+                    "forged extension coordinate {limb} in column {column} accepted"
+                );
+            }
+        }
+
         // A distinct adversarial path: keep the authenticated claim
         // unchanged but corrupt the final FRI coefficient.
         let mut forged_final=proof.clone();

@@ -279,6 +279,89 @@ mod tests{
             &pcs,vec![claim],&forged_final,&mut terminal_chall).is_err());
     }
     #[test]
+    #[ignore = "requires isolated patched Plonky3 D16 crates; research-only actual WiredAir+LogUp"]
+    fn native_e16_wired_logup_batch_stark_prove_verify(){
+        use crate::wired_r1cs::{Gate,PublicProgram,WiredAir};
+        use p3_batch_stark::{StarkInstance,ProverData,prove_batch,verify_batch};
+        use p3_challenger::{HashChallenger,SerializingChallenger32};
+        use p3_commit::ExtensionMmcs;
+        use p3_dft::Radix2Bowers;
+        use p3_fri::{FriParameters,HidingFriPcs};
+        use p3_matrix::dense::RowMajorMatrix;
+        use p3_merkle_tree::MerkleTreeHidingMmcs;
+        use p3_uni_stark::{StarkConfig,StarkGenericConfig};
+        use rand::{SeedableRng,rngs::StdRng};
+
+        type MM=MerkleTreeHidingMmcs<SpikeBase,u64,
+            crate::FH,crate::Compress,StdRng,2,8,16>;
+        type FMM=ExtensionMmcs<SpikeBase,SpikeExtension16,MM>;
+        type PCS=HidingFriPcs<SpikeBase,Radix2Bowers,MM,FMM,StdRng>;
+        type CH=SerializingChallenger32<SpikeBase,
+            HashChallenger<u8,crate::Sha512Hash,64>>;
+        type CFG=StarkConfig<PCS,SpikeExtension16,CH>;
+
+        // Test seeds ensure a verifier can independently rebuild the
+        // PUBLIC preprocessing commitment. Never use deterministic salts
+        // for a deployed private witness/receipt.
+        let make_cfg=|seed:u64|->CFG{
+            let leaf=crate::Sha512Words(b"AEGIS_PQ128_E16_WIRED_LEAF_TEST_V1\\0");
+            let node=crate::Sha512Words(b"AEGIS_PQ128_E16_WIRED_NODE_TEST_V1\\0");
+            let mmcs=MM::new(crate::FH::new(leaf),crate::Compress::new(node),
+                3,StdRng::seed_from_u64(seed));
+            let fri=FriParameters{
+                log_blowup:3,log_final_poly_len:0,max_log_arity:1,
+                num_queries:512,batch_proof_of_work_bits:0,
+                commit_proof_of_work_bits:0,query_proof_of_work_bits:0,
+                mmcs:FMM::new(mmcs.clone()),
+            };
+            let pcs=PCS::new(Radix2Bowers::default(),mmcs,fri,16,
+                StdRng::seed_from_u64(seed+1));
+            let challenger=CH::new(HashChallenger::new(
+                b"AEGIS_PQ128_E16_WIRED_LOGUP_TEST_V1".to_vec(),
+                crate::Sha512Hash(b"AEGIS_PQ128_E16_WIRED_TRANSCRIPT_V1\\0")));
+            CFG::new(pcs,challenger)
+        };
+
+        let air=WiredAir::new(PublicProgram::from_parts(vec![
+            Gate{op:1,a:2,b:3,z:4},
+            Gate{op:2,a:4,b:0,z:5},
+            Gate{op:4,a:5,b:1,z:0},
+        ],6));
+        // The trusted AIR remains unchanged; its canonical BabyBear
+        // values are re-encoded into an isomorphic Monty31 base type.
+        let source=air.trace(&[0,1,1,1,1,1]).unwrap();
+        let trace=RowMajorMatrix::new(source.values.iter()
+            .map(|x|SpikeBase::new(x.as_canonical_u32()))
+            .collect::<Vec<_>>(),4);
+        let public=air.public_values().iter()
+            .map(|x|SpikeBase::new(x.as_canonical_u32()))
+            .collect::<Vec<_>>();
+        let cfg=make_cfg(8701);
+        let prep=make_cfg(8801);
+        let instances=[StarkInstance::<CFG,_>{
+            air:&air,trace:&trace,public_values:public.clone(),
+        }];
+        let data=ProverData::from_instances(&prep,&instances)
+            .expect("E16 fixed public preprocessing");
+        let proof=prove_batch(&cfg,&instances,&data)
+            .expect("E16 WiredAir+LogUp native proof");
+        assert_eq!(proof.degree_bits.len(),1);
+        assert_eq!(proof.opening_proof.1.commit_phase_commits.len(),13);
+        let independent=make_cfg(8801);
+        let derived=ProverData::<CFG>::from_airs_and_degrees(
+            &independent,&[air.clone()],&proof.degree_bits)
+            .expect("independent fixed-program preprocessing");
+        verify_batch(&cfg,&[air.clone()],&proof,&[public.clone()],&derived.common)
+            .expect("independently verified E16 WiredAir+LogUp");
+
+        let mut changed_public=public;
+        changed_public[0]+=SpikeBase::ONE;
+        assert!(verify_batch(
+            &cfg,&[air],&proof,&[changed_public],&derived.common
+        ).is_err(),"changed authenticated public program digest was accepted");
+    }
+
+    #[test]
     #[ignore = "requires an isolated patched p3-monty-31-0.8.0 generic degree-16 multiplication fallback"]
     fn generic_p3_field_has_correct_extension16_two_adic_generators(){
         assert_eq!(<SpikeExtension16 as TwoAdicField>::TWO_ADICITY,31);

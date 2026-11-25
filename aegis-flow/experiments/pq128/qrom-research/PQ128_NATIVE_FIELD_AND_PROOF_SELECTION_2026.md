@@ -44,6 +44,32 @@ This is a correct *arithmetic candidate*; performance, canonical
 encoding, aliasing/packed operations, inverter and FFT behavior
 must be tested.
 
+### Second native blocker: packed matrix rowwise D=8 cap
+
+CI at PR #6 commit `0cbd6ed` independently compiled and passed three
+positive degree-16 native field tests, then rejected the real
+HidingFriPcs opening test. The failure was:
+
+```
+p3-field-0.8.0/src/packed/packed_traits.rs:342
+range end index 16 out of range for slice of length 8
+```
+
+Tracing the pinned source shows `p3-matrix/src/lib.rs` invokes
+`T::Packing::coeffwise_dot_product(d,...)` from
+`rowwise_packed_dot_product` with `d=16`; the pinned
+`p3-field` trait hardcodes `[Self;8]`. This is a second independent
+library compatibility limit, not a polynomial irreducibility error.
+
+The isolated research script now also patches a temporary copy of
+exact `p3-matrix=0.8.0`: retain the original optimized accumulator for
+`d<=8`, and use a generic extension-packing multiply/accumulate for
+`d>8`. Both Cargo patches are process-local; no accepted prover,
+consensus verifier, or production dependency is changed. A negative
+test additionally corrupts the FRI terminal polynomial. These new
+changes need a passing native CI run before crediting a working E16
+PCS, and do not discharge malicious-prover FRI or QROM obligations.
+
 ### Native reproducibility without production dependency changes
 
 - `v4/plonky3/src/p3_babybear16_spike.rs` defines a test-only

@@ -380,7 +380,7 @@ mod tests{
             .expect("original E16 WiredAir+LogUp proof after adversarial check");
 
 
-        let mut changed_public=public;
+        let mut changed_public=public.clone();
         changed_public[0]+=SpikeBase::ONE;
         assert!(verify_batch(
             &cfg,&[air.clone()],&proof,&[changed_public],&derived.common

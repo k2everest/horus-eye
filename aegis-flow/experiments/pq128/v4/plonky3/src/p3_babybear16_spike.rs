@@ -361,6 +361,23 @@ mod tests{
         verify_batch(&cfg,&[air.clone()],&proof,&[public.clone()],&derived.common)
             .expect("independently verified E16 WiredAir+LogUp");
 
+        // Attack the *actual batch STARK* FRI terminal message. This differs
+        // from the isolated PCS forged-claim test above: the verifier must
+        // reject a transcript that keeps the committed program and all
+        // public inputs intact while changing one terminal coefficient.
+        let mut corrupted_fri=proof.clone();
+        assert!(!corrupted_fri.opening_proof.1.final_poly.is_empty());
+        corrupted_fri.opening_proof.1.final_poly[0]+=SpikeExtension16::ONE;
+        assert!(verify_batch(
+            &cfg,&[air.clone()],&corrupted_fri,&[public.clone()],&derived.common
+        ).is_err(),"tampered native E16 WiredAir+LogUp FRI terminal polynomial accepted");
+
+        // The original proof must remain valid after the adversarial check,
+        // excluding accidental test pollution of shared verifier state.
+        verify_batch(&cfg,&[air.clone()],&proof,&[public.clone()],&derived.common)
+            .expect("original E16 WiredAir+LogUp proof after adversarial check");
+
+
         let mut changed_public=public;
         changed_public[0]+=SpikeBase::ONE;
         assert!(verify_batch(

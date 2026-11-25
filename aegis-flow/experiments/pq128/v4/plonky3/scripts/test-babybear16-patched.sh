@@ -80,8 +80,9 @@ PY
 # Cargo config is process-local. The patched crate exists ONLY in TEMP.
 # It is an experimental capability spike and not a reviewed crypto fork.
 PATCH="patch.crates-io.p3-monty-31.path=\"$TEMP/p3-monty-31\""
+MATRIX_PATCH="patch.crates-io.p3-matrix.path=\"$TEMP/p3-matrix\""
 cargo test --manifest-path "$MANIFEST" --release \
   --config "$PATCH" \
-  --config "patch.crates-io.p3-matrix.path=\\"$TEMP/p3-matrix\\"" \
+  --config "$MATRIX_PATCH" \
   p3_babybear16_spike::tests:: -- --ignored
 echo "AEGIS_PQ128_FIELD16_PATCHED_SPIKE_ONLY: tests finished"

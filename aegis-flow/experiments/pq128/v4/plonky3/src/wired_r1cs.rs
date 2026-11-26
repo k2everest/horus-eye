@@ -461,11 +461,13 @@ fn public_program(bytes:&[u8])->Result<(PublicProgram,String),()>{
 // Never logs witnesses, secret bits, note values or financial metadata.
 fn lab_phase(label:&str,start:std::time::Instant,rows:usize){
     if std::env::var("AEGIS_V4_P3_PROFILE").as_deref()!=Ok("1"){return;}
-    let rss=fs::read_to_string("/proc/self/status").ok()
-        .and_then(|s|s.lines().find(|l|l.starts_with("VmRSS:")).map(str::to_string))
-        .unwrap_or_else(||"VmRSS: unavailable".to_string());
-    eprintln!("AEGIS_WIRED_PROVER_PHASE={} elapsed_ms={} rows={} {}",
-        label,start.elapsed().as_millis(),rows,rss);
+    let status=fs::read_to_string("/proc/self/status").unwrap_or_default();
+    let metric=|name:&str|status.lines().find(|l|l.starts_with(name))
+        .unwrap_or("unavailable");
+    let rss=metric("VmRSS:");
+    let hwm=metric("VmHWM:");
+    eprintln!("AEGIS_WIRED_PROVER_PHASE={} elapsed_ms={} rows={} {} {}",
+        label,start.elapsed().as_millis(),rows,rss,hwm);
 }
 pub(crate) fn prove_wired(program_bytes:&[u8],assignment:&[u8],output:&Path)->Result<(),()>{
     let start=std::time::Instant::now();
@@ -480,7 +482,27 @@ pub(crate) fn prove_wired(program_bytes:&[u8],assignment:&[u8],output:&Path)->Re
     let prover_data=ProverData::from_instances(&preprocessor_config,&instances)
         .map_err(|_|())?;
     lab_phase("public-preprocessed-committed",start,air.rows());
-    let proof=prove_batch(&config,&instances,&prover_data).map_err(|_|())?;
+    // Periodic RSS/high-water samples survive in the Actions log even when
+    // the runner kills the process before /usr/bin/time can flush its file.
+    // Only process memory and row count are logged; NEVER witness values.
+    let reporter_stop=std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let reporter=if std::env::var("AEGIS_V4_P3_PROFILE").as_deref()==Ok("1"){
+        let done=reporter_stop.clone();
+        let rows=air.rows();
+        Some(std::thread::spawn(move||{
+            use std::sync::atomic::Ordering;
+            while !done.load(Ordering::Relaxed){
+                std::thread::sleep(std::time::Duration::from_secs(5));
+                if !done.load(Ordering::Relaxed){
+                    lab_phase("batch-stark-progress",start,rows);
+                }
+            }
+        }))
+    }else{None};
+    let prove_result=prove_batch(&config,&instances,&prover_data);
+    reporter_stop.store(true,std::sync::atomic::Ordering::Relaxed);
+    if let Some(reporter)=reporter{let _=reporter.join();}
+    let proof=prove_result.map_err(|_|())?;
     lab_phase("batch-stark-complete",start,air.rows());
     let encoded=postcard::to_allocvec(&proof).map_err(|_|())?;
     if encoded.is_empty()||encoded.len()>MAX_WIRED_PROOF{return Err(());}

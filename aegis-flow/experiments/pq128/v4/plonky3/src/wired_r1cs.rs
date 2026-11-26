@@ -730,6 +730,25 @@ mod tests{
         bytes
     }
     #[test]
+    fn compact_public_preprocessing_preserves_each_original_active_selector(){
+        let air=circuit();
+        assert_eq!(PREP_WIDTH,11);
+        for row in 0..air.rows(){
+            let cells=air.program_row(row);
+            let active_from_flags=cells[0]+cells[1]+cells[2]+cells[3];
+            let original_active=u32::from(row<air.program.gates.len());
+            assert_eq!(active_from_flags,original_active,"selector at row {row}");
+            assert!(active_from_flags<=1);
+            assert_eq!(cells[4],air.program.gates.get(row).map(|g|g.a).unwrap_or(0));
+            assert_eq!(cells[5],air.program.gates.get(row).map(|g|g.b).unwrap_or(0));
+            assert_eq!(cells[6],air.program.gates.get(row).map(|g|g.z).unwrap_or(0));
+            assert_eq!(cells[7],row as u32);
+            assert_eq!(cells[8],air.program.use_counts.get(row).copied().unwrap_or(0));
+            assert_eq!(cells[9],u32::from(row==0));
+            assert_eq!(cells[10],u32::from(row==1));
+        }
+    }
+    #[test]
     fn statement_binding_is_cryptographically_included_in_program_digest(){
         let circuit=circuit();
         let gates=circuit.program.gates.to_vec();

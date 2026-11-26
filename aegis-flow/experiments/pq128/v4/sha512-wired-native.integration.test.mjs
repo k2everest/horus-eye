@@ -62,24 +62,28 @@ test('one full FIPS SHA-512 compression under native Plonky3 LogUp proves its pu
       // process timings; no private witness bytes or proof secrets.
       const timingFile=join(dir,'native-prover-time.txt');
       const native=spawnSync('/usr/bin/time',[
-        '-v','-o',timingFile,binary,'prove-wired',publicFile,privateFile,proofFile
-      ],{encoding:'utf8',timeout:300000,maxBuffer:131072,
+        '-v','-o',timingFile,'timeout','--signal=TERM','--kill-after=15s',
+        '300s',binary,'prove-wired',publicFile,privateFile,proofFile
+      ],{encoding:'utf8',timeout:335000,maxBuffer:131072,
         stdio:['ignore','pipe','inherit']});
       const timing=readFileSync(timingFile,'utf8');
       const metric=label=>{
         const line=timing.split('\n').find(row=>row.trimStart().startsWith(label+':'));
-        return line?.split(':').slice(1).join(':').trim()??null;
+        return line?.slice(line.indexOf(label+':')+label.length+1).trim()??null;
       };
-      const peak=Number(metric('Maximum resident set size (kbytes)'));
-      const cpu=Number(metric('User time (seconds)'))+
-                Number(metric('System time (seconds)'));
+      const peakRaw=metric('Maximum resident set size (kbytes)');
+      const cpuUser=metric('User time (seconds)');
+      const cpuSystem=metric('System time (seconds)');
+      const peak=peakRaw===null?null:Number(peakRaw);
+      const cpu=cpuUser===null||cpuSystem===null?null:
+        Number(cpuUser)+Number(cpuSystem);
       const resourceReport={
         schema:'AEGIS_SHA512_NATIVE_PROVER_RESOURCE_PROFILE_V1',
         program_sha512:expectedProgramSha,
         gate_count:circuit.gateCount,
         wire_count:circuit.wireCount,
-        peak_rss_kib:Number.isFinite(peak)?peak:null,
-        cpu_seconds:Number.isFinite(cpu)?cpu:null,
+        peak_rss_kib:peak!==null&&Number.isFinite(peak)?peak:null,
+        cpu_seconds:cpu!==null&&Number.isFinite(cpu)?cpu:null,
         wall_clock:metric('Elapsed (wall clock) time (h:mm:ss or m:ss)'),
         native_exit_code:native.status,
         native_signal:native.signal,

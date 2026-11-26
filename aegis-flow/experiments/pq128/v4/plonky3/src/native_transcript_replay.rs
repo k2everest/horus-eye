@@ -44,7 +44,7 @@ pub(crate) fn replay_verified(
     let shape=BatchShape{
         trace_widths:vec![4],
         public_value_counts:vec![32],
-        preprocessed_widths:vec![12],
+        preprocessed_widths:vec![11],
         has_preprocessed_commitment:common.preprocessed.is_some(),
         num_lookup_instances:1,
         lookup_pow_bits:0,
@@ -78,7 +78,7 @@ pub(crate) fn replay_verified(
         commitments_with_opening_points(
             &replay_cfg,&[air.clone()],zeta,
             &proof.commitments,&proof.opened_values,common,&proof.degree_bits,
-            &[12],[log_q].as_slice(),
+            &[11],[log_q].as_slice(),
         ).map_err(|_|())?;
     // Reproduce the exact HidingFriPcs::verify_with_preprocessing
     // augmentation of each point with random-codeword values, including

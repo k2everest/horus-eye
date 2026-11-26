@@ -16,6 +16,12 @@ import {sha512Bits} from '../constraints/sha512.mjs';
 
 const enabled=process.env.AEGIS_V4_P3_INTEGRATION==='1';
 const binary=process.env.AEGIS_V4_P3_BINARY;
+// CI retains 300s. Explicitly provisioned high-memory research machines may
+// request up to 30 minutes without changing any STARK/security parameter.
+const proverTimeoutMs=Number(process.env.AEGIS_SHA512_PROVER_TIMEOUT_MS??300000);
+if(!Number.isSafeInteger(proverTimeoutMs)||
+   proverTimeoutMs<300000||proverTimeoutMs>1800000)
+  throw new RangeError('SHA512_PROVER_TIMEOUT_OUT_OF_BOUNDS');
 const sha=bytes=>createHash('sha512').update(bytes).digest('hex');
 const run=(...args)=>execFileSync(binary,args,{
   encoding:'utf8',timeout:300000,maxBuffer:131072,
@@ -23,7 +29,7 @@ const run=(...args)=>execFileSync(binary,args,{
 });
 
 test('one full FIPS SHA-512 compression under native Plonky3 LogUp proves its public digest',
-  {skip:!enabled,timeout:360000},()=>{
+  {skip:!enabled,timeout:proverTimeoutMs+120000},()=>{
     assert.ok(binary?.startsWith('/'));
     const dir=mkdtempSync(join(tmpdir(),'aegis-v4-one-sha512-proof-'));
     try{
@@ -63,8 +69,9 @@ test('one full FIPS SHA-512 compression under native Plonky3 LogUp proves its pu
       const timingFile=join(dir,'native-prover-time.txt');
       const native=spawnSync('/usr/bin/time',[
         '-v','-o',timingFile,'timeout','--signal=TERM','--kill-after=15s',
-        '300s',binary,'prove-wired',publicFile,privateFile,proofFile
-      ],{encoding:'utf8',timeout:335000,maxBuffer:131072,
+        String(Math.ceil(proverTimeoutMs/1000))+'s',
+        binary,'prove-wired',publicFile,privateFile,proofFile
+      ],{encoding:'utf8',timeout:proverTimeoutMs+35000,maxBuffer:131072,
         stdio:['ignore','pipe','inherit']});
       const timing=readFileSync(timingFile,'utf8');
       const metric=label=>{
@@ -85,6 +92,7 @@ test('one full FIPS SHA-512 compression under native Plonky3 LogUp proves its pu
         peak_rss_kib:peak!==null&&Number.isFinite(peak)?peak:null,
         cpu_seconds:cpu!==null&&Number.isFinite(cpu)?cpu:null,
         wall_clock:metric('Elapsed (wall clock) time (h:mm:ss or m:ss)'),
+        prover_timeout_ms:proverTimeoutMs,
         native_exit_code:native.status,
         native_signal:native.signal,
         full_financial_relation_proved:false,

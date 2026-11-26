@@ -5,7 +5,8 @@ import {financialStatementDigest512} from '../financial/relation.mjs';
 import {compileOneInOneOut512} from './single-transfer-circuit.mjs';
 
 const TRACE_COLUMNS = 4;
-const PREPROCESSED_COLUMNS = 12;
+// The public active flag is derived from four immutable op flags in Rust.
+const PREPROCESSED_COLUMNS = 11;
 const BASE_ELEMENT_BYTES = 4;
 const MIN_ROWS = 4096;
 const HIDING_TRACE_MULTIPLIER = 2;

@@ -233,10 +233,11 @@ jobs:
       - name: Compile actual Plonky3 LogUp proof engine
         run: |
           cargo generate-lockfile --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
-          cargo build --locked --release --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
+          RUSTFLAGS='-C target-cpu=native' cargo build --locked --release --features parallel-sha512-research --manifest-path aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
       - name: Prove a complete SHA-512 compression with real Plonky3 LogUp before full six-hash proof
         env:
           AEGIS_V4_P3_INTEGRATION: '1'
+          RAYON_NUM_THREADS: '2'
           AEGIS_V4_P3_PROFILE: '1'
           AEGIS_SHA512_PROFILE_ARTIFACT: ${{ github.workspace }}/work/sha512-one-prover-profile.json
           AEGIS_V4_P3_BINARY: ${{ github.workspace }}/aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab
@@ -246,6 +247,7 @@ jobs:
       - name: Attempt complete 1-in-1-out six-SHA512 proof under hard resource budget
         env:
           AEGIS_V4_FULL_WIRED_SHA512: '1'
+          RAYON_NUM_THREADS: '2'
           AEGIS_V4_P3_PROFILE: '1'
           AEGIS_V4_P3_BINARY: ${{ github.workspace }}/aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab
           NODE_OPTIONS: '--max-old-space-size=8192'

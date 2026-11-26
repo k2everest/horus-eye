@@ -4,10 +4,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {execFileSync} from 'node:child_process';
+import {execFileSync,spawnSync} from 'node:child_process';
 import {mkdtempSync,writeFileSync,readFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
-import {join} from 'node:path';
+import {join,isAbsolute} from 'node:path';
 import {
   BitCircuit,evaluateBitCircuit,checkBitCircuit,
   snapshotBitWitness,bitCircuitPublicProgramBinary,
@@ -57,7 +57,46 @@ test('one full FIPS SHA-512 compression under native Plonky3 LogUp proves its pu
       const report=JSON.parse(run('security-report-wired',publicFile));
       assert.equal(report.program_sha512,expectedProgramSha);
       assert.equal(report.qrom_fiat_shamir_reduction_proved,false);
-      run('prove-wired',publicFile,privateFile,proofFile);
+      // Measure the NATIVE prover rather than the Node.js wrapper. The
+      // resource report contains only public circuit identifiers and
+      // process timings; no private witness bytes or proof secrets.
+      const timingFile=join(dir,'native-prover-time.txt');
+      const native=spawnSync('/usr/bin/time',[
+        '-v','-o',timingFile,binary,'prove-wired',publicFile,privateFile,proofFile
+      ],{encoding:'utf8',timeout:300000,maxBuffer:131072,
+        stdio:['ignore','pipe','inherit']});
+      const timing=readFileSync(timingFile,'utf8');
+      const metric=label=>{
+        const line=timing.split('\\n').find(row=>row.trimStart().startsWith(label+':'));
+        return line?.split(':').slice(1).join(':').trim()??null;
+      };
+      const peak=Number(metric('Maximum resident set size (kbytes)'));
+      const cpu=Number(metric('User time (seconds)'))+
+                Number(metric('System time (seconds)'));
+      const report={
+        schema:'AEGIS_SHA512_NATIVE_PROVER_RESOURCE_PROFILE_V1',
+        program_sha512:expectedProgramSha,
+        gate_count:circuit.gateCount,
+        wire_count:circuit.wireCount,
+        peak_rss_kib:Number.isFinite(peak)?peak:null,
+        cpu_seconds:Number.isFinite(cpu)?cpu:null,
+        wall_clock:metric('Elapsed (wall clock) time (h:mm:ss or m:ss)'),
+        native_exit_code:native.status,
+        native_signal:native.signal,
+        full_financial_relation_proved:false,
+        quantum_soundness_proved:false,
+        pq128_demonstrated:false,
+      };
+      const artifact=process.env.AEGIS_SHA512_PROFILE_ARTIFACT;
+      if(artifact){
+        assert.ok(isAbsolute(artifact));
+        writeFileSync(artifact,JSON.stringify(report,null,2)+'\\n',{mode:0o600});
+      }
+      console.log('AEGIS_SHA512_NATIVE_PROFILE='+JSON.stringify(report));
+      assert.equal(native.error,undefined,
+        'native prover launch/timeout failure: '+native.error?.message);
+      assert.equal(native.status,0,'native prover exit must be successful');
+      assert.ok(peak>0,'native prover peak RSS was not measured');
       const proof=JSON.parse(readFileSync(proofFile,'utf8'));
       assert.equal(proof.program_sha512,expectedProgramSha);
       assert.equal(JSON.parse(run('verify-wired',publicFile,proofFile,expectedProgramSha)).valid,true);

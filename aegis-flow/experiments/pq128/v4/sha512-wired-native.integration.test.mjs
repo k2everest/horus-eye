@@ -73,7 +73,7 @@ test('one full FIPS SHA-512 compression under native Plonky3 LogUp proves its pu
       const peak=Number(metric('Maximum resident set size (kbytes)'));
       const cpu=Number(metric('User time (seconds)'))+
                 Number(metric('System time (seconds)'));
-      const report={
+      const resourceReport={
         schema:'AEGIS_SHA512_NATIVE_PROVER_RESOURCE_PROFILE_V1',
         program_sha512:expectedProgramSha,
         gate_count:circuit.gateCount,
@@ -90,9 +90,9 @@ test('one full FIPS SHA-512 compression under native Plonky3 LogUp proves its pu
       const artifact=process.env.AEGIS_SHA512_PROFILE_ARTIFACT;
       if(artifact){
         assert.ok(isAbsolute(artifact));
-        writeFileSync(artifact,JSON.stringify(report,null,2)+'\n',{mode:0o600});
+        writeFileSync(artifact,JSON.stringify(resourceReport,null,2)+'\n',{mode:0o600});
       }
-      console.log('AEGIS_SHA512_NATIVE_PROFILE='+JSON.stringify(report));
+      console.log('AEGIS_SHA512_NATIVE_PROFILE='+JSON.stringify(resourceReport));
       assert.equal(native.error,undefined,
         'native prover launch/timeout failure: '+native.error?.message);
       assert.equal(native.status,0,'native prover exit must be successful');

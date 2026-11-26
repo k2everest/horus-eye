@@ -67,7 +67,7 @@ test('one full FIPS SHA-512 compression under native Plonky3 LogUp proves its pu
         stdio:['ignore','pipe','inherit']});
       const timing=readFileSync(timingFile,'utf8');
       const metric=label=>{
-        const line=timing.split('\\n').find(row=>row.trimStart().startsWith(label+':'));
+        const line=timing.split('\n').find(row=>row.trimStart().startsWith(label+':'));
         return line?.split(':').slice(1).join(':').trim()??null;
       };
       const peak=Number(metric('Maximum resident set size (kbytes)'));
@@ -90,7 +90,7 @@ test('one full FIPS SHA-512 compression under native Plonky3 LogUp proves its pu
       const artifact=process.env.AEGIS_SHA512_PROFILE_ARTIFACT;
       if(artifact){
         assert.ok(isAbsolute(artifact));
-        writeFileSync(artifact,JSON.stringify(report,null,2)+'\\n',{mode:0o600});
+        writeFileSync(artifact,JSON.stringify(report,null,2)+'\n',{mode:0o600});
       }
       console.log('AEGIS_SHA512_NATIVE_PROFILE='+JSON.stringify(report));
       assert.equal(native.error,undefined,

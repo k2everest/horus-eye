@@ -43,7 +43,7 @@ const GATE_WIDTH:usize=4;
 // wire-table index; wire use-count; constant-0/1 pin flags.
 // The active selector is derived from the immutable operation flags, saving
 // one full preprocessed column without altering the LogUp multiplicities.
-const PREP_WIDTH:usize=11;
+pub(crate) const PREP_WIDTH:usize=11;
 const BUS:LookupBus<'static>=LookupBus::new("AEGIS_V4_R1CS_WIRE_VALUES");
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]

@@ -16,7 +16,7 @@ use p3_uni_stark::{StarkConfig,StarkGenericConfig};
 use serde_json::{Value,json};
 use crate::{E,F,Pcs,EXT_DIM,LOG_BLOWUP,QUERIES,RANDOM_CODEWORDS};
 use crate::audit_challenger::{AuditedChallenger,ChallengeEvent};
-use crate::wired_r1cs::WiredAir;
+use crate::wired_r1cs::{WiredAir,PREP_WIDTH};
 
 type SC=StarkConfig<Pcs,E,AuditedChallenger>;
 fn coeffs(value:&E)->Vec<u32>{
@@ -44,7 +44,7 @@ pub(crate) fn replay_verified(
     let shape=BatchShape{
         trace_widths:vec![4],
         public_value_counts:vec![32],
-        preprocessed_widths:vec![11],
+        preprocessed_widths:vec![PREP_WIDTH],
         has_preprocessed_commitment:common.preprocessed.is_some(),
         num_lookup_instances:1,
         lookup_pow_bits:0,
@@ -78,7 +78,7 @@ pub(crate) fn replay_verified(
         commitments_with_opening_points(
             &replay_cfg,&[air.clone()],zeta,
             &proof.commitments,&proof.opened_values,common,&proof.degree_bits,
-            &[11],[log_q].as_slice(),
+            &[PREP_WIDTH],[log_q].as_slice(),
         ).map_err(|_|())?;
     // Reproduce the exact HidingFriPcs::verify_with_preprocessing
     // augmentation of each point with random-codeword values, including

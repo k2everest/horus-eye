@@ -20,6 +20,8 @@ jobs:
           node-version: '24'
       - name: Test experimental SHA-512 bindings and conditional standalone FRI arithmetic
         run: node --test aegis-flow/experiments/pq128/*.test.mjs aegis-flow/experiments/pq128/fri/*.test.mjs aegis-flow/experiments/pq128/financial/*.test.mjs aegis-flow/experiments/pq128/constraints/*.test.mjs aegis-flow/experiments/pq128/quantitative/*.test.mjs aegis-flow/experiments/pq128/v4/*.test.mjs aegis-flow/experiments/pq128/native/backend.test.mjs
+      - name: Check isolated high-memory SHA512 research script without executing it on hosted CI
+        run: bash -n aegis-flow/experiments/pq128/v4/run-one-sha512-highmem.sh
       - name: Verify candidate BabyBear16 field algebra, canonical encoding, uniform sampling, measured RBR gate and V5 no-release policy
         run: node --test aegis-flow/experiments/pq128/v5/*.test.mjs
       - name: Export reproducible field comparison, certificate and commercial-release blockade

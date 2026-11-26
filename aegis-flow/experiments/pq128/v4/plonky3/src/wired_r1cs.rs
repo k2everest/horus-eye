@@ -39,9 +39,11 @@ const MIN_ROWS:usize=4096;
 // Plonky3 0.8.0 LogUp RowEvalContext supports preprocessed rows, but
 // NOT periodic rows, when it constructs rational lookup witnesses.
 const GATE_WIDTH:usize=4;
-// columns: gate active; four one-hot op flags; gate (a,b,z) indices;
+// columns: four one-hot op flags; gate (a,b,z) indices;
 // wire-table index; wire use-count; constant-0/1 pin flags.
-const PREP_WIDTH:usize=12;
+// The active selector is derived from the immutable operation flags, saving
+// one full preprocessed column without altering the LogUp multiplicities.
+const PREP_WIDTH:usize=11;
 const BUS:LookupBus<'static>=LookupBus::new("AEGIS_V4_R1CS_WIRE_VALUES");
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
@@ -136,7 +138,7 @@ impl WiredAir{
         let b=g.map(|x|x.b).unwrap_or(0);
         let z=g.map(|x|x.z).unwrap_or(0);
         [
-            u32::from(g.is_some()),u32::from(op==1),u32::from(op==2),
+            u32::from(op==1),u32::from(op==2),
             u32::from(op==3),u32::from(op==4),a,b,z,
             i as u32,self.program.use_counts.get(i).copied().unwrap_or(0),
             u32::from(i==0),u32::from(i==1),
@@ -197,18 +199,20 @@ where AB:AirBuilder+PermutationAirBuilder+InteractionBuilder,
         // that the verifier reconstructs from the public program.
         let preprocessed=builder.preprocessed();
         let c=preprocessed.current_slice().to_vec();
-        let active:AB::Expr=c[0].into();
-        let op_and:AB::Expr=c[1].into();
-        let op_xor:AB::Expr=c[2].into();
-        let op_not:AB::Expr=c[3].into();
-        let op_eq:AB::Expr=c[4].into();
-        let a_id:AB::Expr=c[5].into();
-        let b_id:AB::Expr=c[6].into();
-        let z_id:AB::Expr=c[7].into();
-        let wire_id:AB::Expr=c[8].into();
-        let use_count:AB::Expr=c[9].into();
-        let pin_zero:AB::Expr=c[10].into();
-        let pin_one:AB::Expr=c[11].into();
+        let op_and:AB::Expr=c[0].into();
+        let op_xor:AB::Expr=c[1].into();
+        let op_not:AB::Expr=c[2].into();
+        let op_eq:AB::Expr=c[3].into();
+        let a_id:AB::Expr=c[4].into();
+        let b_id:AB::Expr=c[5].into();
+        let z_id:AB::Expr=c[6].into();
+        let wire_id:AB::Expr=c[7].into();
+        let use_count:AB::Expr=c[8].into();
+        let pin_zero:AB::Expr=c[9].into();
+        let pin_one:AB::Expr=c[10].into();
+        // Exactly one operation flag is set on an active trusted row.
+        // Their sum is identical to the removed preprocessed active bit.
+        let active=op_and.clone()+op_xor.clone()+op_not.clone()+op_eq.clone();
         for bit in [a.clone(),b.clone(),z.clone(),wire.clone()]{
             builder.assert_zero(bit.clone()*(bit.clone()-AB::Expr::ONE));
         }

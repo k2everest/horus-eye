@@ -16,6 +16,17 @@ if [[ ! "$mem_kib" =~ ^[0-9]+$ ]] || (( mem_kib < 48*1024*1024 )); then
   echo "AEGIS_SHA512_HIGHMEM_REQUIRED: minimum physical 48 GiB; observed ${mem_kib:-unknown} KiB" >&2
   exit 78
 fi
+# In containerized/self-hosted runners, the cgroup allocation can be much
+# smaller than physical RAM. Reject such environments before touching witness.
+for limit_file in /sys/fs/cgroup/memory.max /sys/fs/cgroup/memory/memory.limit_in_bytes; do
+  if [[ -r "$limit_file" ]]; then
+    limit=$(cat "$limit_file")
+    if [[ "$limit" =~ ^[0-9]+$ ]] && (( limit < 48*1024*1024*1024 )); then
+      echo "AEGIS_SHA512_INSUFFICIENT_CGROUP_MEMORY: $limit bytes" >&2
+      exit 78
+    fi
+  fi
+done
 root=$(git rev-parse --show-toplevel)
 cd "$root"
 manifest=aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml

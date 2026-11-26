@@ -238,8 +238,10 @@ jobs:
         env:
           AEGIS_V4_P3_INTEGRATION: '1'
           AEGIS_V4_P3_PROFILE: '1'
+          AEGIS_SHA512_PROFILE_ARTIFACT: ${{ github.workspace }}/work/sha512-one-prover-profile.json
           AEGIS_V4_P3_BINARY: ${{ github.workspace }}/aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab
         run: |
+          mkdir -p work
           /usr/bin/time -v timeout --signal=TERM --kill-after=30s 300s node --test aegis-flow/experiments/pq128/v4/sha512-wired-native.integration.test.mjs
       - name: Attempt complete 1-in-1-out six-SHA512 proof under hard resource budget
         env:
@@ -249,6 +251,14 @@ jobs:
           NODE_OPTIONS: '--max-old-space-size=8192'
         run: |
           /usr/bin/time -v timeout --signal=TERM --kill-after=30s 1200s node --test --test-concurrency=1 aegis-flow/experiments/pq128/v4/full-single-transfer.integration.test.mjs
+      - name: Preserve public SHA512 prover resource metrics even if full transfer fails
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: aegis-one-sha512-prover-profile-${{ github.sha }}
+          path: work/sha512-one-prover-profile.json
+          retention-days: 7
+          if-no-files-found: warn
 
 
   liboqs-interoperability-laboratory:

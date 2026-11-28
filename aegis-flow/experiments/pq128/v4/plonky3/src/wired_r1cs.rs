@@ -34,18 +34,19 @@ const MAX_GATES:usize=8_000_000;
 // rows * 2 * 8 <= 2^27, so <= 2^23 trace rows.
 const MAX_WIRES:usize=8_388_608;
 const MIN_ROWS:usize=4096;
-// Three private columns: a, b and canonical wire-table bit.
-// The gate output z is recomputed from a,b and the authenticated public
-// opcode; it is still linked to the canonical wire value through LogUp.
-// Eleven public-program columns live in deterministic preprocessing.
+// Two private columns: a and b. Each non-EQ gate computes its unique
+// output z and serves as the canonical wire table entry for that output.
+// Input-only wires, including constant pins 0/1, occupy dedicated padding
+// rows and provide their own table values. The verifier rebuilds this exact
+// deterministic layout and all use multiplicities from the public program.
 // Plonky3 0.8.0 LogUp RowEvalContext supports preprocessed rows, but
 // NOT periodic rows, when it constructs rational lookup witnesses.
-pub(crate) const GATE_WIDTH:usize=3;
-// columns: four one-hot op flags; gate (a,b,z) indices;
-// wire-table index; wire use-count; constant-0/1 pin flags.
-// The active selector is derived from the immutable operation flags, saving
-// one full preprocessed column without altering the LogUp multiplicities.
-pub(crate) const PREP_WIDTH:usize=11;
+pub(crate) const GATE_WIDTH:usize=2;
+// columns: four op flags; gate (a,b) + z/table wire ID;
+// table use-count; input-row constant-0 and constant-1 pins.
+// The canonical table identifier is the same z index as the gate output,
+// saving an entire public column as well as the two private wire columns.
+pub(crate) const PREP_WIDTH:usize=10;
 const BUS:LookupBus<'static>=LookupBus::new("AEGIS_V4_R1CS_WIRE_VALUES");
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
@@ -55,6 +56,7 @@ pub(crate) struct Gate{pub op:u8,pub a:u32,pub b:u32,pub z:u32}
 pub(crate) struct PublicProgram{
     gates:Arc<[Gate]>,
     use_counts:Arc<[u32]>,
+    input_wires:Arc<[u32]>,
     wire_count:usize,
     rows:usize,
     public_digest_words:[u16;32],
@@ -80,9 +82,16 @@ impl PublicProgram{
                 counts[i as usize]=counts[i as usize].checked_add(1).ok_or(())?;
             }
         }
+        // Every wire has precisely one table source: either its unique
+        // producing gate or a private input slot on a padded row. EQ gates
+        // do not produce wires, and are never table sources.
+        let input_wires:Vec<u32>=outputs.iter().enumerate()
+            .filter_map(|(i,produced)|(!produced).then_some(i as u32)).collect();
         // The LogUp height bound includes 3 queries per active gate.
         if 3u64*gates.len() as u64>=2_013_265_921{return Err(());}
-        let rows=gates.len().max(wire_count).max(MIN_ROWS).checked_next_power_of_two().ok_or(())?;
+        let required=gates.len().checked_add(input_wires.len()).ok_or(())?;
+        let rows=required.max(wire_count).max(MIN_ROWS)
+            .checked_next_power_of_two().ok_or(())?;
         let mut digest=Sha512::new();
         digest.update(if statement_digest.is_some(){
             FINANCIAL_PROGRAM_MAGIC
@@ -98,7 +107,8 @@ impl PublicProgram{
         let words=std::array::from_fn(|i|
             u16::from_be_bytes([hash[2*i],hash[2*i+1]]));
         if rows>(1usize<<23){return Err(());}
-        Ok(Self{gates:gates.into(),use_counts:counts.into(),wire_count,rows,
+        Ok(Self{gates:gates.into(),use_counts:counts.into(),
+            input_wires:input_wires.into(),wire_count,rows,
             public_digest_words:words})
     }
     pub(crate) fn from_bytes(bytes:&[u8])->Result<Self,()>{
@@ -138,12 +148,22 @@ impl WiredAir{
         let op=g.map(|x|x.op).unwrap_or(0);
         let a=g.map(|x|x.a).unwrap_or(0);
         let b=g.map(|x|x.b).unwrap_or(0);
-        let z=g.map(|x|x.z).unwrap_or(0);
+        let input_slot=i.checked_sub(self.program.gates.len())
+            .and_then(|offset|self.program.input_wires.get(offset)).copied();
+        // In gate rows, z is the sole output wire ID; in input rows,
+        // this same column is the original input wire ID. The two sources
+        // are disjoint by construction (unique output per wire).
+        let table_id=g.map(|x|x.z).or(input_slot).unwrap_or(0);
+        let table_count=match g{
+            Some(g) if g.op!=4=>self.program.use_counts[g.z as usize],
+            Some(_)=>0, // EQ has no newly produced output
+            None=>input_slot.map(|id|self.program.use_counts[id as usize]).unwrap_or(0),
+        };
         [
             u32::from(op==1),u32::from(op==2),
-            u32::from(op==3),u32::from(op==4),a,b,z,
-            i as u32,self.program.use_counts.get(i).copied().unwrap_or(0),
-            u32::from(i==0),u32::from(i==1),
+            u32::from(op==3),u32::from(op==4),a,b,table_id,
+            table_count,u32::from(input_slot==Some(0)),
+            u32::from(input_slot==Some(1)),
         ]
     }
     pub(crate) fn trace(&self,bits:&[u8])->Result<RowMajorMatrix<F>,()>{
@@ -153,9 +173,12 @@ impl WiredAir{
         for i in 0..self.program.rows{
             let (a,b)=if let Some(g)=self.program.gates.get(i){
                 (bits[g.a as usize],bits[g.b as usize])
-            }else{(0,0)};
-            let wire=bits.get(i).copied().unwrap_or(0);
-            trace.extend([a,b,wire].map(|x|F::from_u32(x as u32)));
+            }else{
+                let input=i.checked_sub(self.program.gates.len())
+                    .and_then(|offset|self.program.input_wires.get(offset));
+                (input.map(|id|bits[*id as usize]).unwrap_or(0),0)
+            };
+            trace.extend([a,b].map(|x|F::from_u32(x as u32)));
         }
         Ok(RowMajorMatrix::new(trace,GATE_WIDTH))
     }
@@ -193,7 +216,6 @@ where AB:AirBuilder+PermutationAirBuilder+InteractionBuilder,
         let s=row.current_slice();
         let a:AB::Expr=s[0].into();
         let b:AB::Expr=s[1].into();
-        let wire:AB::Expr=s[2].into();
         // Program instruction columns are independently rebuilt and
         // committed in the trusted PREPROCESSED matrix. The prover
         // cannot replace their content without changing the commitment
@@ -207,14 +229,13 @@ where AB:AirBuilder+PermutationAirBuilder+InteractionBuilder,
         let a_id:AB::Expr=c[4].into();
         let b_id:AB::Expr=c[5].into();
         let z_id:AB::Expr=c[6].into();
-        let wire_id:AB::Expr=c[7].into();
-        let use_count:AB::Expr=c[8].into();
-        let pin_zero:AB::Expr=c[9].into();
-        let pin_one:AB::Expr=c[10].into();
+        let use_count:AB::Expr=c[7].into();
+        let pin_zero:AB::Expr=c[8].into();
+        let pin_one:AB::Expr=c[9].into();
         // Exactly one operation flag is set on an active trusted row.
         // Their sum is identical to the removed preprocessed active bit.
         let active=op_and.clone()+op_xor.clone()+op_not.clone()+op_eq.clone();
-        for bit in [a.clone(),b.clone(),wire.clone()]{
+        for bit in [a.clone(),b.clone()]{
             builder.assert_zero(bit.clone()*(bit.clone()-AB::Expr::ONE));
         }
         let ab=a.clone()*b.clone();
@@ -227,17 +248,21 @@ where AB:AirBuilder+PermutationAirBuilder+InteractionBuilder,
              +op_xor.clone()*(a.clone()+b.clone()-ab*AB::Expr::from_u32(2))
              +op_not.clone()*(AB::Expr::ONE-a.clone());
         builder.assert_zero(op_eq*(a.clone()-b.clone()));
-        builder.assert_zero((AB::Expr::ONE-active.clone())*a.clone());
+        // On padding rows, b is canonically zero. a stores the private
+        // input bit for that row, if any; it is otherwise ignored.
         builder.assert_zero((AB::Expr::ONE-active.clone())*b.clone());
-        builder.assert_zero((AB::Expr::ONE-active.clone())*z.clone());
-        builder.assert_zero(pin_zero*wire.clone());
-        builder.assert_zero(pin_one*(wire.clone()-AB::Expr::ONE));
-        // Three gateside reads are matched against the exactly one wire
-        // table value, repeated with a PROGRAM-FIXED multiplicity.
+        // The 0/1 pins are on THEIR input-table rows, not gate rows.
+        builder.assert_zero(pin_zero*a.clone());
+        builder.assert_zero(pin_one*(a.clone()-AB::Expr::ONE));
+        // A gate publishes its computed output z. A padding input row
+        // publishes a. EQ contributes no table entry (use_count=0).
+        // Hence every wire has exactly one source, with its original
+        // program-fixed multiplicity, while all 3 gate reads are preserved.
+        let table_value=z.clone()+(AB::Expr::ONE-active.clone())*a.clone();
         BUS.lookup_key(builder,[a_id,a],Count::bounded(active.clone(),1));
         BUS.lookup_key(builder,[b_id,b],Count::bounded(active.clone(),1));
-        BUS.lookup_key(builder,[z_id,z],Count::bounded(active,1));
-        BUS.table_entry(builder,[wire_id,wire],use_count);
+        BUS.lookup_key(builder,[z_id.clone(),z],Count::bounded(active,1));
+        BUS.table_entry(builder,[z_id,table_value],use_count);
     }
 }
 

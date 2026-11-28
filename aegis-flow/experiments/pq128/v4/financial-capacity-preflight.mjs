@@ -34,6 +34,11 @@ export function publicSixSha512Capacity() {
     throw new Error('PUBLIC_CIRCUIT_EXCEEDS_BABYBEAR_DFT_DOMAIN');
   const baseTraceBytes=rows*BigInt(TRACE_COLUMNS*BASE_ELEMENT_BYTES);
   const publicPreprocessedBytes=rows*BigInt(PREPROCESSED_COLUMNS*BASE_ELEMENT_BYTES);
+  // The independently measured 2026-11-28 one-SHA512 experiment ran with
+  // four main and eleven preprocessed columns. New AIR still needs a
+  // finished proving benchmark: raw trace bytes are NOT total prover RSS.
+  const oldTraceBytes=rows*BigInt((4+11)*BASE_ELEMENT_BYTES);
+  const savedTraceBytes=oldTraceBytes-baseTraceBytes-publicPreprocessedBytes;
   // These are allocation LOWER BOUNDS, not estimates of peak prover RSS:
   // omits duplicated committed traces, LDEs, FRI, LogUp and Merkle trees.
   const output={
@@ -49,6 +54,14 @@ export function publicSixSha512Capacity() {
     main_trace_bytes_lower_bound:Number(baseTraceBytes),
     preprocessed_bytes_lower_bound:Number(publicPreprocessedBytes),
     combined_trace_bytes_lower_bound:Number(baseTraceBytes+publicPreprocessedBytes),
+    baseline_main_columns:4,
+    baseline_preprocessed_columns:11,
+    optimized_main_columns:TRACE_COLUMNS,
+    optimized_preprocessed_columns:PREPROCESSED_COLUMNS,
+    baseline_combined_trace_bytes_lower_bound:Number(oldTraceBytes),
+    avoided_raw_trace_bytes_lower_bound:Number(savedTraceBytes),
+    reduction_in_raw_trace_bytes_percent:Number((100*Number(savedTraceBytes)/Number(oldTraceBytes)).toFixed(2)),
+    prover_peak_ram_reduction_measured:false,
     e16_extension_degree:16,
     fri_queries:E16_QUERIES,
     random_hiding_codewords:E16_RANDOM_CODEWORDS,

@@ -79,7 +79,7 @@ test('complete 1x1 SHA512 circuit produces Plonky3 proof with LogUp wire consist
       maxBuffer:1024*1024,stdio:['ignore','pipe','inherit']});
     const timing=existsSync(timingFile)?readFileSync(timingFile,'utf8'):'';
     const metric=label=>{
-      const line=timing.split('\\n').find(x=>x.trimStart().startsWith(label+':'));
+      const line=timing.split('\n').find(x=>x.trimStart().startsWith(label+':'));
       return line?.slice(line.indexOf(label+':')+label.length+1).trim()??null;
     };
     const peakText=metric('Maximum resident set size (kbytes)');
@@ -112,10 +112,10 @@ test('complete 1x1 SHA512 circuit produces Plonky3 proof with LogUp wire consist
     const record=()=>{
       if(profileArtifact){
         assert.ok(isAbsolute(profileArtifact),'profile path must be absolute');
-        writeFileSync(profileArtifact,JSON.stringify(resourceProfile,null,2)+'\\n',
+        writeFileSync(profileArtifact,JSON.stringify(resourceProfile,null,2)+'\n',
           {mode:0o600});
       }
-      process.stderr.write('AEGIS_SIX_SHA512_RESOURCE_PROFILE='+JSON.stringify(resourceProfile)+'\\n');
+      process.stderr.write('AEGIS_SIX_SHA512_RESOURCE_PROFILE='+JSON.stringify(resourceProfile)+'\n');
     };
     record();
     assert.equal(proving.error,undefined,
@@ -186,9 +186,9 @@ test('complete 1x1 SHA512 circuit produces Plonky3 proof with LogUp wire consist
         chmodSync(dst,0o600);
       }
       writeFileSync(join(retainedDir,'public-statement.json'),
-        JSON.stringify(f.statement,null,2)+'\\n',{mode:0o600,flag:'wx'});
+        JSON.stringify(f.statement,null,2)+'\n',{mode:0o600,flag:'wx'});
       writeFileSync(join(retainedDir,'financial-proof-profile.json'),
-        JSON.stringify(resourceProfile,null,2)+'\\n',{mode:0o600,flag:'wx'});
+        JSON.stringify(resourceProfile,null,2)+'\n',{mode:0o600,flag:'wx'});
       stage('synthetic-public-evidence-retained',started);
     }
   }finally{rmSync(dir,{recursive:true,force:true});}

@@ -332,7 +332,7 @@ mod tests{
         let source=air.trace(&[0,1,1,1,1,1]).unwrap();
         let trace=RowMajorMatrix::new(source.values.iter()
             .map(|x|SpikeBase::new(x.as_canonical_u32()))
-            .collect::<Vec<_>>(),4);
+            .collect::<Vec<_>>(),crate::wired_r1cs::GATE_WIDTH);
         let public=air.public_values().iter()
             .map(|x|SpikeBase::new(x.as_canonical_u32()))
             .collect::<Vec<_>>();
@@ -441,7 +441,7 @@ mod tests{
         let financial_source=financial_air_a.trace(&[0,1,1,1,1,1]).unwrap();
         let financial_trace=RowMajorMatrix::new(financial_source.values.iter()
             .map(|x|SpikeBase::new(x.as_canonical_u32()))
-            .collect::<Vec<_>>(),4);
+            .collect::<Vec<_>>(),crate::wired_r1cs::GATE_WIDTH);
         let financial_instances=[StarkInstance::<CFG,_>{
             air:&financial_air_a,trace:&financial_trace,
             public_values:financial_public_a.clone(),
@@ -483,7 +483,7 @@ mod tests{
         let bad_source=air.trace(&[0,1,1,1,1,0]).unwrap();
         let bad_trace=RowMajorMatrix::new(bad_source.values.iter()
             .map(|x|SpikeBase::new(x.as_canonical_u32()))
-            .collect::<Vec<_>>(),4);
+            .collect::<Vec<_>>(),crate::wired_r1cs::GATE_WIDTH);
         let invalid_public=air.public_values().iter()
             .map(|x|SpikeBase::new(x.as_canonical_u32()))
             .collect::<Vec<_>>();

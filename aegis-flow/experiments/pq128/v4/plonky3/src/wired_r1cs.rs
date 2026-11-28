@@ -784,7 +784,7 @@ mod tests{
     }
     #[test]
     fn derived_gate_output_matches_old_boolean_equations_for_every_input(){
-        assert_eq!(GATE_WIDTH,3);
+        assert_eq!(GATE_WIDTH,2);
         for op in 1u8..=4{
             for a in [0u32,1]{
                 for b in [0u32,1]{
@@ -811,27 +811,51 @@ mod tests{
         let air=circuit();
         let compact=air.trace(&[0,1,1,1,1,1]).unwrap();
         assert_eq!(compact.values.len(),air.rows()*GATE_WIDTH);
-        assert_eq!(&compact.values[0..3],&[F::ONE,F::ONE,F::ZERO]);
-        assert_eq!(&compact.values[3..6],&[F::ONE,F::ZERO,F::ONE]);
+        assert_eq!(&compact.values[0..2],&[F::ONE,F::ONE]);
+        assert_eq!(&compact.values[2..4],&[F::ONE,F::ZERO]);
     }
     #[test]
-    fn compact_public_preprocessing_preserves_each_original_active_selector(){
+    fn compact_program_has_one_and_only_one_table_source_per_wire(){
         let air=circuit();
-        assert_eq!(PREP_WIDTH,11);
+        assert_eq!(GATE_WIDTH,2);
+        assert_eq!(PREP_WIDTH,10);
+        let mut sources=vec![0u32;air.program.wire_count];
+        let mut multiplicities=vec![0u32;air.program.wire_count];
         for row in 0..air.rows(){
             let cells=air.program_row(row);
-            let active_from_flags=cells[0]+cells[1]+cells[2]+cells[3];
-            let original_active=u32::from(row<air.program.gates.len());
-            assert_eq!(active_from_flags,original_active,"selector at row {row}");
-            assert!(active_from_flags<=1);
-            assert_eq!(cells[4],air.program.gates.get(row).map(|g|g.a).unwrap_or(0));
-            assert_eq!(cells[5],air.program.gates.get(row).map(|g|g.b).unwrap_or(0));
-            assert_eq!(cells[6],air.program.gates.get(row).map(|g|g.z).unwrap_or(0));
-            assert_eq!(cells[7],row as u32);
-            assert_eq!(cells[8],air.program.use_counts.get(row).copied().unwrap_or(0));
-            assert_eq!(cells[9],u32::from(row==0));
-            assert_eq!(cells[10],u32::from(row==1));
+            let flags=cells[0]+cells[1]+cells[2]+cells[3];
+            assert_eq!(flags,u32::from(row<air.program.gates.len()));
+            assert!(flags<=1);
+            let gate=air.program.gates.get(row);
+            let input=row.checked_sub(air.program.gates.len())
+                .and_then(|index|air.program.input_wires.get(index)).copied();
+            assert_eq!(cells[4],gate.map(|g|g.a).unwrap_or(0));
+            assert_eq!(cells[5],gate.map(|g|g.b).unwrap_or(0));
+            assert_eq!(cells[6],gate.map(|g|g.z).or(input).unwrap_or(0));
+            assert_eq!(cells[8],u32::from(input==Some(0)));
+            assert_eq!(cells[9],u32::from(input==Some(1)));
+            let count=match gate{
+                Some(g) if g.op!=4=>{
+                    sources[g.z as usize]+=1;
+                    air.program.use_counts[g.z as usize]
+                },
+                Some(_)=>0, // equality row produces no new wire
+                None=>input.map(|id|{
+                    sources[id as usize]+=1;
+                    air.program.use_counts[id as usize]
+                }).unwrap_or(0),
+            };
+            assert_eq!(cells[7],count);
+            multiplicities[cells[6] as usize]+=cells[7];
         }
+        assert!(sources.iter().all(|&n|n==1));
+        assert_eq!(multiplicities.as_slice(),air.program.use_counts.as_ref());
+        let trace=air.trace(&[0,1,1,1,1,1]).unwrap();
+        assert_eq!(trace.values.len(),air.rows()*GATE_WIDTH);
+        assert_eq!(&trace.values[0..2],&[F::ONE,F::ONE]);
+        assert_eq!(&trace.values[2..4],&[F::ONE,F::ZERO]);
+        assert_eq!(&trace.values[6..8],&[F::ZERO,F::ZERO]);
+        assert_eq!(&trace.values[8..10],&[F::ONE,F::ZERO]);
     }
     #[test]
     fn statement_binding_is_cryptographically_included_in_program_digest(){

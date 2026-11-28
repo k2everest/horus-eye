@@ -122,6 +122,6 @@ test('one full FIPS SHA-512 compression under native Plonky3 LogUp proves its pu
       const otherSha=sha(modified);
       assert.equal(JSON.parse(run('verify-wired',second,proofFile,otherSha)).valid,false);
       assert.equal(JSON.parse(run('verify-wired',publicFile,proofFile,'aa'.repeat(64))).valid,false);
-      assert.equal(proof.scheme,'AEGIS_V4_PLONKY3_WIRED_LOGUP_RESEARCH_V1');
+      assert.equal(proof.scheme,'AEGIS_V4_PLONKY3_WIRED_LOGUP_COMPACT_V2');
     }finally{rmSync(dir,{recursive:true,force:true});}
   });

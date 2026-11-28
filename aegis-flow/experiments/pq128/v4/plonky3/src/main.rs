@@ -5,6 +5,14 @@
 mod financial;
 mod sha512_gates;
 mod wired_r1cs;
+mod audit_challenger;
+mod native_transcript_replay;
+// Research-only field reference; never linked into production prover/verifier.
+#[cfg(test)]
+mod fp16_reference;
+// Plonky3 generic native type compatibility spike: research-only.
+#[cfg(test)]
+mod p3_babybear16_spike;
 use std::{fs,panic::{catch_unwind,AssertUnwindSafe},path::Path};
 use base64::{engine::general_purpose::STANDARD as B64,Engine};
 use p3_air::{Air,AirBuilder,BaseAir,WindowAccess};
@@ -116,7 +124,10 @@ fn pcs_rng(public_program:Option<&[u8;64]>,label:&[u8])->StdRng{
             .expect("cryptographically secure OS RNG required")
     }
 }
-fn config_from_public_program(public_program:Option<&[u8;64]>)->Config{
+// Construct PCS once. HidingFriPcs::clone() FORKS its RNG, so cloning
+// the deterministically salted PUBLIC preprocessing PCS changes its Merkle
+// commitment. Never clone a public-preprocessing PCS before commitment.
+fn pcs_and_challenger(public_program:Option<&[u8;64]>)->(Pcs,Chall){
     // All main-trace proof paths call config() and receive fresh OS entropy.
     // The alternative below is exclusively for public, verifier-rebuilt
     // preprocessed MMCS commitments.
@@ -142,7 +153,18 @@ fn config_from_public_program(public_program:Option<&[u8;64]>)->Config{
         RANDOM_CODEWORDS,pcs_rng(public_program,b"PUBLIC_PREP_PCS"));
     let challenger=Chall::new(HashChallenger::new(
         b"AEGIS_V4_P3_HIDING_EXT8_LAB_V1".to_vec(),chal_hash));
+    (pcs,challenger)
+}
+fn config_from_public_program(public_program:Option<&[u8;64]>)->Config{
+    let (pcs,challenger)=pcs_and_challenger(public_program);
     Config::new(pcs,challenger)
+}
+fn audit_config_from_public_program(
+    public_program:Option<&[u8;64]>
+)->p3_uni_stark::StarkConfig<Pcs,E,audit_challenger::AuditedChallenger>{
+    let (pcs,challenger)=pcs_and_challenger(public_program);
+    p3_uni_stark::StarkConfig::new(pcs,
+        audit_challenger::AuditedChallenger::new(challenger))
 }
 fn config()->Config{config_from_public_program(None)}
 // DO NOT use this config for prove_batch/verify_batch: its salts are
@@ -330,6 +352,27 @@ fn main(){
                 wired_r1cs::prove_wired(&p,&w,Path::new(&args[4])))).ok())
             .is_some_and(|r|r.is_ok());
         if !result{eprintln!("WIRED_BOOLEAN_PROOF_GENERATION_FAILED");std::process::exit(1);}
+        return;
+    }
+    // Audited verifier: accepts only proofs accepted by the original
+    // verifier AND by the exact PCS verifier with an observing challenger.
+    // This is forensic instrumentation; never a consensus acceptance path.
+    if args.len()==5&&args[1]=="audit-verify-wired"{
+        let report=match (fs::read(&args[2]),fs::read(&args[3])){
+            (Ok(program),Ok(bundle))
+                if program.len()<=110_000_128&&bundle.len()<=44*1024*1024=>
+                catch_unwind(AssertUnwindSafe(||
+                    wired_r1cs::audit_wired_verifier_transcript(
+                        &program,&bundle,&args[4])
+                )).ok().and_then(Result::ok),
+            _=>None,
+        };
+        if let Some(report)=report{
+            println!("{}",report);
+        }else{
+            eprintln!("AUDITED_WIRED_TRANSCRIPT_REJECTED");
+            std::process::exit(1);
+        }
         return;
     }
     if args.len()==5&&args[1]=="verify-wired"{

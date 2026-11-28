@@ -6,6 +6,11 @@ publish = false
 
 # Deliberately exact versions of the same Plonky3 0.8.0 release family.
 # Reproducibility requires checking in Cargo.lock after a successful build.
+# Experimental parallel prover is opt-in. The ordinary E8 and patched
+# BabyBear16 compatibility laboratories retain their original build.
+[features]
+parallel-sha512-research = ["p3-maybe-rayon/parallel"]
+
 [dependencies]
 p3-air = "=0.8.0"
 p3-batch-stark = "=0.8.0"
@@ -17,6 +22,8 @@ p3-dft = "=0.8.0"
 p3-field = "=0.8.0"
 p3-fri = "=0.8.0"
 p3-matrix = "=0.8.0"
+p3-maybe-rayon = "=0.8.0" # feature unification for opt-in Rayon research
+p3-monty-31 = "=0.8.0" # test-only native BabyBear16 parameters spike
 p3-merkle-tree = "=0.8.0"
 p3-symmetric = "=0.8.0"
 p3-uni-stark = "=0.8.0"

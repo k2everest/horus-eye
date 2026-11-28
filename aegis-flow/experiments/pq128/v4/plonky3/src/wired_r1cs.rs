@@ -34,14 +34,19 @@ const MAX_GATES:usize=8_000_000;
 // rows * 2 * 8 <= 2^27, so <= 2^23 trace rows.
 const MAX_WIRES:usize=8_388_608;
 const MIN_ROWS:usize=4096;
-// Four private-wire columns. Twelve public-program columns live in
-// deterministic preprocessed trace, not prover-controlled main trace.
+// Two private columns: a and b. Each non-EQ gate computes its unique
+// output z and serves as the canonical wire table entry for that output.
+// Input-only wires, including constant pins 0/1, occupy dedicated padding
+// rows and provide their own table values. The verifier rebuilds this exact
+// deterministic layout and all use multiplicities from the public program.
 // Plonky3 0.8.0 LogUp RowEvalContext supports preprocessed rows, but
 // NOT periodic rows, when it constructs rational lookup witnesses.
-const GATE_WIDTH:usize=4;
-// columns: gate active; four one-hot op flags; gate (a,b,z) indices;
-// wire-table index; wire use-count; constant-0/1 pin flags.
-const PREP_WIDTH:usize=12;
+pub(crate) const GATE_WIDTH:usize=2;
+// columns: four op flags; gate (a,b) + z/table wire ID;
+// table use-count; input-row constant-0 and constant-1 pins.
+// The canonical table identifier is the same z index as the gate output,
+// saving an entire public column as well as the two private wire columns.
+pub(crate) const PREP_WIDTH:usize=10;
 const BUS:LookupBus<'static>=LookupBus::new("AEGIS_V4_R1CS_WIRE_VALUES");
 
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
@@ -51,6 +56,7 @@ pub(crate) struct Gate{pub op:u8,pub a:u32,pub b:u32,pub z:u32}
 pub(crate) struct PublicProgram{
     gates:Arc<[Gate]>,
     use_counts:Arc<[u32]>,
+    input_wires:Arc<[u32]>,
     wire_count:usize,
     rows:usize,
     public_digest_words:[u16;32],
@@ -76,9 +82,16 @@ impl PublicProgram{
                 counts[i as usize]=counts[i as usize].checked_add(1).ok_or(())?;
             }
         }
+        // Every wire has precisely one table source: either its unique
+        // producing gate or a private input slot on a padded row. EQ gates
+        // do not produce wires, and are never table sources.
+        let input_wires:Vec<u32>=outputs.iter().enumerate()
+            .filter_map(|(i,produced)|(!produced).then_some(i as u32)).collect();
         // The LogUp height bound includes 3 queries per active gate.
         if 3u64*gates.len() as u64>=2_013_265_921{return Err(());}
-        let rows=gates.len().max(wire_count).max(MIN_ROWS).checked_next_power_of_two().ok_or(())?;
+        let required=gates.len().checked_add(input_wires.len()).ok_or(())?;
+        let rows=required.max(wire_count).max(MIN_ROWS)
+            .checked_next_power_of_two().ok_or(())?;
         let mut digest=Sha512::new();
         digest.update(if statement_digest.is_some(){
             FINANCIAL_PROGRAM_MAGIC
@@ -94,7 +107,8 @@ impl PublicProgram{
         let words=std::array::from_fn(|i|
             u16::from_be_bytes([hash[2*i],hash[2*i+1]]));
         if rows>(1usize<<23){return Err(());}
-        Ok(Self{gates:gates.into(),use_counts:counts.into(),wire_count,rows,
+        Ok(Self{gates:gates.into(),use_counts:counts.into(),
+            input_wires:input_wires.into(),wire_count,rows,
             public_digest_words:words})
     }
     pub(crate) fn from_bytes(bytes:&[u8])->Result<Self,()>{
@@ -134,12 +148,22 @@ impl WiredAir{
         let op=g.map(|x|x.op).unwrap_or(0);
         let a=g.map(|x|x.a).unwrap_or(0);
         let b=g.map(|x|x.b).unwrap_or(0);
-        let z=g.map(|x|x.z).unwrap_or(0);
+        let input_slot=i.checked_sub(self.program.gates.len())
+            .and_then(|offset|self.program.input_wires.get(offset)).copied();
+        // In gate rows, z is the sole output wire ID; in input rows,
+        // this same column is the original input wire ID. The two sources
+        // are disjoint by construction (unique output per wire).
+        let table_id=g.map(|x|x.z).or(input_slot).unwrap_or(0);
+        let table_count=match g{
+            Some(g) if g.op!=4=>self.program.use_counts[g.z as usize],
+            Some(_)=>0, // EQ has no newly produced output
+            None=>input_slot.map(|id|self.program.use_counts[id as usize]).unwrap_or(0),
+        };
         [
-            u32::from(g.is_some()),u32::from(op==1),u32::from(op==2),
-            u32::from(op==3),u32::from(op==4),a,b,z,
-            i as u32,self.program.use_counts.get(i).copied().unwrap_or(0),
-            u32::from(i==0),u32::from(i==1),
+            u32::from(op==1),u32::from(op==2),
+            u32::from(op==3),u32::from(op==4),a,b,table_id,
+            table_count,u32::from(input_slot==Some(0)),
+            u32::from(input_slot==Some(1)),
         ]
     }
     pub(crate) fn trace(&self,bits:&[u8])->Result<RowMajorMatrix<F>,()>{
@@ -147,11 +171,14 @@ impl WiredAir{
             bits.iter().any(|&b|b>1)||bits[0]!=0||bits[1]!=1{return Err(());}
         let mut trace=Vec::with_capacity(self.program.rows*GATE_WIDTH);
         for i in 0..self.program.rows{
-            let (a,b,z)=if let Some(g)=self.program.gates.get(i){
-                (bits[g.a as usize],bits[g.b as usize],bits[g.z as usize])
-            }else{(0,0,0)};
-            let wire=bits.get(i).copied().unwrap_or(0);
-            trace.extend([a,b,z,wire].map(|x|F::from_u32(x as u32)));
+            let (a,b)=if let Some(g)=self.program.gates.get(i){
+                (bits[g.a as usize],bits[g.b as usize])
+            }else{
+                let input=i.checked_sub(self.program.gates.len())
+                    .and_then(|offset|self.program.input_wires.get(offset));
+                (input.map(|id|bits[*id as usize]).unwrap_or(0),0)
+            };
+            trace.extend([a,b].map(|x|F::from_u32(x as u32)));
         }
         Ok(RowMajorMatrix::new(trace,GATE_WIDTH))
     }
@@ -189,45 +216,53 @@ where AB:AirBuilder+PermutationAirBuilder+InteractionBuilder,
         let s=row.current_slice();
         let a:AB::Expr=s[0].into();
         let b:AB::Expr=s[1].into();
-        let z:AB::Expr=s[2].into();
-        let wire:AB::Expr=s[3].into();
         // Program instruction columns are independently rebuilt and
         // committed in the trusted PREPROCESSED matrix. The prover
         // cannot replace their content without changing the commitment
         // that the verifier reconstructs from the public program.
         let preprocessed=builder.preprocessed();
         let c=preprocessed.current_slice().to_vec();
-        let active:AB::Expr=c[0].into();
-        let op_and:AB::Expr=c[1].into();
-        let op_xor:AB::Expr=c[2].into();
-        let op_not:AB::Expr=c[3].into();
-        let op_eq:AB::Expr=c[4].into();
-        let a_id:AB::Expr=c[5].into();
-        let b_id:AB::Expr=c[6].into();
-        let z_id:AB::Expr=c[7].into();
-        let wire_id:AB::Expr=c[8].into();
-        let use_count:AB::Expr=c[9].into();
-        let pin_zero:AB::Expr=c[10].into();
-        let pin_one:AB::Expr=c[11].into();
-        for bit in [a.clone(),b.clone(),z.clone(),wire.clone()]{
+        let op_and:AB::Expr=c[0].into();
+        let op_xor:AB::Expr=c[1].into();
+        let op_not:AB::Expr=c[2].into();
+        let op_eq:AB::Expr=c[3].into();
+        let a_id:AB::Expr=c[4].into();
+        let b_id:AB::Expr=c[5].into();
+        let z_id:AB::Expr=c[6].into();
+        let use_count:AB::Expr=c[7].into();
+        let pin_zero:AB::Expr=c[8].into();
+        let pin_one:AB::Expr=c[9].into();
+        // Exactly one operation flag is set on an active trusted row.
+        // Their sum is identical to the removed preprocessed active bit.
+        let active=op_and.clone()+op_xor.clone()+op_not.clone()+op_eq.clone();
+        for bit in [a.clone(),b.clone()]{
             builder.assert_zero(bit.clone()*(bit.clone()-AB::Expr::ONE));
         }
         let ab=a.clone()*b.clone();
-        builder.assert_zero(op_and*(ab.clone()-z.clone()));
-        builder.assert_zero(op_xor*(a.clone()+b.clone()-ab*AB::Expr::from_u32(2)-z.clone()));
-        builder.assert_zero(op_not*(AB::Expr::ONE-a.clone()-z.clone()));
+        // Reconstruct z without allocating or committing a fourth private
+        // column. The opcode is verifier-derived, one-hot and committed in
+        // trusted preprocessing. For AND/XOR/NOT, the expression is Boolean
+        // whenever a and b are Boolean. EQ, whose fixed output wire is 0,
+        // still enforces a==b as a separate gate equation.
+        let z=op_and.clone()*ab.clone()
+             +op_xor.clone()*(a.clone()+b.clone()-ab*AB::Expr::from_u32(2))
+             +op_not.clone()*(AB::Expr::ONE-a.clone());
         builder.assert_zero(op_eq*(a.clone()-b.clone()));
-        builder.assert_zero((AB::Expr::ONE-active.clone())*a.clone());
+        // On padding rows, b is canonically zero. a stores the private
+        // input bit for that row, if any; it is otherwise ignored.
         builder.assert_zero((AB::Expr::ONE-active.clone())*b.clone());
-        builder.assert_zero((AB::Expr::ONE-active.clone())*z.clone());
-        builder.assert_zero(pin_zero*wire.clone());
-        builder.assert_zero(pin_one*(wire.clone()-AB::Expr::ONE));
-        // Three gateside reads are matched against the exactly one wire
-        // table value, repeated with a PROGRAM-FIXED multiplicity.
+        // The 0/1 pins are on THEIR input-table rows, not gate rows.
+        builder.assert_zero(pin_zero*a.clone());
+        builder.assert_zero(pin_one*(a.clone()-AB::Expr::ONE));
+        // A gate publishes its computed output z. A padding input row
+        // publishes a. EQ contributes no table entry (use_count=0).
+        // Hence every wire has exactly one source, with its original
+        // program-fixed multiplicity, while all 3 gate reads are preserved.
+        let table_value=z.clone()+(AB::Expr::ONE-active.clone())*a.clone();
         BUS.lookup_key(builder,[a_id,a],Count::bounded(active.clone(),1));
         BUS.lookup_key(builder,[b_id,b],Count::bounded(active.clone(),1));
-        BUS.lookup_key(builder,[z_id,z],Count::bounded(active,1));
-        BUS.table_entry(builder,[wire_id,wire],use_count);
+        BUS.lookup_key(builder,[z_id.clone(),z],Count::bounded(active,1));
+        BUS.table_entry(builder,[z_id,table_value],use_count);
     }
 }
 
@@ -307,6 +342,25 @@ pub(crate) fn wired_security_report(program_bytes:&[u8])->Result<serde_json::Val
     let interactions=LogUpAir{num_interactions:4,max_message_width:2};
     let logup=security_term(&interactions,&shape,&GrindingSites::NONE).ok_or(())?;
     let rbr=proven_security_report(&regime,&params,&shape,&[logup],&GrindingSites::NONE);
+    // Counterfactual research sizing: SAME *compiled* program constraint
+    // geometry with 16-dimensional extension, 512 FRI queries, and 16
+    // hiding codewords. This does not construct an E16 field or proof.
+    // It deliberately preserves the ORIGINAL 170-bit external collision
+    // assumption: upgrading it requires a separate quantum hash theorem.
+    let candidate_batched=p3_batch_stark::num_batched_openings(
+        GATE_WIDTH,false,PREP_WIDTH,false,chunks,lookups.len(),
+        16,p3_uni_stark::OpeningShape::hiding(16));
+    let candidate_shape=InstanceShape{
+        modulus_bits:494,
+        num_batched_functions:candidate_batched,
+        ..shape
+    };
+    let candidate_regime=FriRegime{num_queries:512,..regime};
+    let candidate_logup=security_term(
+        &interactions,&candidate_shape,&GrindingSites::NONE).ok_or(())?;
+    let candidate_rbr=proven_security_report(
+        &candidate_regime,&params,&candidate_shape,
+        &[candidate_logup],&GrindingSites::NONE);
     let quotient_domain=rows.checked_mul(chunks).ok_or(())?;
     let recomposed_general=rows.checked_mul(chunks.checked_add(1).ok_or(())?).ok_or(())?;
     let initial_lde=committed_degree.checked_shl(crate::LOG_BLOWUP as u32).ok_or(())?;
@@ -372,6 +426,24 @@ pub(crate) fn wired_security_report(program_bytes:&[u8])->Result<serde_json::Val
         "committed_degree_geometry":degree_geometry,
         "rbr_bits":rbr.security_bits(),
         "rbr_breakdown":rbr,
+        "counterfactual_field16_rbr":{
+            "status":"SHADOW_RESEARCH_ONLY_NOT_AN_IMPLEMENTED_P3_FIELD",
+            "same_compiled_air_constraints":params.num_constraints,
+            "same_compiled_quotient_chunks":chunks,
+            "field_modulus_bits_floor":494,
+            "fri_queries":512,
+            "hiding_random_codewords":16,
+            "num_batched_functions":candidate_batched,
+            "collision_assumption_bits_unmodified":crate::IDEAL_HASH_COLLISION_BITS,
+            "conditional_interactive_bits":candidate_rbr.security_bits(),
+            "conditional_breakdown":candidate_rbr,
+            "native_extension_field16_implemented":false,
+            "challenger_transcript_equivalence_proved":false,
+            "merkle_quantum_extraction_proved":false,
+            "quantum_rbr_knowledge_proved":false,
+            "pq128_demonstrated":false,
+            "production_ready":false
+        },
         "collision_cap_is_external_assumption":true,
         "rbr_report_is_for_actual_compiled_wired_air":true,
         "plonky3_field16_implemented":false,
@@ -388,7 +460,7 @@ pub(crate) fn wired_security_report(program_bytes:&[u8])->Result<serde_json::Val
 // A general-purpose STARK proof of a *fixed Boolean program*. This is
 // not by itself a financial proof: the verifier must independently rebuild
 // and authenticate the complete program for the relevant public statement.
-const WIRED_SCHEME:&str="AEGIS_V4_PLONKY3_WIRED_LOGUP_RESEARCH_V1";
+const WIRED_SCHEME:&str="AEGIS_V4_PLONKY3_WIRED_LOGUP_COMPACT_V2";
 const MAX_PROGRAM_BYTES:usize=110_000_128;
 const MAX_WIRED_PROOF:usize=32*1024*1024;
 const MAX_WIRED_BUNDLE:usize=44*1024*1024;
@@ -420,11 +492,13 @@ fn public_program(bytes:&[u8])->Result<(PublicProgram,String),()>{
 // Never logs witnesses, secret bits, note values or financial metadata.
 fn lab_phase(label:&str,start:std::time::Instant,rows:usize){
     if std::env::var("AEGIS_V4_P3_PROFILE").as_deref()!=Ok("1"){return;}
-    let rss=fs::read_to_string("/proc/self/status").ok()
-        .and_then(|s|s.lines().find(|l|l.starts_with("VmRSS:")).map(str::to_string))
-        .unwrap_or_else(||"VmRSS: unavailable".to_string());
-    eprintln!("AEGIS_WIRED_PROVER_PHASE={} elapsed_ms={} rows={} {}",
-        label,start.elapsed().as_millis(),rows,rss);
+    let status=fs::read_to_string("/proc/self/status").unwrap_or_default();
+    let metric=|name:&str|status.lines().find(|l|l.starts_with(name))
+        .unwrap_or("unavailable");
+    let rss=metric("VmRSS:");
+    let hwm=metric("VmHWM:");
+    eprintln!("AEGIS_WIRED_PROVER_PHASE={} elapsed_ms={} rows={} {} {}",
+        label,start.elapsed().as_millis(),rows,rss,hwm);
 }
 pub(crate) fn prove_wired(program_bytes:&[u8],assignment:&[u8],output:&Path)->Result<(),()>{
     let start=std::time::Instant::now();
@@ -439,7 +513,27 @@ pub(crate) fn prove_wired(program_bytes:&[u8],assignment:&[u8],output:&Path)->Re
     let prover_data=ProverData::from_instances(&preprocessor_config,&instances)
         .map_err(|_|())?;
     lab_phase("public-preprocessed-committed",start,air.rows());
-    let proof=prove_batch(&config,&instances,&prover_data).map_err(|_|())?;
+    // Periodic RSS/high-water samples survive in the Actions log even when
+    // the runner kills the process before /usr/bin/time can flush its file.
+    // Only process memory and row count are logged; NEVER witness values.
+    let reporter_stop=std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let reporter=if std::env::var("AEGIS_V4_P3_PROFILE").as_deref()==Ok("1"){
+        let done=reporter_stop.clone();
+        let rows=air.rows();
+        Some(std::thread::spawn(move||{
+            use std::sync::atomic::Ordering;
+            while !done.load(Ordering::Relaxed){
+                std::thread::sleep(std::time::Duration::from_secs(5));
+                if !done.load(Ordering::Relaxed){
+                    lab_phase("batch-stark-progress",start,rows);
+                }
+            }
+        }))
+    }else{None};
+    let prove_result=prove_batch(&config,&instances,&prover_data);
+    reporter_stop.store(true,std::sync::atomic::Ordering::Relaxed);
+    if let Some(reporter)=reporter{let _=reporter.join();}
+    let proof=prove_result.map_err(|_|())?;
     lab_phase("batch-stark-complete",start,air.rows());
     let encoded=postcard::to_allocvec(&proof).map_err(|_|())?;
     if encoded.is_empty()||encoded.len()>MAX_WIRED_PROOF{return Err(());}
@@ -487,6 +581,183 @@ pub(crate) fn verify_wired(program_bytes:&[u8],bundle_bytes:&[u8],expected_progr
     }else{rejected()}
 }
 
+/// Independently replay the REAL pinned Plonky3 verify_batch with a
+/// challenger that records every sampled field element / query index.
+/// This is a read-only research API. No private wire or prover seed is
+/// exported, and successful replay DOES NOT establish PQ128.
+pub(crate) fn audit_wired_verifier_transcript(
+    program_bytes:&[u8],bundle_bytes:&[u8],expected_program_sha512:&str
+)->Result<serde_json::Value,()>{
+    use crate::audit_challenger::AuditedChallenger;
+    use p3_uni_stark::StarkConfig;
+    use sha2::Digest;
+
+    // Match the production verifier's canonical acceptance gate FIRST.
+    // This prevents the audit mode from becoming a weaker verifier.
+    if !verify_wired(program_bytes,bundle_bytes,expected_program_sha512).valid {
+        eprintln!("AEGIS_AUDIT_FAILED_ORIGINAL_VERIFIER");return Err(());
+    }
+    let (program,digest)=public_program(program_bytes)?;
+    if digest!=expected_program_sha512{return Err(());}
+    let bundle:WiredBundle=serde_json::from_slice(bundle_bytes).map_err(|_|())?;
+    if bundle.scheme!=WIRED_SCHEME||bundle.program_sha512!=digest{return Err(());}
+    let encoded=B64.decode(&bundle.proof).map_err(|_|())?;
+    if encoded.is_empty()||encoded.len()>MAX_WIRED_PROOF||
+       B64.encode(&encoded)!=bundle.proof{return Err(());}
+    let air=WiredAir::new(program);
+    // Exactly the same factory as the original verifier; do not clone
+    // HidingFriPcs (its Clone generates a new RNG seed and would destroy
+    // deterministic PUBLIC-preprocessing commitment equality).
+    type TraceConfig=StarkConfig<crate::Pcs,crate::E,AuditedChallenger>;
+    let trace_cfg=crate::audit_config_from_public_program(None);
+    let observer=trace_cfg.initialise_challenger();
+    let log_degree=air.rows().ilog2() as usize+trace_cfg.is_zk();
+    let mut public_id=[0u8;64];
+    for (i,word) in air.program.public_digest_words.iter().enumerate(){
+        public_id[2*i..2*i+2].copy_from_slice(&word.to_be_bytes());
+    }
+    let public_trace_cfg=crate::audit_config_from_public_program(Some(&public_id));
+    let independent=ProverData::<TraceConfig>::from_airs_and_degrees(
+        &public_trace_cfg,&[air.clone()],&[log_degree]).map_err(|_|())?;
+    // The canonical proof wire format is shared across both Config and
+    // TraceConfig because only the Challenger type changes.
+    let trace_proof:BatchProof<TraceConfig>=
+        postcard::from_bytes(&encoded).map_err(|_|())?;
+    verify_batch(&trace_cfg,&[air.clone()],&trace_proof,
+        &[air.public_values()],&independent.common).map_err(|e|{
+            eprintln!("AEGIS_AUDIT_FAILED_INSTRUMENTED_VERIFIER: {e:?}");()
+        })?;
+
+    let events=observer.events();
+    // In the pinned TwoAdicFriFolding extra_query_index_bits() == 0.
+    // FriShape index_bits = log2(2*N*8). The verifier is the ONLY
+    // source of raw index samples, not a user-provided JSON schedule.
+    let lde_rows=air.rows().checked_mul(2* (1usize<<crate::LOG_BLOWUP)).ok_or(())?;
+    let index_bits=lde_rows.ilog2() as usize;
+    let sampled_indices:Vec<usize>=events.iter().filter(|ev|
+        ev.operation=="sample_bits" && ev.bits==Some(index_bits)
+    ).map(|ev|ev.value.as_deref().ok_or(())
+        .and_then(|s|s.parse::<usize>().map_err(|_|()))).collect::<Result<_,_>>()?;
+    if sampled_indices.len()!=crate::QUERIES||
+       sampled_indices.iter().any(|&i|i>=lde_rows){
+        eprintln!("AEGIS_AUDIT_INDEX_SAMPLING_FAILURE: got={}, expected={}, index_bits={index_bits}, sample_types={:?}",
+            sampled_indices.len(),crate::QUERIES,
+            events.iter().filter(|ev|ev.operation.starts_with("sample"))
+                .map(|ev|ev.operation).take(20).collect::<Vec<_>>());
+        return Err(());
+    }
+    let rounds=log_degree;
+    if trace_proof.opening_proof.1.commit_phase_commits.len()!=rounds||
+       trace_proof.opening_proof.1.commit_phase_openings.len()!=rounds{
+        eprintln!("AEGIS_AUDIT_FRI_SHAPE_MISMATCH: expected {rounds}");return Err(());
+    }
+    // fold_query in pinned Plonky3 (two_adic_pcs.rs) updates index
+    // with `start_index >>= log_arity` and records the parent group index.
+    // max_log_arity is 1 in this verifier-owned configuration.
+    let projected:Vec<Vec<usize>>=sampled_indices.iter().map(|&index|{
+        let mut current=index;
+        (0..rounds).map(|_|{current>>=1;current}).collect()
+    }).collect();
+    // The pinned typed drivers sample exactly these extension challenges:
+    // LogUp alpha,beta; AIR rho; OOD zeta; PCS batch gamma; then one
+    // FRI fold beta per verifier-owned round. ExtensionFieldCodec samples
+    // DIMENSION base-field coordinates in canonical basis order.
+    let mut labels=vec![
+        "lookup_alpha".to_string(),"lookup_beta".to_string(),
+        "constraint_challenge".to_string(),"zeta".to_string(),
+        "pcs_batch_alpha".to_string(),
+    ];
+    labels.extend((0..rounds).map(|i|format!("fri_fold_challenge_{i}")));
+    let samples:Vec<&str>=events.iter().filter(|e|e.operation=="sample_base")
+        .map(|e|e.value.as_deref().ok_or(())).collect::<Result<_,_>>()?;
+    let expected=labels.len().checked_mul(crate::EXT_DIM).ok_or(())?;
+    if samples.len()!=expected{
+        eprintln!("AEGIS_AUDIT_CHALLENGE_COUNT_MISMATCH: got={}, expected={expected}",
+            samples.len());return Err(());
+    }
+    let mut named_challenges=serde_json::Map::new();
+    for (i,label) in labels.iter().enumerate(){
+        let group=&samples[i*crate::EXT_DIM..(i+1)*crate::EXT_DIM];
+        let coefficients:Vec<u32>=group.iter().map(|s|s.parse().map_err(|_|()))
+            .collect::<Result<_,_>>()?;
+        named_challenges.insert(label.clone(),serde_json::json!({
+            "babybear_coefficients":coefficients,
+            "basis_dimension":crate::EXT_DIM
+        }));
+    }
+    // This replay uses the EXACT public, typed transcript drivers shipped
+    // by p3-batch-stark and p3-fri, including HidingFriPcs augmentation.
+    // Reject any difference in even one absorbed value or sampled bit.
+    let (mut typed_replay,replayed_events)=
+        crate::native_transcript_replay::replay_verified(
+            &air,&trace_proof,&independent.common).map_err(|_|{
+                eprintln!("AEGIS_AUDIT_TYPED_REPLAY_FAILURE");()
+            })?;
+    if replayed_events!=events{
+        eprintln!("AEGIS_AUDIT_TRANSCRIPT_EVENT_MISMATCH: native={}, replay={}",
+            events.len(),replayed_events.len());return Err(());
+    }
+    for (label,basis) in [
+        ("constraint_challenge","rho_basis"),
+        ("zeta","zeta_basis"),
+        ("pcs_batch_alpha","pcs_batch_gamma_basis"),
+    ]{
+        if named_challenges[label]["babybear_coefficients"]!=typed_replay[basis]{
+            eprintln!("AEGIS_AUDIT_CHALLENGE_LABEL_MISMATCH: {label}");return Err(());
+        }
+    }
+    let replay_betas=typed_replay["fri_fold_beta_bases"].as_array().ok_or(())?;
+    if replay_betas.len()!=rounds||
+       replay_betas.iter().enumerate().any(|(i,beta)|
+           named_challenges.get(&format!("fri_fold_challenge_{i}"))
+               .and_then(|c|c.get("babybear_coefficients"))!=Some(beta))||
+       typed_replay["fri_query_indices"]!=serde_json::json!(sampled_indices)||
+       typed_replay["fri_derived_log_arities"]!=serde_json::json!(vec![1usize;rounds])||
+       typed_replay["fri_index_bits"]!=index_bits{
+        eprintln!("AEGIS_AUDIT_FRI_TYPED_REPLAY_MISMATCH");return Err(());
+    }
+    typed_replay["native_transcript_bytes_and_samples_consistent"]=
+        serde_json::json!(true);
+    let digest_proof=format!("{:x}",Sha512::digest(&encoded));
+    Ok(serde_json::json!({
+        "schema":"AEGIS_NATIVE_WIRED_VERIFY_BATCH_OBSERVATION_V1",
+        "source":"verify_batch executed with same PCS and audited challenger",
+        "program_sha512":digest,
+        "proof_sha512":digest_proof,
+        "verified_by_original_config":true,
+        "verified_by_instrumented_config":true,
+        "transcript_events":events,
+        "named_verifier_challenges":named_challenges,
+        "typed_replay":typed_replay,
+        "challenge_label_derivation":"pinned v0.8.0 typed-driver sample order; 8 BabyBear coefficients each",
+        "fri":{
+            "query_samples_source":"actual verifier challenger sample_bits",
+            "query_index_bits":index_bits,
+            "queries":sampled_indices,
+            "fold_query_indices_after_each_round":projected,
+            "fold_count":rounds,
+            "log_arities":vec![1usize;rounds],
+            "initial_lde_rows":lde_rows,
+            "final_domain_rows":1usize<<crate::LOG_BLOWUP,
+            "projection_source":"p3-fri v0.8.0 verifier::fold_query: start_index >>= log_arity",
+            "projection_extracted_inside_upstream_verifier":false
+        },
+        "batching":{
+            "challenge_samples_in_actual_challenger_events":true,
+            "source_typed_batch_terms_replayed":true,
+            "exact_batch_denominator_polynomials_exported":false,
+            "native_pcs_batch_equivalence_proved":false
+        },
+        "audit_mode_only":true,
+        "native_challenger_samples_observed":true,
+        "whole_verifier_byte_transcript_equivalence_proved":false,
+        "quantum_vector_commitment_extraction_proved":false,
+        "cms_round_by_round_knowledge_proved":false,
+        "pq128_demonstrated":false,
+        "production_ready":false
+    }))
+}
+
 /// End-to-end proof is only for a **trusted public program**. Callers must
 /// rebuild the program from the independently checked financial statement;
 /// accepting a prover-supplied instruction blob would not bind SHA-512.
@@ -510,6 +781,81 @@ mod tests{
             for id in [gate.a,gate.b,gate.z]{bytes.extend(id.to_be_bytes());}
         }
         bytes
+    }
+    #[test]
+    fn derived_gate_output_matches_old_boolean_equations_for_every_input(){
+        assert_eq!(GATE_WIDTH,2);
+        for op in 1u8..=4{
+            for a in [0u32,1]{
+                for b in [0u32,1]{
+                    // The previously committed z had to satisfy exactly
+                    // these four instructions. The new z is implicit and
+                    // lookup-linked to the same output wire.
+                    let ab=a*b;
+                    let derived=u32::from(op==1)*ab+
+                        u32::from(op==2)*(a+b-2*ab)+
+                        u32::from(op==3)*(1-a);
+                    let old_z=match op{
+                        1=>ab,2=>a^b,3=>1-a,4=>0,_=>unreachable!()
+                    };
+                    assert_eq!(derived,old_z,
+                        "op={op} a={a} b={b}");
+                    assert!(derived<=1,"derived output is Boolean");
+                    if op==4{
+                        // Equality remains independently enforced.
+                        assert_eq!(a==b,(a as i32-b as i32)==0);
+                    }
+                }
+            }
+        }
+        let air=circuit();
+        let compact=air.trace(&[0,1,1,1,1,1]).unwrap();
+        assert_eq!(compact.values.len(),air.rows()*GATE_WIDTH);
+        assert_eq!(&compact.values[0..2],&[F::ONE,F::ONE]);
+        assert_eq!(&compact.values[2..4],&[F::ONE,F::ZERO]);
+    }
+    #[test]
+    fn compact_program_has_one_and_only_one_table_source_per_wire(){
+        let air=circuit();
+        assert_eq!(GATE_WIDTH,2);
+        assert_eq!(PREP_WIDTH,10);
+        let mut sources=vec![0u32;air.program.wire_count];
+        let mut multiplicities=vec![0u32;air.program.wire_count];
+        for row in 0..air.rows(){
+            let cells=air.program_row(row);
+            let flags=cells[0]+cells[1]+cells[2]+cells[3];
+            assert_eq!(flags,u32::from(row<air.program.gates.len()));
+            assert!(flags<=1);
+            let gate=air.program.gates.get(row);
+            let input=row.checked_sub(air.program.gates.len())
+                .and_then(|index|air.program.input_wires.get(index)).copied();
+            assert_eq!(cells[4],gate.map(|g|g.a).unwrap_or(0));
+            assert_eq!(cells[5],gate.map(|g|g.b).unwrap_or(0));
+            assert_eq!(cells[6],gate.map(|g|g.z).or(input).unwrap_or(0));
+            assert_eq!(cells[8],u32::from(input==Some(0)));
+            assert_eq!(cells[9],u32::from(input==Some(1)));
+            let count=match gate{
+                Some(g) if g.op!=4=>{
+                    sources[g.z as usize]+=1;
+                    air.program.use_counts[g.z as usize]
+                },
+                Some(_)=>0, // equality row produces no new wire
+                None=>input.map(|id|{
+                    sources[id as usize]+=1;
+                    air.program.use_counts[id as usize]
+                }).unwrap_or(0),
+            };
+            assert_eq!(cells[7],count);
+            multiplicities[cells[6] as usize]+=cells[7];
+        }
+        assert!(sources.iter().all(|&n|n==1));
+        assert_eq!(multiplicities.as_slice(),air.program.use_counts.as_ref());
+        let trace=air.trace(&[0,1,1,1,1,1]).unwrap();
+        assert_eq!(trace.values.len(),air.rows()*GATE_WIDTH);
+        assert_eq!(&trace.values[0..2],&[F::ONE,F::ONE]);
+        assert_eq!(&trace.values[2..4],&[F::ONE,F::ZERO]);
+        assert_eq!(&trace.values[6..8],&[F::ZERO,F::ZERO]);
+        assert_eq!(&trace.values[8..10],&[F::ONE,F::ZERO]);
     }
     #[test]
     fn statement_binding_is_cryptographically_included_in_program_digest(){
@@ -563,6 +909,20 @@ mod tests{
         assert!(report["constraint_full_selector_degree"].as_u64().unwrap()>=
             report["constraint_degree"].as_u64().unwrap());
         let geometry=&report["committed_degree_geometry"];
+        let shadow=&report["counterfactual_field16_rbr"];
+        assert_eq!(shadow["status"],"SHADOW_RESEARCH_ONLY_NOT_AN_IMPLEMENTED_P3_FIELD");
+        assert_eq!(shadow["field_modulus_bits_floor"],494);
+        assert_eq!(shadow["fri_queries"],512);
+        assert_eq!(shadow["hiding_random_codewords"],16);
+        assert_eq!(shadow["collision_assumption_bits_unmodified"],170);
+        assert_eq!(shadow["same_compiled_air_constraints"],report["constraints"]);
+        assert_eq!(shadow["same_compiled_quotient_chunks"],report["num_quotient_chunks"]);
+        assert!(shadow["num_batched_functions"].as_u64().unwrap()>=
+            report["num_batched_functions"].as_u64().unwrap());
+        assert!(shadow["conditional_interactive_bits"].as_f64().unwrap()<=170.0);
+        assert_eq!(shadow["native_extension_field16_implemented"],false);
+        assert_eq!(shadow["merkle_quantum_extraction_proved"],false);
+        assert_eq!(shadow["pq128_demonstrated"],false);
         let committed_log=geometry["committed_log_degree"].as_u64().unwrap() as usize;
         assert_eq!(proof.degree_bits,vec![committed_log]);
         assert_eq!(committed_log,air.rows().ilog2() as usize+config.is_zk());
@@ -593,14 +953,212 @@ mod tests{
             &independently_derived.common).unwrap();
     }
     #[test]
+    fn native_salted_mmcs_position_binding_rejects_row_and_salt_equivocation(){
+        use p3_commit::{Mmcs as MmcsTrait,BatchOpeningRef};
+        use p3_matrix::Dimensions;
+        use rand::{SeedableRng,rngs::StdRng};
+        // The exact hash labels, cap height, 512-bit digest shape and salt
+        // count from the production PCS factory, but deterministic test-only
+        // RNG. This regression is not a quantum collapse-binding theorem.
+        let mmcs=crate::Mmcs::new(
+            crate::FH::new(crate::Sha512Words(b"AEGIS_V4_P3_LEAF_SHA512_V2\0")),
+            crate::Compress::new(crate::Sha512Words(
+                b"AEGIS_V4_P3_NODE_SHA512_V2\0")),
+            3,StdRng::seed_from_u64(42));
+        let tall=RowMajorMatrix::new(
+            (0..(16*2)).map(|i|F::from_u32((i+1) as u32))
+                .collect::<Vec<_>>(),2);
+        let short=RowMajorMatrix::new(
+            (0..(8*3)).map(|i|F::from_u32((i+200) as u32))
+                .collect::<Vec<_>>(),3);
+        let dimensions=[Dimensions{width:2,height:16},
+            Dimensions{width:3,height:8}];
+        let (root,prover_data)=mmcs.commit(vec![tall,short]);
+        let (opened,opening_proof)=mmcs.open_batch(5,&prover_data).unpack();
+        assert!(mmcs.verify_batch(&root,&dimensions,5,
+            BatchOpeningRef::new(&opened,&opening_proof)).is_ok());
+        for matrix in 0..2{
+            let mut forged=opened.clone();
+            forged[matrix][0]+=F::ONE;
+            assert!(mmcs.verify_batch(&root,&dimensions,5,
+                BatchOpeningRef::new(&forged,&opening_proof)).is_err(),
+                "an adversarial change to matrix {matrix} must be rejected");
+        }
+        let mut forged_salts=opening_proof.clone();
+        forged_salts.0[0][0]+=F::ONE;
+        assert!(mmcs.verify_batch(&root,&dimensions,5,
+            BatchOpeningRef::new(&opened,&forged_salts)).is_err(),
+            "same root and row cannot validate a changed private salt");
+        let mut shortened=opened.clone();
+        shortened[0].pop();
+        assert!(mmcs.verify_batch(&root,&dimensions,5,
+            BatchOpeningRef::new(&shortened,&opening_proof)).is_err());
+        // Index binding: the same proof must not authorize an unrelated
+        // global query coordinate. Other indices can map to same shorter
+        // matrix row, but the tallest row and Merkle path are pinned.
+        assert!(mmcs.verify_batch(&root,&dimensions,7,
+            BatchOpeningRef::new(&opened,&opening_proof)).is_err());
+    }
+    #[test]
+    fn audited_native_verifier_exports_real_samples_and_query_paths(){
+        let air=circuit();
+        let program=circuit_bytes(&air);
+        let digest=hex::encode(Sha512::digest(&program));
+        let trace=air.trace(&[0,1,1,1,1,1]).unwrap();
+        let cfg=config();
+        let instances=[StarkInstance::<Config,_>{
+            air:&air,trace:&trace,public_values:air.public_values()
+        }];
+        let prep_cfg=preprocessing_config(&air);
+        let data=ProverData::from_instances(&prep_cfg,&instances).unwrap();
+        let proof=prove_batch(&cfg,&instances,&data).unwrap();
+        let encoded=postcard::to_allocvec(&proof).unwrap();
+        let bundle=serde_json::to_vec(&WiredBundle{
+            scheme:WIRED_SCHEME.to_owned(),program_sha512:digest.clone(),
+            proof:B64.encode(&encoded)
+        }).unwrap();
+        let audit=audit_wired_verifier_transcript(
+            &program,&bundle,&digest).expect("native auditor accepts honest proof");
+        assert_eq!(audit["verified_by_original_config"],true);
+        assert_eq!(audit["verified_by_instrumented_config"],true);
+        assert_eq!(audit["typed_replay"]
+            ["native_transcript_bytes_and_samples_consistent"],true);
+        assert_eq!(audit["typed_replay"]
+            ["fri_derived_log_arities"].as_array().unwrap().len(),13);
+        assert_eq!(audit["typed_replay"]
+            ["fri_query_indices"].as_array().unwrap().len(),crate::QUERIES);
+        assert_eq!(audit["typed_replay"]
+            ["pcs_batch_gamma_basis"].as_array().unwrap().len(),crate::EXT_DIM);
+        assert_eq!(audit["typed_replay"]["rho_basis"].as_array().unwrap().len(),crate::EXT_DIM);
+        assert_eq!(audit["typed_replay"]["zeta_basis"].as_array().unwrap().len(),crate::EXT_DIM);
+        let terms=audit["typed_replay"]["batch_polynomial_terms"]
+            .as_array().unwrap();
+        assert!(!terms.is_empty());
+        assert!(terms.iter().any(|term|
+            term["hiding_random_codewords"]==crate::RANDOM_CODEWORDS));
+        assert!(terms.iter().any(|term|
+            term["hiding_random_codewords"]==0));
+        assert_eq!(audit["typed_replay"]["denominator_evaluations_exported"],true);
+        assert_eq!(audit["typed_replay"]
+            ["denominator_evaluations_came_from_upstream_verifier_hook"],false);
+        let denominators=audit["typed_replay"]
+            ["actual_pcs_query_denominator_evaluations"].as_array().unwrap();
+        assert_eq!(denominators.len(),crate::QUERIES*terms.len());
+        let modulus=2_013_265_921u64;
+        for (i,rec) in denominators.iter().enumerate(){
+            assert_eq!(rec["query"].as_u64().unwrap() as usize,i/terms.len());
+            let x=rec["query_x_canonical"].as_u64().unwrap();
+            let z=rec["z_basis"].as_array().unwrap();
+            let d=rec["denominator_basis"].as_array().unwrap();
+            assert_eq!(z.len(),crate::EXT_DIM);
+            assert_eq!(d.len(),crate::EXT_DIM);
+            assert!(x<modulus);
+            let expected=(z[0].as_u64().unwrap()+modulus-x)%modulus;
+            assert_eq!(d[0].as_u64(),Some(expected));
+            assert!(z[1..].iter().zip(&d[1..]).all(|(a,b)|a==b));
+            assert!(d.iter().any(|coord|coord.as_u64()!=Some(0)));
+        }
+
+        assert_eq!(audit["fri"]["fold_count"],13);
+        assert_eq!(audit["fri"]["query_index_bits"],16);
+        assert_eq!(audit["fri"]["initial_lde_rows"],65536);
+        assert_eq!(audit["fri"]["queries"].as_array().unwrap().len(),crate::QUERIES);
+        assert_eq!(audit["fri"]["fold_query_indices_after_each_round"]
+            .as_array().unwrap().len(),crate::QUERIES);
+        for (query,path) in audit["fri"]["queries"].as_array().unwrap().iter().zip(
+            audit["fri"]["fold_query_indices_after_each_round"]
+                .as_array().unwrap())
+        {
+            let mut index=query.as_u64().unwrap() as usize;
+            for folded in path.as_array().unwrap(){
+                index>>=1;
+                assert_eq!(folded.as_u64().unwrap() as usize,index);
+            }
+        }
+        assert_eq!(audit["whole_verifier_byte_transcript_equivalence_proved"],false);
+        assert_eq!(audit["pq128_demonstrated"],false);
+        // The observer never authorizes a proof rejected by the original path.
+        let mut corrupted=serde_json::from_slice::<WiredBundle>(&bundle).unwrap();
+        corrupted.program_sha512="00".repeat(64);
+        let bad=serde_json::to_vec(&corrupted).unwrap();
+        assert!(audit_wired_verifier_transcript(&program,&bad,&digest).is_err());
+    }
+    #[test]
+    fn native_verifier_rejects_modified_fri_and_quotient_proof_objects(){
+        // This is a real native verifier rejection test, NOT an argument
+        // for extraction from an arbitrary malicious quantum commitment.
+        let air=circuit();
+        let trace=air.trace(&[0,1,1,1,1,1]).unwrap();
+        let cfg=config();
+        let instances=[StarkInstance::<Config,_>{
+            air:&air,trace:&trace,public_values:air.public_values()
+        }];
+        let prep_cfg=preprocessing_config(&air);
+        let data=ProverData::from_instances(&prep_cfg,&instances).unwrap();
+        let proof=prove_batch(&cfg,&instances,&data).unwrap();
+        let public=air.public_values();
+        let verify=|candidate:&BatchProof<Config>|{
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(||{
+                verify_batch(&cfg,&[air.clone()],candidate,
+                    &[public.clone()],&data.common).is_ok()
+            })).unwrap_or(false)
+        };
+        assert!(verify(&proof));
+        // BatchProof does not implement Clone in the pinned Plonky3.
+        // Deserialize fresh independent objects from the canonical encoding.
+        let encoded=postcard::to_allocvec(&proof).unwrap();
+        // Missing terminal polynomial coefficient cannot be accepted.
+        let mut tampered:BatchProof<Config>=postcard::from_bytes(&encoded).unwrap();
+        assert!(!tampered.opening_proof.1.final_poly.is_empty());
+        tampered.opening_proof.1.final_poly.clear();
+        assert!(!verify(&tampered));
+        // The FRI query/opening shape is part of the authenticated proof.
+        let mut tampered:BatchProof<Config>=postcard::from_bytes(&encoded).unwrap();
+        assert!(!tampered.opening_proof.1.commit_phase_openings.is_empty());
+        tampered.opening_proof.1.commit_phase_openings.pop();
+        assert!(!verify(&tampered));
+        // Hiding quotient-chunk opening shape must match verifier degree data.
+        let mut tampered:BatchProof<Config>=postcard::from_bytes(&encoded).unwrap();
+        assert!(!tampered.opened_values.instances[0]
+            .base_opened_values.quotient_chunks.is_empty());
+        tampered.opened_values.instances[0]
+            .base_opened_values.quotient_chunks.pop();
+        assert!(!verify(&tampered));
+    }
+    #[test]
+    fn malicious_input_table_source_rebinding_is_rejected(){
+        let air=circuit();
+        let mut trace=air.trace(&[0,1,1,1,1,1]).unwrap();
+        let input_2=air.program.input_wires.iter()
+            .position(|&id|id==2).expect("private wire input");
+        let row=air.program.gates.len()+input_2;
+        // This changes ONLY the unique table source for input wire 2;
+        // gate 0 still asks for (2,1). The LogUp bus must reject it.
+        assert_eq!(trace.values[row*GATE_WIDTH],F::ONE);
+        trace.values[row*GATE_WIDTH]=F::ZERO;
+        let instance=[StarkInstance::<Config,_>{
+            air:&air,trace:&trace,public_values:air.public_values()
+        }];
+        let rejected=std::panic::catch_unwind(std::panic::AssertUnwindSafe(||{
+            let config=config();
+            let prep=preprocessing_config(&air);
+            let data=ProverData::from_instances(&prep,&instance).unwrap();
+            match prove_batch(&config,&instance,&data){
+                Ok(proof)=>verify_batch(&config,&[air.clone()],&proof,
+                    &[air.public_values()],&data.common).is_err(),
+                Err(_)=>true,
+            }
+        })).unwrap_or(true);
+        assert!(rejected,"table-source equivocation cannot prove");
+    }
+    #[test]
     fn adversarial_gate_row_rebinding_is_rejected_by_logup(){
         let air=circuit();
         let mut trace=air.trace(&[0,1,1,1,1,1]).unwrap();
         // Change a gate-row argument without updating its globally unique
-        // value in the wire table. The local AND still holds after changing z,
-        // but cross-row wire equality is false and LogUp must reject.
-        trace.values[0]=F::ZERO;
-        trace.values[2]=F::ZERO;
+        // value in the wire table. The derived AND output now changes with a,
+        // but the authentic wire-table assignment stays fixed: LogUp rejects.
+        trace.values[0]=F::ZERO; // tamper first gate input; z is derived
         let config=config();
         let inst=[StarkInstance::<Config,_>{air:&air,trace:&trace,public_values:air.public_values()}];
         let run=std::panic::catch_unwind(std::panic::AssertUnwindSafe(||{

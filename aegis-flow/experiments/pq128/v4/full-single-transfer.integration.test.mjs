@@ -5,10 +5,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {execFileSync} from 'node:child_process';
-import {mkdtempSync,rmSync,writeFileSync,readFileSync} from 'node:fs';
+import {execFileSync,spawnSync} from 'node:child_process';
+import {mkdtempSync,rmSync,writeFileSync,readFileSync,existsSync,copyFileSync,mkdirSync,chmodSync} from 'node:fs';
 import {tmpdir} from 'node:os';
-import {join} from 'node:path';
+import {join,isAbsolute} from 'node:path';
 import {native512Fixture} from '../native/fixtures.mjs';
 import {financialStatementDigest512} from '../financial/relation.mjs';
 import {
@@ -19,6 +19,11 @@ import {verifyOneInOneOutNative512} from './verify-one-in-one-out.mjs';
 
 const enabled=process.env.AEGIS_V4_FULL_WIRED_SHA512==='1';
 const binary=process.env.AEGIS_V4_P3_BINARY;
+const proverTimeoutMs=Number(process.env.AEGIS_FULL_SHA512_PROVER_TIMEOUT_MS??1500000);
+if(!Number.isSafeInteger(proverTimeoutMs)||proverTimeoutMs<300000||proverTimeoutMs>3600000)
+  throw new RangeError('FINANCIAL_PROVER_TIMEOUT_OUT_OF_BOUNDS');
+const profileArtifact=process.env.AEGIS_FULL_SHA512_PROFILE_ARTIFACT;
+const retainedDir=process.env.AEGIS_FULL_SHA512_RETAIN_DIR;
 // Prover phase timings are safe to print: no witness bits, amounts or
 // preimages are emitted. stderr is inherited so cancelled CI jobs retain
 // the last completed native stage instead of losing all diagnostics.
@@ -29,7 +34,7 @@ const stage=(name,start)=>process.stderr.write(
   ' node_rss_mb='+Math.round(process.memoryUsage().rss/1048576)+'\n');
 
 test('complete 1x1 SHA512 circuit produces Plonky3 proof with LogUp wire consistency (resource experiment)',
-  {skip:!enabled,timeout:1_700_000},()=>{
+  {skip:!enabled,timeout:proverTimeoutMs+600000},()=>{
   assert.ok(binary?.startsWith('/'),'explicit pinned native prover/verifier');
   const started=performance.now();
   const dir=mkdtempSync(join(tmpdir(),'aegis-v4-full-1x1-'));
@@ -62,7 +67,61 @@ test('complete 1x1 SHA512 circuit produces Plonky3 proof with LogUp wire consist
     assert.equal(privateStatus.private_assignment_file_created,true);
     assert.equal(privateStatus.byte_length,manifest.wire_count);
     stage('private-witness-generated',started);
-    run('prove-wired',programPath,witnessPath,proofPath);
+    // Measure the actual native prover separately from Node's peak RSS.
+    // GNU time must finish before we assume a completed proof. Its profile
+    // is retained even if native proving fails or exceeds the time budget.
+    const timingFile=join(dir,'native-financial-prover-time.txt');
+    const proving=spawnSync('/usr/bin/time',[
+      '-v','-o',timingFile,'timeout','--signal=TERM','--kill-after=30s',
+      String(Math.ceil(proverTimeoutMs/1000))+'s',
+      binary,'prove-wired',programPath,witnessPath,proofPath,
+    ],{encoding:'utf8',timeout:proverTimeoutMs+45000,
+      maxBuffer:1024*1024,stdio:['ignore','pipe','inherit']});
+    const timing=existsSync(timingFile)?readFileSync(timingFile,'utf8'):'';
+    const metric=label=>{
+      const line=timing.split('\n').find(x=>x.trimStart().startsWith(label+':'));
+      return line?.slice(line.indexOf(label+':')+label.length+1).trim()??null;
+    };
+    const peakText=metric('Maximum resident set size (kbytes)');
+    const userText=metric('User time (seconds)');
+    const sysText=metric('System time (seconds)');
+    let resourceProfile={
+      schema:'AEGIS_SIX_SHA512_FINANCIAL_PROVER_RESOURCE_V1',
+      statement_digest512:digest,
+      public_program_sha512:pub.program_sha512,
+      prover_binary_sha512:createHash('sha512').update(readFileSync(binary)).digest('hex'),
+      hash_calls:manifest.hash_calls,
+      gate_count:manifest.gate_count,
+      wire_count:manifest.wire_count,
+      trace_rows:actualRbr.trace_rows,
+      peak_rss_kib:peakText===null?null:Number(peakText),
+      native_cpu_seconds:userText===null||sysText===null?null:Number(userText)+Number(sysText),
+      native_wall_clock:metric('Elapsed (wall clock) time (h:mm:ss or m:ss)'),
+      prover_timeout_ms:proverTimeoutMs,
+      native_exit_code:proving.status,
+      native_signal:proving.signal,
+      native_proof_generated:false,
+      independent_financial_verification:false,
+      statement_rebinding_rejected:false,
+      witness_file_retained:false,
+      zero_knowledge_proved:false,
+      qrom_soundness_proved:false,
+      pq128_demonstrated:false,
+      production_ready:false,
+    };
+    const record=()=>{
+      if(profileArtifact){
+        assert.ok(isAbsolute(profileArtifact),'profile path must be absolute');
+        writeFileSync(profileArtifact,JSON.stringify(resourceProfile,null,2)+'\n',
+          {mode:0o600});
+      }
+      process.stderr.write('AEGIS_SIX_SHA512_RESOURCE_PROFILE='+JSON.stringify(resourceProfile)+'\n');
+    };
+    record();
+    assert.equal(proving.error,undefined,
+      'native financial prover error: '+proving.error?.message);
+    assert.equal(proving.status,0,'native financial proving must finish successfully');
+    assert.ok(existsSync(proofPath),'missing native financial proof');
     stage('plonky3-native-proof-created',started);
     const proof=JSON.parse(readFileSync(proofPath,'utf8'));
     assert.equal(proof.program_sha512,pub.program_sha512);
@@ -110,5 +169,27 @@ test('complete 1x1 SHA512 circuit produces Plonky3 proof with LogUp wire consist
     assert.notEqual(otherProgramSha,pub.program_sha512);
     assert.equal(JSON.parse(run('verify-wired',otherProgram,proofPath,otherProgramSha)).valid,false);
     stage('statement-rebinding-rejected',started);
+    resourceProfile={...resourceProfile,native_proof_generated:true,
+      independent_financial_verification:true,statement_rebinding_rejected:true};
+    record();
+    if(retainedDir){
+      // Retain only SYNTHETIC-FIXTURE public research artifacts. There is
+      // no ZK theorem; never use this path with real client secrets.
+      assert.ok(isAbsolute(retainedDir),'retention dir must be absolute');
+      mkdirSync(retainedDir,{mode:0o700});
+      for(const [src,name] of [
+        [programPath,'trusted-public-program.bin'],
+        [proofPath,'financial-proof.json'],
+      ]){
+        const dst=join(retainedDir,name);
+        copyFileSync(src,dst);
+        chmodSync(dst,0o600);
+      }
+      writeFileSync(join(retainedDir,'public-statement.json'),
+        JSON.stringify(f.statement,null,2)+'\n',{mode:0o600,flag:'wx'});
+      writeFileSync(join(retainedDir,'financial-proof-profile.json'),
+        JSON.stringify(resourceProfile,null,2)+'\n',{mode:0o600,flag:'wx'});
+      stage('synthetic-public-evidence-retained',started);
+    }
   }finally{rmSync(dir,{recursive:true,force:true});}
 });

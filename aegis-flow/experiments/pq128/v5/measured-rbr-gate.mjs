@@ -37,8 +37,11 @@ export function assessMeasuredWiredRbr(report,{rbrTargetBits=336,queryBits=128,
     if(!Number.isSafeInteger(x)||x<0||x>1024)throw new RangeError('INVALID_QROM_BUDGET');
   const udr=verifyRegime(report.rbr_breakdown.udr),
     ldr=verifyRegime(report.rbr_breakdown.ldr);
-  const algebraic=Math.max(udr.algebraic_union_bound_bits,
-    ldr?.algebraic_union_bound_bits??0);
+  // A report containing both decoding regimes does not establish that the
+  // verifier can safely choose the stronger one. Cover both regimes until
+  // the selection rule is independently proved and bound to the transcript.
+  const algebraic=ldr===null?udr.algebraic_union_bound_bits:
+    Math.min(udr.algebraic_union_bound_bits,ldr.algebraic_union_bound_bits);
   const necessary=2*queryBits+eventUnionBits+unknownConstantReserveBits;
   return Object.freeze({
     schema:'AEGIS_V5_MEASURED_WIRED_RBR_QROM_OBLIGATIONS_V1',
@@ -48,6 +51,7 @@ export function assessMeasuredWiredRbr(report,{rbrTargetBits=336,queryBits=128,
     quotient_chunks:report.num_quotient_chunks,
     fri_queries:report.fri_queries,
     reports:{udr,ldr},
+    decoding_regime_policy:'CONSERVATIVE_WORST_CASE_UNTIL_VERIFIER_SELECTION_PROVED',
     measured_interactive_algebraic_union_bits:algebraic,
     required_interactive_bits:rbrTargetBits,
     necessary_bits_if_CMS_Q2_applies_with_reserved_constants:necessary,

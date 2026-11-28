@@ -33,6 +33,13 @@ manifest=aegis-flow/experiments/pq128/v4/plonky3/Cargo.toml
 binary="$root/aegis-flow/experiments/pq128/v4/plonky3/target/release/aegis-v4-plonky3-lab"
 artifact="$root/work/sha512-one-highmem-profile.json"
 mkdir -p "$root/work"
+# Preserve the already proven 2026-11-28 four-column baseline before
+# benchmarking the compact two-column AIR. Never overwrite the backup.
+baseline="$root/work/sha512-one-before-compact-profile.json"
+if [[ -f "$artifact" && ! -e "$baseline" ]]; then
+  cp -- "$artifact" "$baseline"
+  chmod 600 "$baseline"
+fi
 
 echo "AEGIS_SHA512_HIGHMEM_RESEARCH_ONLY available_ram_kib=$mem_kib"
 # The same Plonky3 version, trusted AIR, LogUp program, FRI queries and

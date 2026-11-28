@@ -16,7 +16,7 @@ use p3_uni_stark::{StarkConfig,StarkGenericConfig};
 use serde_json::{Value,json};
 use crate::{E,F,Pcs,EXT_DIM,LOG_BLOWUP,QUERIES,RANDOM_CODEWORDS};
 use crate::audit_challenger::{AuditedChallenger,ChallengeEvent};
-use crate::wired_r1cs::{WiredAir,PREP_WIDTH};
+use crate::wired_r1cs::{WiredAir,PREP_WIDTH,GATE_WIDTH};
 
 type SC=StarkConfig<Pcs,E,AuditedChallenger>;
 fn coeffs(value:&E)->Vec<u32>{
@@ -42,7 +42,7 @@ pub(crate) fn replay_verified(
     let replay_cfg=crate::audit_config_from_public_program(None);
     let mut challenger=replay_cfg.initialise_challenger();
     let shape=BatchShape{
-        trace_widths:vec![4],
+        trace_widths:vec![GATE_WIDTH],
         public_value_counts:vec![32],
         preprocessed_widths:vec![PREP_WIDTH],
         has_preprocessed_commitment:common.preprocessed.is_some(),

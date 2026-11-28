@@ -4,7 +4,8 @@ import {native512Fixture} from '../native/fixtures.mjs';
 import {financialStatementDigest512} from '../financial/relation.mjs';
 import {compileOneInOneOut512} from './single-transfer-circuit.mjs';
 
-const TRACE_COLUMNS = 4;
+// z is derived from authenticated op(a,b), not separately committed.
+const TRACE_COLUMNS = 3;
 // The public active flag is derived from four immutable op flags in Rust.
 const PREPROCESSED_COLUMNS = 11;
 const BASE_ELEMENT_BYTES = 4;

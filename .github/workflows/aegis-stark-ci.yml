@@ -20,8 +20,14 @@ jobs:
           node-version: '24'
       - name: Test experimental SHA-512 bindings and conditional standalone FRI arithmetic
         run: node --test aegis-flow/experiments/pq128/*.test.mjs aegis-flow/experiments/pq128/fri/*.test.mjs aegis-flow/experiments/pq128/financial/*.test.mjs aegis-flow/experiments/pq128/constraints/*.test.mjs aegis-flow/experiments/pq128/quantitative/*.test.mjs aegis-flow/experiments/pq128/v4/*.test.mjs aegis-flow/experiments/pq128/native/backend.test.mjs
-      - name: Check isolated high-memory SHA512 research script without executing it on hosted CI
-        run: bash -n aegis-flow/experiments/pq128/v4/run-one-sha512-highmem.sh
+      - name: Check both high-memory SHA512 research scripts without proving on hosted CI
+        run: |
+          bash -n aegis-flow/experiments/pq128/v4/run-one-sha512-highmem.sh
+          bash -n aegis-flow/experiments/pq128/v4/run-six-sha512-highmem.sh
+      - name: Export measured six-SHA512 capacity screen without publishing private witness
+        run: |
+          node aegis-flow/experiments/pq128/v4/financial-memory-gate.mjs > pq128-six-sha512-memory-screen.json
+          node -e "const p=require('./pq128-six-sha512-memory-screen.json'); if(p.sha512_hash_calls!==6 || p.financial_gate_count<=1000000 || p.financial_relation_proved!==false || p.projection_is_rigorous_upper_bound!==false || p.pq128_demonstrated!==false)process.exit(1)"
       - name: Verify candidate BabyBear16 field algebra, canonical encoding, uniform sampling, measured RBR gate and V5 no-release policy
         run: node --test aegis-flow/experiments/pq128/v5/*.test.mjs
       - name: Export reproducible field comparison, certificate and commercial-release blockade
@@ -110,6 +116,7 @@ jobs:
             pq128-v5-field-certificate.json
             pq128-v5-field-comparison.json
             pq128-v5-release-blocked.json
+            pq128-six-sha512-memory-screen.json
           retention-days: 3
           if-no-files-found: error
 

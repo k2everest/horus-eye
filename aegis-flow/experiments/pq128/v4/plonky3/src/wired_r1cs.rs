@@ -34,11 +34,13 @@ const MAX_GATES:usize=8_000_000;
 // rows * 2 * 8 <= 2^27, so <= 2^23 trace rows.
 const MAX_WIRES:usize=8_388_608;
 const MIN_ROWS:usize=4096;
-// Four private-wire columns. Twelve public-program columns live in
-// deterministic preprocessed trace, not prover-controlled main trace.
+// Three private columns: a, b and canonical wire-table bit.
+// The gate output z is recomputed from a,b and the authenticated public
+// opcode; it is still linked to the canonical wire value through LogUp.
+// Eleven public-program columns live in deterministic preprocessing.
 // Plonky3 0.8.0 LogUp RowEvalContext supports preprocessed rows, but
 // NOT periodic rows, when it constructs rational lookup witnesses.
-const GATE_WIDTH:usize=4;
+pub(crate) const GATE_WIDTH:usize=3;
 // columns: four one-hot op flags; gate (a,b,z) indices;
 // wire-table index; wire use-count; constant-0/1 pin flags.
 // The active selector is derived from the immutable operation flags, saving
@@ -149,11 +151,11 @@ impl WiredAir{
             bits.iter().any(|&b|b>1)||bits[0]!=0||bits[1]!=1{return Err(());}
         let mut trace=Vec::with_capacity(self.program.rows*GATE_WIDTH);
         for i in 0..self.program.rows{
-            let (a,b,z)=if let Some(g)=self.program.gates.get(i){
-                (bits[g.a as usize],bits[g.b as usize],bits[g.z as usize])
-            }else{(0,0,0)};
+            let (a,b)=if let Some(g)=self.program.gates.get(i){
+                (bits[g.a as usize],bits[g.b as usize])
+            }else{(0,0)};
             let wire=bits.get(i).copied().unwrap_or(0);
-            trace.extend([a,b,z,wire].map(|x|F::from_u32(x as u32)));
+            trace.extend([a,b,wire].map(|x|F::from_u32(x as u32)));
         }
         Ok(RowMajorMatrix::new(trace,GATE_WIDTH))
     }
@@ -191,8 +193,7 @@ where AB:AirBuilder+PermutationAirBuilder+InteractionBuilder,
         let s=row.current_slice();
         let a:AB::Expr=s[0].into();
         let b:AB::Expr=s[1].into();
-        let z:AB::Expr=s[2].into();
-        let wire:AB::Expr=s[3].into();
+        let wire:AB::Expr=s[2].into();
         // Program instruction columns are independently rebuilt and
         // committed in the trusted PREPROCESSED matrix. The prover
         // cannot replace their content without changing the commitment
@@ -213,13 +214,18 @@ where AB:AirBuilder+PermutationAirBuilder+InteractionBuilder,
         // Exactly one operation flag is set on an active trusted row.
         // Their sum is identical to the removed preprocessed active bit.
         let active=op_and.clone()+op_xor.clone()+op_not.clone()+op_eq.clone();
-        for bit in [a.clone(),b.clone(),z.clone(),wire.clone()]{
+        for bit in [a.clone(),b.clone(),wire.clone()]{
             builder.assert_zero(bit.clone()*(bit.clone()-AB::Expr::ONE));
         }
         let ab=a.clone()*b.clone();
-        builder.assert_zero(op_and*(ab.clone()-z.clone()));
-        builder.assert_zero(op_xor*(a.clone()+b.clone()-ab*AB::Expr::from_u32(2)-z.clone()));
-        builder.assert_zero(op_not*(AB::Expr::ONE-a.clone()-z.clone()));
+        // Reconstruct z without allocating or committing a fourth private
+        // column. The opcode is verifier-derived, one-hot and committed in
+        // trusted preprocessing. For AND/XOR/NOT, the expression is Boolean
+        // whenever a and b are Boolean. EQ, whose fixed output wire is 0,
+        // still enforces a==b as a separate gate equation.
+        let z=op_and.clone()*ab.clone()
+             +op_xor.clone()*(a.clone()+b.clone()-ab*AB::Expr::from_u32(2))
+             +op_not.clone()*(AB::Expr::ONE-a.clone());
         builder.assert_zero(op_eq*(a.clone()-b.clone()));
         builder.assert_zero((AB::Expr::ONE-active.clone())*a.clone());
         builder.assert_zero((AB::Expr::ONE-active.clone())*b.clone());
@@ -1045,8 +1051,7 @@ mod tests{
         // Change a gate-row argument without updating its globally unique
         // value in the wire table. The local AND still holds after changing z,
         // but cross-row wire equality is false and LogUp must reject.
-        trace.values[0]=F::ZERO;
-        trace.values[2]=F::ZERO;
+        trace.values[0]=F::ZERO; // tamper first gate input; z is derived
         let config=config();
         let inst=[StarkInstance::<Config,_>{air:&air,trace:&trace,public_values:air.public_values()}];
         let run=std::panic::catch_unwind(std::panic::AssertUnwindSafe(||{

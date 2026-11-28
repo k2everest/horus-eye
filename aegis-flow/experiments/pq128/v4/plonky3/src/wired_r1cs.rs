@@ -758,6 +758,38 @@ mod tests{
         bytes
     }
     #[test]
+    fn derived_gate_output_matches_old_boolean_equations_for_every_input(){
+        assert_eq!(GATE_WIDTH,3);
+        for op in 1u8..=4{
+            for a in [0u32,1]{
+                for b in [0u32,1]{
+                    // The previously committed z had to satisfy exactly
+                    // these four instructions. The new z is implicit and
+                    // lookup-linked to the same output wire.
+                    let ab=a*b;
+                    let derived=u32::from(op==1)*ab+
+                        u32::from(op==2)*(a+b-2*ab)+
+                        u32::from(op==3)*(1-a);
+                    let old_z=match op{
+                        1=>ab,2=>a^b,3=>1-a,4=>0,_=>unreachable!()
+                    };
+                    assert_eq!(derived,old_z,
+                        "op={op} a={a} b={b}");
+                    assert!(derived<=1,"derived output is Boolean");
+                    if op==4{
+                        // Equality remains independently enforced.
+                        assert_eq!(a==b,(a as i32-b as i32)==0);
+                    }
+                }
+            }
+        }
+        let air=circuit();
+        let compact=air.trace(&[0,1,1,1,1,1]).unwrap();
+        assert_eq!(compact.values.len(),air.rows()*GATE_WIDTH);
+        assert_eq!(&compact.values[0..3],&[F::ONE,F::ONE,F::ZERO]);
+        assert_eq!(&compact.values[3..6],&[F::ONE,F::ZERO,F::ONE]);
+    }
+    #[test]
     fn compact_public_preprocessing_preserves_each_original_active_selector(){
         let air=circuit();
         assert_eq!(PREP_WIDTH,11);
@@ -1049,8 +1081,8 @@ mod tests{
         let air=circuit();
         let mut trace=air.trace(&[0,1,1,1,1,1]).unwrap();
         // Change a gate-row argument without updating its globally unique
-        // value in the wire table. The local AND still holds after changing z,
-        // but cross-row wire equality is false and LogUp must reject.
+        // value in the wire table. The derived AND output now changes with a,
+        // but the authentic wire-table assignment stays fixed: LogUp rejects.
         trace.values[0]=F::ZERO; // tamper first gate input; z is derived
         let config=config();
         let inst=[StarkInstance::<Config,_>{air:&air,trace:&trace,public_values:air.public_values()}];

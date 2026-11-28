@@ -460,7 +460,7 @@ pub(crate) fn wired_security_report(program_bytes:&[u8])->Result<serde_json::Val
 // A general-purpose STARK proof of a *fixed Boolean program*. This is
 // not by itself a financial proof: the verifier must independently rebuild
 // and authenticate the complete program for the relevant public statement.
-const WIRED_SCHEME:&str="AEGIS_V4_PLONKY3_WIRED_LOGUP_RESEARCH_V1";
+const WIRED_SCHEME:&str="AEGIS_V4_PLONKY3_WIRED_LOGUP_COMPACT_V2";
 const MAX_PROGRAM_BYTES:usize=110_000_128;
 const MAX_WIRED_PROOF:usize=32*1024*1024;
 const MAX_WIRED_BUNDLE:usize=44*1024*1024;

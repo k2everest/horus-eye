@@ -58,7 +58,7 @@ test('native Plonky3 LogUp STARK proves a fixed Boolean program and rejects tamp
     assert.equal(report.pq128_demonstrated,false);
     run('prove-wired',programFile,privateFile,proofFile);
     const proof=JSON.parse(readFileSync(proofFile,'utf8'));
-    assert.equal(proof.scheme,'AEGIS_V4_PLONKY3_WIRED_LOGUP_RESEARCH_V1');
+    assert.equal(proof.scheme,'AEGIS_V4_PLONKY3_WIRED_LOGUP_COMPACT_V2');
     assert.equal(proof.program_sha512,digest);
     assert.equal(Object.hasOwn(proof,'wire_values'),false);
     const ok=JSON.parse(run('verify-wired',programFile,proofFile,digest));

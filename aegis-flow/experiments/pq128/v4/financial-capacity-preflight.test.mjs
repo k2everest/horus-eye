@@ -15,6 +15,14 @@ test('six SHA512 public program has reproducible 2-adic trace geometry but NO PQ
   assert.equal(result.main_trace_bytes_lower_bound,8*result.trace_rows);
   assert.equal(result.preprocessed_bytes_lower_bound,40*result.trace_rows);
   assert.equal(result.combined_trace_bytes_lower_bound,48*result.trace_rows);
+  assert.equal(result.baseline_main_columns,4);
+  assert.equal(result.baseline_preprocessed_columns,11);
+  assert.equal(result.optimized_main_columns,2);
+  assert.equal(result.optimized_preprocessed_columns,10);
+  assert.equal(result.baseline_combined_trace_bytes_lower_bound,60*result.trace_rows);
+  assert.equal(result.avoided_raw_trace_bytes_lower_bound,12*result.trace_rows);
+  assert.equal(result.reduction_in_raw_trace_bytes_percent,20);
+  assert.equal(result.prover_peak_ram_reduction_measured,false);
   assert.equal(result.e16_extension_degree,16);
   assert.equal(result.fri_queries,512);
   assert.equal(result.random_hiding_codewords,16);

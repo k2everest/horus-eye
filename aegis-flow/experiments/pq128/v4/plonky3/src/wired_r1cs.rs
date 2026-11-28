@@ -1126,6 +1126,32 @@ mod tests{
         assert!(!verify(&tampered));
     }
     #[test]
+    fn malicious_input_table_source_rebinding_is_rejected(){
+        let air=circuit();
+        let mut trace=air.trace(&[0,1,1,1,1,1]).unwrap();
+        let input_2=air.program.input_wires.iter()
+            .position(|&id|id==2).expect("private wire input");
+        let row=air.program.gates.len()+input_2;
+        // This changes ONLY the unique table source for input wire 2;
+        // gate 0 still asks for (2,1). The LogUp bus must reject it.
+        assert_eq!(trace.values[row*GATE_WIDTH],F::ONE);
+        trace.values[row*GATE_WIDTH]=F::ZERO;
+        let instance=[StarkInstance::<Config,_>{
+            air:&air,trace:&trace,public_values:air.public_values()
+        }];
+        let rejected=std::panic::catch_unwind(std::panic::AssertUnwindSafe(||{
+            let config=config();
+            let prep=preprocessing_config(&air);
+            let data=ProverData::from_instances(&prep,&instance).unwrap();
+            match prove_batch(&config,&instance,&data){
+                Ok(proof)=>verify_batch(&config,&[air.clone()],&proof,
+                    &[air.public_values()],&data.common).is_err(),
+                Err(_)=>true,
+            }
+        })).unwrap_or(true);
+        assert!(rejected,"table-source equivocation cannot prove");
+    }
+    #[test]
     fn adversarial_gate_row_rebinding_is_rejected_by_logup(){
         let air=circuit();
         let mut trace=air.trace(&[0,1,1,1,1,1]).unwrap();
